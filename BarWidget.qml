@@ -137,12 +137,15 @@ BarWidget {
     return Qt.color(hex)
   }
 
-  // ---- Location state (Manual settings -> Omarchy weather.json -> IP geo -> Timezone fallback)
+  // ---- Location state (Manual settings -> Omarchy weather.json -> IP geo -> Timezone database -> UTC-offset estimate)
   property var weatherLocationState: ({ name: "", latitude: null, longitude: null })
   property var detectedLocationState: ({ name: "", latitude: null, longitude: null })
   property bool detectingGeo: false
+  property string systemTimezone: ""
+  property string zoneTabText: ""
+  readonly property var timezoneLocationState: Model.parseZoneTab(root.zoneTabText, root.systemTimezone)
 
-  readonly property var effectiveLocation: Model.resolveLocation(root.settings, root.weatherLocationState, root.detectedLocationState)
+  readonly property var effectiveLocation: Model.resolveLocation(root.settings, root.weatherLocationState, root.detectedLocationState, root.timezoneLocationState)
   readonly property real activeLat: effectiveLocation.latitude
   readonly property real activeLon: effectiveLocation.longitude
   readonly property string activeLocationName: effectiveLocation.name
@@ -155,36 +158,121 @@ BarWidget {
     onFileChanged: reload()
     onLoaded: {
       root.weatherLocationState = Model.parseLocationFile(text())
+      root.checkAutoGeo(false)
       root.recalculate()
     }
     onLoadFailed: {
       root.weatherLocationState = Model.parseLocationFile("")
-      root.checkAutoGeo()
+      root.checkAutoGeo(false)
       root.recalculate()
     }
   }
 
-  function checkAutoGeo() {
-    if (root.effectiveLocation.source === "fallback" && !root.detectingGeo && !geoProc.running) {
-      root.detectingGeo = true
-      geoProc.running = true
+  // Offline location estimate: the system timezone's reference city from the tz database
+  Process {
+    id: tzProc
+    running: true
+    command: ["readlink", "-f", "/etc/localtime"]
+    stdout: StdioCollector {
+      onStreamFinished: {
+        root.systemTimezone = Model.timezoneFromLocaltimeLink(text)
+        root.recalculate()
+      }
     }
+  }
+
+  FileView {
+    id: zoneTabFile
+    path: "/usr/share/zoneinfo/zone1970.tab"
+    printErrors: false
+    onLoaded: {
+      root.zoneTabText = text()
+      root.recalculate()
+    }
+  }
+
+  // ---- Automatic IP geolocation: cached across restarts, retried with backoff while offline,
+  // and refreshed periodically so the widget follows the user when they travel.
+  readonly property string stateHome: Quickshell.env("XDG_STATE_HOME") || (Quickshell.env("HOME") + "/.local/state")
+  readonly property string locationCacheDir: root.stateHome + "/omarchy/solar-lunar-tracker"
+  readonly property int geoRefreshMs: 3 * 3600000
+  readonly property int geoMaxBackoffMs: 15 * 60000
+  property real geoFetchedAt: 0
+  property real geoNextRetryAt: 0
+  property int geoFailures: 0
+  property bool geoSucceeded: false
+
+  // Only needed when the user hasn't pinned a location (manual override or Omarchy Weather)
+  function geoWanted() {
+    var src = root.effectiveLocation.source
+    return src !== "manual" && src !== "weather"
+  }
+
+  function checkAutoGeo(force) {
+    if (!root.geoWanted() || root.detectingGeo || geoProc.running) return
+    var now = Date.now()
+    var stale = root.detectedLocationState.latitude === null || (now - root.geoFetchedAt) > root.geoRefreshMs
+    if (!force && (!stale || now < root.geoNextRetryAt)) return
+    root.detectingGeo = true
+    root.geoSucceeded = false
+    tzProc.running = true   // re-read the system timezone too, in case it changed
+    geoProc.running = true
   }
 
   Process {
     id: geoProc
-    command: ["curl", "-fsS", "--max-time", "4", "https://geo.omarchy.org/"]
+    command: ["curl", "-fsS", "--max-time", "6", "https://geo.omarchy.org/"]
     stdout: StdioCollector {
       onStreamFinished: {
         var parsed = Model.parseLocationFile(text)
         if (parsed.latitude !== null && parsed.longitude !== null) {
+          root.geoSucceeded = true
+          root.geoFailures = 0
+          root.geoNextRetryAt = 0
+          root.geoFetchedAt = Date.now()
           root.detectedLocationState = parsed
+          cacheWriteProc.payload = JSON.stringify({
+            name: parsed.name,
+            latitude: parsed.latitude,
+            longitude: parsed.longitude,
+            fetchedAt: root.geoFetchedAt
+          })
+          cacheWriteProc.running = true
           root.recalculate()
         }
       }
     }
     onExited: {
       root.detectingGeo = false
+      if (!root.geoSucceeded) {
+        // Offline or blocked: back off 1, 2, 4, 8, then every 15 minutes
+        root.geoFailures += 1
+        var delay = Math.min(root.geoMaxBackoffMs, 60000 * Math.pow(2, root.geoFailures - 1))
+        root.geoNextRetryAt = Date.now() + delay
+      }
+    }
+  }
+
+  // Atomic cache write that also creates the state directory on first use
+  Process {
+    id: cacheWriteProc
+    property string payload: ""
+    command: ["sh", "-c", "mkdir -p \"$1\" && printf '%s\\n' \"$2\" > \"$1/location.json.tmp\" && mv -f \"$1/location.json.tmp\" \"$1/location.json\"",
+              "solar-lunar-cache", root.locationCacheDir, cacheWriteProc.payload]
+  }
+
+  // Last successful lookup, used immediately at startup (even offline) until a fresh one arrives
+  FileView {
+    id: locationCacheFile
+    path: root.locationCacheDir + "/location.json"
+    printErrors: false
+    onLoaded: {
+      var cached = Model.parseLocationFile(text())
+      if (cached.latitude !== null && cached.longitude !== null && root.detectedLocationState.latitude === null) {
+        root.detectedLocationState = cached
+        root.geoFetchedAt = cached.fetchedAt
+        root.recalculate()
+      }
     }
   }
 
@@ -234,13 +322,15 @@ BarWidget {
     interval: 60000
     running: true
     repeat: true
-    onTriggered: root.recalculate()
+    onTriggered: {
+      root.checkAutoGeo(false)
+      root.recalculate()
+    }
   }
 
   Component.onCompleted: {
     weatherLocationFile.reload()
     root.recalculate()
-    Qt.callLater(root.checkAutoGeo)
   }
 
   // ---- Popup state & Omarchy bar popout contract
@@ -289,9 +379,7 @@ BarWidget {
 
   function refresh() {
     weatherLocationFile.reload()
-    if (root.effectiveLocation.source === "fallback" || root.effectiveLocation.source === "geo") {
-      root.checkAutoGeo()
-    }
+    root.checkAutoGeo(true)
     root.recalculate()
   }
 
@@ -1611,7 +1699,8 @@ BarWidget {
             text: strings.t("settings.locationSource") + ": "
               + (root.effectiveLocation.source === "manual" ? "Manual Override"
                 : (root.effectiveLocation.source === "weather" ? "Omarchy Weather Sync"
-                : (root.effectiveLocation.source === "geo" ? "Auto IP Geolocation" : "Timezone Estimate")))
+                : (root.effectiveLocation.source === "geo" ? "Auto IP Geolocation"
+                : (root.effectiveLocation.source === "timezone" ? "System Timezone (" + root.systemTimezone + ")" : "UTC Offset Estimate"))))
             color: Color.foreground
             opacity: 0.78
             font.family: Style.font.family

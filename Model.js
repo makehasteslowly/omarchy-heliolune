@@ -61,18 +61,65 @@ function parseLocationFile(raw) {
     var lat = parseFloat(data.latitude)
     var lon = parseFloat(data.longitude)
     var validCoords = !isNaN(lat) && !isNaN(lon) && lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180
+    var fetchedAt = parseFloat(data.fetchedAt)
     return {
       name: sanitizeText(data.name || data.city || "", 80),
       latitude: validCoords ? lat : null,
-      longitude: validCoords ? lon : null
+      longitude: validCoords ? lon : null,
+      fetchedAt: isNaN(fetchedAt) ? 0 : fetchedAt
     }
   } catch (e) {
     return unset
   }
 }
 
-// Resolve effective coordinates from manual plugin settings -> weather.json -> IP geo -> timezone fallback
-function resolveLocation(settings, weatherLoc, detectedLoc) {
+// Convert an ISO 6709 component from zone1970.tab (e.g. "+4042", "-07400", "+404251") to decimal degrees
+function parseIso6709Part(part, degDigits) {
+  var m = /^([+-])(\d+)$/.exec(part)
+  if (!m) return NaN
+  var digits = m[2]
+  var deg = parseInt(digits.slice(0, degDigits), 10)
+  var min = parseInt(digits.slice(degDigits, degDigits + 2) || "0", 10)
+  var sec = parseInt(digits.slice(degDigits + 2, degDigits + 4) || "0", 10)
+  var val = deg + min / 60.0 + sec / 3600.0
+  return m[1] === "-" ? -val : val
+}
+
+// Extract the IANA zone name from an /etc/localtime symlink target
+function timezoneFromLocaltimeLink(raw) {
+  var text = sanitizeText(raw, 200)
+  var idx = text.indexOf("zoneinfo/")
+  if (idx < 0) return ""
+  var name = text.slice(idx + "zoneinfo/".length)
+  name = name.replace(/^(posix|right)\//, "")
+  return /^[A-Za-z0-9_+\-\/]+$/.test(name) ? name : ""
+}
+
+// Look up the representative city coordinates of an IANA zone in zone1970.tab / zone.tab
+function parseZoneTab(raw, tzName) {
+  var unset = { name: "", latitude: null, longitude: null }
+  if (!raw || !tzName) return unset
+  var text = String(raw)
+  if (text.length > 262144) return unset
+  var lines = text.split("\n")
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i]
+    if (!line || line.charAt(0) === "#") continue
+    var cols = line.split("\t")
+    if (cols.length < 3 || cols[2] !== tzName) continue
+    var m = /^([+-]\d{4,6})([+-]\d{5,7})$/.exec(cols[1])
+    if (!m) return unset
+    var lat = parseIso6709Part(m[1], 2)
+    var lon = parseIso6709Part(m[2], 3)
+    if (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) return unset
+    var city = tzName.split("/").pop().replace(/_/g, " ")
+    return { name: sanitizeText(city, 80), latitude: lat, longitude: lon }
+  }
+  return unset
+}
+
+// Resolve effective coordinates: manual settings -> weather.json -> IP geo -> timezone database -> UTC-offset estimate
+function resolveLocation(settings, weatherLoc, detectedLoc, timezoneLoc) {
   var s = settings || {}
   var manualLat = parseFloat(s.latitude)
   var manualLon = parseFloat(s.longitude)
@@ -105,7 +152,16 @@ function resolveLocation(settings, weatherLoc, detectedLoc) {
     }
   }
 
-  // Offline fallback estimated from local timezone offset
+  if (timezoneLoc && timezoneLoc.latitude !== null && timezoneLoc.longitude !== null) {
+    return {
+      name: manualName || timezoneLoc.name || (timezoneLoc.latitude.toFixed(2) + "°, " + timezoneLoc.longitude.toFixed(2) + "°"),
+      latitude: timezoneLoc.latitude,
+      longitude: timezoneLoc.longitude,
+      source: "timezone"
+    }
+  }
+
+  // Last-resort offline estimate from the UTC offset (latitude unknown)
   var now = new Date()
   var tzOffsetHours = -now.getTimezoneOffset() / 60.0
   var approxLon = clamp(tzOffsetHours * 15.0, -180.0, 180.0)
@@ -272,7 +328,6 @@ function computeSolarSummary(now, lat, lon) {
   var dayDiffSec = today.dayLengthSeconds - yesterday.dayLengthSeconds
 
   var isDay = pos.altitude > -0.833
-  var isBlueHour = pos.altitude <= -3.5 && pos.altitude >= -6.5
   var phaseKey = "night"
   var phaseName = "Night"
   var phaseIcon = "󰖔"
@@ -298,7 +353,7 @@ function computeSolarSummary(now, lat, lon) {
     phaseIcon = "󰖛"
   } else if ((bhMorningStart !== null && bhMorningEnd !== null && t >= bhMorningStart && t <= bhMorningEnd) ||
              (bhEveningStart !== null && bhEveningEnd !== null && t >= bhEveningStart && t <= bhEveningEnd) ||
-             (pos.altitude <= -0.833 && pos.altitude >= -6.0)) {
+             (pos.altitude <= -4.0 && pos.altitude >= -6.0)) {
     phaseKey = "blue_hour"
     phaseName = t < (sn || t) ? "Morning Blue Hour" : "Evening Blue Hour"
     phaseIcon = "󰖚"
@@ -320,9 +375,13 @@ function computeSolarSummary(now, lat, lon) {
       phaseName = "Afternoon Sun"
       phaseIcon = "󰖙"
     }
+  } else if (pos.altitude > -4.0) {
+    phaseKey = t < (sn || t) ? "civil_dawn" : "civil_dusk"
+    phaseName = t < (sn || t) ? "Civil Dawn" : "Civil Dusk"
+    phaseIcon = t < (sn || t) ? "󰖜" : "󰖛"
   } else if (pos.altitude > -12.0) {
     phaseKey = t < (sn || t) ? "nautical_dawn" : "nautical_dusk"
-    phaseName = t < (sn || t) ? "Nautical Twilight" : "Nautical Twilight"
+    phaseName = t < (sn || t) ? "Nautical Dawn" : "Nautical Dusk"
     phaseIcon = "󰖔"
   } else if (pos.altitude > -18.0) {
     phaseKey = t < (sn || t) ? "astro_dawn" : "astro_dusk"

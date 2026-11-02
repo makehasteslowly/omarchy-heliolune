@@ -21,12 +21,14 @@ A real-time **Solar & Lunar Phase Tracker** bar widget and popup panel for [Omar
 - **Solar Cycle Telemetry**:
   - **Blue Hour AM** ($-6^\circ$ to $-4^\circ$), **Sunrise**, **Golden Hour** (AM/PM window), **Solar Noon**, **Sunset**, **Blue Hour PM** ($-4^\circ$ to $-6^\circ$), **Day Length**, and daily daylight change compared to yesterday (`±m/s`).
   - Real-time solar altitude (`°`) and compass azimuth.
+  - Live sky phase: Solar Night → First Light (astronomical) → Nautical Dawn → Blue Hour → Civil Dawn → Sunrise → Golden Hour → Morning/Afternoon Sun → Solar Noon, and the reverse through to Last Light in the evening.
 - **Lunar Phase Telemetry & 7-Day Forecast**:
-  - Phase name, illumination percentage, waxing/waning state, lunar age (`d h / 29.5d`), earth-moon distance (`km`), ecliptic zodiac sign, and countdowns to the **Next Full Moon** and **Next New Moon**.
+  - Phase name, illumination percentage, waxing/waning state, lunar age (`d h / 29.5d`), earth-moon distance (`km`), ecliptic zodiac sign, and countdowns to the **Next Quarter** (first or last, whichever comes sooner), **Next Full Moon**, and **Next New Moon**.
   - 7-day upcoming lunar forecast strip with daily vector moon discs.
 - **Zero-Config Offline Astronomy + Smart Location Sync**:
   - All solar and lunar math runs 100% locally using NOAA and Jean Meeus astronomical equations.
-  - Automatically syncs coordinates from Omarchy Weather (`~/.local/state/omarchy/settings/weather.json`), falls back to `geo.omarchy.org` IP geolocation if unset, or accepts manual `latitude`/`longitude` overrides directly in the widget settings.
+  - Automatically syncs coordinates from Omarchy Weather (`~/.local/state/omarchy/settings/weather.json`), falls back to `geo.omarchy.org` IP geolocation if unset (cached in `~/.local/state/omarchy/solar-lunar-tracker/location.json` so it works instantly and offline at next login, retried automatically if the network isn't up yet, and refreshed every 3 hours so it follows you when you travel), or accepts manual `latitude`/`longitude` overrides directly in the widget settings.
+  - Fully offline fallback: uses your system timezone's reference city from the tz database (`/etc/localtime` + `/usr/share/zoneinfo/zone1970.tab`), and only estimates from the UTC offset if that is unavailable.
 
 ## Mouse & IPC Controls
 

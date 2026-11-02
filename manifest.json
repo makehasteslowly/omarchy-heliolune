@@ -2,11 +2,11 @@
   "schemaVersion": 1,
   "id": "solar-lunar-tracker",
   "name": "Solar & Lunar Phase Tracker",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "makehasteslowly",
   "license": "MIT",
   "homepage": "https://github.com/makehasteslowly/omarchy-solar-lunar-tracker",
-  "description": "Real-time Solar & Lunar phase tracker for the Omarchy bar featuring offline NOAA/Meeus astronomical calculations, automatic IP & weather location sync with manual coordinate override, custom vector moon terminator rendering, a 24-hour sky horizon arc, golden hour & twilight timetable, and a 7-day lunar phase forecast.",
+  "description": "Real-time Solar & Lunar phase tracker for the Omarchy bar featuring offline NOAA/Meeus astronomical calculations, automatic weather, IP & system-timezone location sync with manual coordinate override, custom vector moon terminator rendering, a 24-hour sky horizon arc, blue hour & golden hour timetable, lunar quarter/full/new countdowns, and a 7-day lunar phase forecast.",
   "kinds": [
     "bar-widget"
   ],
@@ -15,7 +15,7 @@
   },
   "barWidget": {
     "displayName": "Solar & Lunar Tracker",
-    "description": "Combined solar cycle & lunar phase indicator with 24h sky horizon arc, golden hour times, and 7-day moon forecast.",
+    "description": "Combined solar cycle & lunar phase indicator with 24h sky horizon arc, blue & golden hour times, and 7-day moon forecast.",
     "category": "Time",
     "aliases": [
       "sun",
