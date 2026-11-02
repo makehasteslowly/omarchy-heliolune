@@ -19,7 +19,7 @@ A real-time **Solar & Lunar Phase Tracker** bar widget and popup panel for [Omar
 - **24-Hour Sky & Horizon Path**:
   - Plots the Sun's and Moon's 24-hour altitude curves relative to your local horizon (`0°`), with live position markers and daylight shading.
 - **Solar Cycle Telemetry**:
-  - Civil Dawn, Sunrise, Golden Hour, Solar Noon, Sunset, Civil Dusk, Day Length, and daily daylight change compared to yesterday (`±m/s`).
+  - **Blue Hour AM** ($-6^\circ$ to $-4^\circ$), **Sunrise**, **Golden Hour** (AM/PM window), **Solar Noon**, **Sunset**, **Blue Hour PM** ($-4^\circ$ to $-6^\circ$), **Day Length**, and daily daylight change compared to yesterday (`±m/s`).
   - Real-time solar altitude (`°`) and compass azimuth.
 - **Lunar Phase Telemetry & 7-Day Forecast**:
   - Phase name, illumination percentage, waxing/waning state, lunar age (`d h / 29.5d`), earth-moon distance (`km`), ecliptic zodiac sign, and countdowns to the **Next Full Moon** and **Next New Moon**.

@@ -252,6 +252,7 @@ BarWidget {
   property string customNameInput: ""
 
   function open() {
+    barButton.hideOwnTooltip()
     root.settingsOpen = false
     root.recalculate()
     root.rebuildSkySamples(root.currentDate)
@@ -1095,16 +1096,45 @@ BarWidget {
                 }
               }
 
-              // Solar Timetable rows (including Blue Hour & Golden Hour)
+              // Solar Timetable rows (Chronological with Blue Hour AM/PM & Golden Hour windows, zero redundancy)
               Repeater {
                 model: [
-                  { icon: "󰖜", label: strings.t("solar.dawn"),       value: Model.formatTime(root.solarData.dawn, root.timeFormatMode, root.formatLocale),       isBlue: false },
-                  { icon: "󰖚", label: strings.t("solar.blueHour"),   value: Model.formatTime(root.solarData.blueHour, root.timeFormatMode, root.formatLocale),   isBlue: true  },
-                  { icon: "󰖜", label: strings.t("solar.sunrise"),    value: Model.formatTime(root.solarData.sunrise, root.timeFormatMode, root.formatLocale),    isBlue: false },
-                  { icon: "󰖨", label: strings.t("solar.goldenHour"), value: Model.formatTime(root.solarData.goldenHour, root.timeFormatMode, root.formatLocale), isBlue: false },
-                  { icon: "󰖙", label: strings.t("solar.solarNoon"),  value: Model.formatTime(root.solarData.solarNoon, root.timeFormatMode, root.formatLocale),  isBlue: false },
-                  { icon: "󰖛", label: strings.t("solar.sunset"),     value: Model.formatTime(root.solarData.sunset, root.timeFormatMode, root.formatLocale),     isBlue: false },
-                  { icon: "󰖔", label: strings.t("solar.dusk"),       value: Model.formatTime(root.solarData.dusk, root.timeFormatMode, root.formatLocale),       isBlue: false }
+                  {
+                    icon: "󰖚",
+                    label: strings.t("solar.blueHourAm"),
+                    value: Model.formatTimeRange(root.solarData.blueHourMorningStart, root.solarData.blueHourMorningEnd, root.timeFormatMode, root.formatLocale),
+                    isBlue: true
+                  },
+                  {
+                    icon: "󰖜",
+                    label: strings.t("solar.sunrise"),
+                    value: Model.formatTime(root.solarData.sunrise, root.timeFormatMode, root.formatLocale),
+                    isBlue: false
+                  },
+                  {
+                    icon: "󰖨",
+                    label: strings.t(root.solarData.goldenHourIsMorning ? "solar.goldenHourAm" : "solar.goldenHourPm"),
+                    value: Model.formatTimeRange(root.solarData.goldenHourWindowStart, root.solarData.goldenHourWindowEnd, root.timeFormatMode, root.formatLocale),
+                    isBlue: false
+                  },
+                  {
+                    icon: "󰖙",
+                    label: strings.t("solar.solarNoon"),
+                    value: Model.formatTime(root.solarData.solarNoon, root.timeFormatMode, root.formatLocale),
+                    isBlue: false
+                  },
+                  {
+                    icon: "󰖛",
+                    label: strings.t("solar.sunset"),
+                    value: Model.formatTime(root.solarData.sunset, root.timeFormatMode, root.formatLocale),
+                    isBlue: false
+                  },
+                  {
+                    icon: "󰖚",
+                    label: strings.t("solar.blueHourPm"),
+                    value: Model.formatTimeRange(root.solarData.blueHourEveningStart, root.solarData.blueHourEveningEnd, root.timeFormatMode, root.formatLocale),
+                    isBlue: true
+                  }
                 ]
 
                 RowLayout {

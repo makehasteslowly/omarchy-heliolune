@@ -288,20 +288,20 @@ function computeSolarSummary(now, lat, lon) {
   var bhEveningStart = today.blueHourEveningStart ? today.blueHourEveningStart.getTime() : null
   var bhEveningEnd = today.blueHourEveningEnd ? today.blueHourEveningEnd.getTime() : null
 
-  if ((bhMorningStart !== null && bhMorningEnd !== null && t >= bhMorningStart && t <= bhMorningEnd) ||
-      (bhEveningStart !== null && bhEveningEnd !== null && t >= bhEveningStart && t <= bhEveningEnd) ||
-      isBlueHour) {
-    phaseKey = "blue_hour"
-    phaseName = t < (sn || t) ? "Morning Blue Hour" : "Evening Blue Hour"
-    phaseIcon = "󰖚"
-  } else if (sr !== null && Math.abs(t - sr) <= 18 * 60000) {
+  if (sr !== null && Math.abs(t - sr) <= 10 * 60000) {
     phaseKey = "sunrise"
     phaseName = "Sunrise"
     phaseIcon = "󰖜"
-  } else if (ss !== null && Math.abs(t - ss) <= 18 * 60000) {
+  } else if (ss !== null && Math.abs(t - ss) <= 10 * 60000) {
     phaseKey = "sunset"
     phaseName = "Sunset"
     phaseIcon = "󰖛"
+  } else if ((bhMorningStart !== null && bhMorningEnd !== null && t >= bhMorningStart && t <= bhMorningEnd) ||
+             (bhEveningStart !== null && bhEveningEnd !== null && t >= bhEveningStart && t <= bhEveningEnd) ||
+             (pos.altitude <= -0.833 && pos.altitude >= -6.0)) {
+    phaseKey = "blue_hour"
+    phaseName = t < (sn || t) ? "Morning Blue Hour" : "Evening Blue Hour"
+    phaseIcon = "󰖚"
   } else if (pos.altitude > -0.833) {
     if (sn !== null && Math.abs(t - sn) <= 25 * 60000) {
       phaseKey = "solar_noon"
@@ -320,13 +320,9 @@ function computeSolarSummary(now, lat, lon) {
       phaseName = "Afternoon Sun"
       phaseIcon = "󰖙"
     }
-  } else if (pos.altitude > -6.0) {
-    phaseKey = t < (sn || t) ? "civil_dawn" : "civil_dusk"
-    phaseName = t < (sn || t) ? "Civil Dawn" : "Civil Dusk"
-    phaseIcon = t < (sn || t) ? "󰖜" : "󰖛"
   } else if (pos.altitude > -12.0) {
     phaseKey = t < (sn || t) ? "nautical_dawn" : "nautical_dusk"
-    phaseName = t < (sn || t) ? "Nautical Dawn" : "Nautical Dusk"
+    phaseName = t < (sn || t) ? "Nautical Twilight" : "Nautical Twilight"
     phaseIcon = "󰖔"
   } else if (pos.altitude > -18.0) {
     phaseKey = t < (sn || t) ? "astro_dawn" : "astro_dusk"
@@ -338,23 +334,39 @@ function computeSolarSummary(now, lat, lon) {
     phaseIcon = "󰖔"
   }
 
-  // Determine next primary solar event (Sunrise, Solar Noon, or Sunset)
+  // Determine next solar milestone chronologically
   var nextEventName = ""
   var nextEventTime = null
   var nextEventIcon = "󰖜"
 
-  if (sr !== null && t < sr) {
+  if (bhMorningStart !== null && t < bhMorningStart) {
+    nextEventName = "Blue Hour"
+    nextEventTime = today.blueHourMorningStart
+    nextEventIcon = "󰖚"
+  } else if (sr !== null && t < sr) {
     nextEventName = "Sunrise"
     nextEventTime = today.sunrise
     nextEventIcon = "󰖜"
-  } else if (sn !== null && t < sn && ss !== null && t < ss - 3600000) {
-    nextEventName = "Sunset"
-    nextEventTime = today.sunset
-    nextEventIcon = "󰖛"
+  } else if (sn !== null && t < sn) {
+    nextEventName = "Solar Noon"
+    nextEventTime = today.solarNoon
+    nextEventIcon = "󰖙"
+  } else if (ghEveningStart !== null && t < ghEveningStart) {
+    nextEventName = "Golden Hour"
+    nextEventTime = today.goldenHourStart
+    nextEventIcon = "󰖨"
   } else if (ss !== null && t < ss) {
     nextEventName = "Sunset"
     nextEventTime = today.sunset
     nextEventIcon = "󰖛"
+  } else if (bhEveningStart !== null && t < bhEveningStart) {
+    nextEventName = "Blue Hour"
+    nextEventTime = today.blueHourEveningStart
+    nextEventIcon = "󰖚"
+  } else if (tomorrow.blueHourMorningStart) {
+    nextEventName = "Blue Hour"
+    nextEventTime = tomorrow.blueHourMorningStart
+    nextEventIcon = "󰖚"
   } else if (tomorrow.sunrise) {
     nextEventName = "Sunrise"
     nextEventTime = tomorrow.sunrise
@@ -377,21 +389,13 @@ function computeSolarSummary(now, lat, lon) {
     }
   }
 
-  // Active/upcoming Blue Hour & Golden Hour timestamps for the daily timetable
-  var activeBlueHour = today.blueHourEveningStart
-  var activeBlueHourIsMorning = false
-  if (bhMorningEnd !== null && t < bhMorningEnd) {
-    activeBlueHour = today.blueHourMorningStart
-    activeBlueHourIsMorning = true
-  } else if (bhEveningEnd !== null && t > bhEveningEnd && tomorrow.blueHourMorningStart) {
-    activeBlueHour = tomorrow.blueHourMorningStart
-    activeBlueHourIsMorning = true
-  }
-
-  var activeGoldenHour = today.goldenHourStart
+  // Active/upcoming Golden Hour window (Morning Golden Hour before noon, Evening Golden Hour after noon)
+  var activeGoldenHourStart = today.goldenHourStart
+  var activeGoldenHourEnd = today.sunset
   var activeGoldenHourIsMorning = false
-  if (ghMorningEnd !== null && t < ghMorningEnd) {
-    activeGoldenHour = today.sunrise
+  if (sn !== null && t < sn) {
+    activeGoldenHourStart = today.sunrise
+    activeGoldenHourEnd = today.goldenHourEnd
     activeGoldenHourIsMorning = true
   }
 
@@ -410,13 +414,12 @@ function computeSolarSummary(now, lat, lon) {
     solarNoon: today.solarNoon,
     dawn: today.dawn,
     dusk: today.dusk,
-    blueHour: activeBlueHour,
-    blueHourIsMorning: activeBlueHourIsMorning,
     blueHourMorningStart: today.blueHourMorningStart,
     blueHourMorningEnd: today.blueHourMorningEnd,
     blueHourEveningStart: today.blueHourEveningStart,
     blueHourEveningEnd: today.blueHourEveningEnd,
-    goldenHour: activeGoldenHour,
+    goldenHourWindowStart: activeGoldenHourStart,
+    goldenHourWindowEnd: activeGoldenHourEnd,
     goldenHourIsMorning: activeGoldenHourIsMorning,
     goldenHourEnd: today.goldenHourEnd,
     goldenHourStart: today.goldenHourStart,
@@ -668,6 +671,47 @@ function formatTime(date, timeFormatSetting, localeObj) {
   }
   var hh = h < 10 ? "0" + h : String(h)
   return hh + ":" + mm
+}
+
+function formatTimeRange(startDate, endDate, timeFormatSetting, localeObj) {
+  if (!startDate || isNaN(startDate.getTime())) return formatTime(endDate, timeFormatSetting, localeObj)
+  if (!endDate || isNaN(endDate.getTime())) return formatTime(startDate, timeFormatSetting, localeObj)
+
+  var mode = String(timeFormatSetting || "auto").toLowerCase()
+  var use12 = false
+  if (mode === "12" || mode === "12h") {
+    use12 = true
+  } else if (mode === "24" || mode === "24h") {
+    use12 = false
+  } else if (localeObj && typeof localeObj.timeFormat === "function") {
+    var fmt = String(localeObj.timeFormat(0) || "")
+    use12 = fmt.toLowerCase().indexOf("ap") !== -1 || fmt.toLowerCase().indexOf("a") !== -1
+  } else {
+    use12 = true
+  }
+
+  var h1 = startDate.getHours()
+  var m1 = startDate.getMinutes()
+  var mm1 = m1 < 10 ? "0" + m1 : String(m1)
+
+  var h2 = endDate.getHours()
+  var m2 = endDate.getMinutes()
+  var mm2 = m2 < 10 ? "0" + m2 : String(m2)
+
+  if (use12) {
+    var suf1 = h1 >= 12 ? "PM" : "AM"
+    var suf2 = h2 >= 12 ? "PM" : "AM"
+    var hr1 = h1 % 12 || 12
+    var hr2 = h2 % 12 || 12
+    if (suf1 === suf2) {
+      return hr1 + ":" + mm1 + "–" + hr2 + ":" + mm2 + " " + suf2
+    }
+    return hr1 + ":" + mm1 + " " + suf1 + "–" + hr2 + ":" + mm2 + " " + suf2
+  }
+
+  var hh1 = h1 < 10 ? "0" + h1 : String(h1)
+  var hh2 = h2 < 10 ? "0" + h2 : String(h2)
+  return hh1 + ":" + mm1 + "–" + hh2 + ":" + mm2
 }
 
 function formatDurationHm(totalSeconds) {
