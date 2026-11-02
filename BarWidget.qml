@@ -80,7 +80,21 @@ BarWidget {
   readonly property real popupLuminance: 0.2126 * root.effectivePopupBg.r + 0.7152 * root.effectivePopupBg.g + 0.0722 * root.effectivePopupBg.b
   readonly property bool isLightPopup: root.popupLuminance > 0.48
 
+  function resolveBlueHourColor(forPopup) {
+    var onLight = forPopup ? root.isLightPopup : root.isLightBar
+    if (root.useThemeColors) {
+      return Color.accent
+    }
+    var hex = root.useBoldColors
+      ? (onLight ? "#1D4ED8" : "#3B82F6")
+      : (onLight ? "#2563EB" : "#60A5FA")
+    return Qt.color(hex)
+  }
+
   function resolveSolarColor(forPopup, isDaytime) {
+    if (root.solarData && root.solarData.isBlueHour) {
+      return root.resolveBlueHourColor(forPopup)
+    }
     var onLight = forPopup ? root.isLightPopup : root.isLightBar
     if (root.useThemeColors) {
       if (!forPopup && Color.bar && Color.bar.active !== undefined) return Color.bar.active
@@ -653,6 +667,7 @@ BarWidget {
     contentHeight: fittedContentHeight(mainColumn.implicitHeight)
 
     readonly property color popupSolarColor: root.resolveSolarColor(true, root.solarData.isDay)
+    readonly property color popupBlueHourColor: root.resolveBlueHourColor(true)
     readonly property color popupLunarColor: root.resolveLunarColor(true)
     readonly property color popupLunarLitColor: root.resolveLunarLitColor(true)
     readonly property color cardSurfaceColor: root.isLightPopup
@@ -1080,15 +1095,16 @@ BarWidget {
                 }
               }
 
-              // Solar Timetable rows
+              // Solar Timetable rows (including Blue Hour & Golden Hour)
               Repeater {
                 model: [
-                  { icon: "󰖜", label: strings.t("solar.dawn"),       value: Model.formatTime(root.solarData.dawn, root.timeFormatMode, root.formatLocale) },
-                  { icon: "󰖜", label: strings.t("solar.sunrise"),    value: Model.formatTime(root.solarData.sunrise, root.timeFormatMode, root.formatLocale) },
-                  { icon: "󰖨", label: strings.t("solar.goldenHour"), value: Model.formatTime(root.solarData.goldenHourStart, root.timeFormatMode, root.formatLocale) },
-                  { icon: "󰖙", label: strings.t("solar.solarNoon"),  value: Model.formatTime(root.solarData.solarNoon, root.timeFormatMode, root.formatLocale) },
-                  { icon: "󰖛", label: strings.t("solar.sunset"),     value: Model.formatTime(root.solarData.sunset, root.timeFormatMode, root.formatLocale) },
-                  { icon: "󰖔", label: strings.t("solar.dusk"),       value: Model.formatTime(root.solarData.dusk, root.timeFormatMode, root.formatLocale) }
+                  { icon: "󰖜", label: strings.t("solar.dawn"),       value: Model.formatTime(root.solarData.dawn, root.timeFormatMode, root.formatLocale),       isBlue: false },
+                  { icon: "󰖚", label: strings.t("solar.blueHour"),   value: Model.formatTime(root.solarData.blueHour, root.timeFormatMode, root.formatLocale),   isBlue: true  },
+                  { icon: "󰖜", label: strings.t("solar.sunrise"),    value: Model.formatTime(root.solarData.sunrise, root.timeFormatMode, root.formatLocale),    isBlue: false },
+                  { icon: "󰖨", label: strings.t("solar.goldenHour"), value: Model.formatTime(root.solarData.goldenHour, root.timeFormatMode, root.formatLocale), isBlue: false },
+                  { icon: "󰖙", label: strings.t("solar.solarNoon"),  value: Model.formatTime(root.solarData.solarNoon, root.timeFormatMode, root.formatLocale),  isBlue: false },
+                  { icon: "󰖛", label: strings.t("solar.sunset"),     value: Model.formatTime(root.solarData.sunset, root.timeFormatMode, root.formatLocale),     isBlue: false },
+                  { icon: "󰖔", label: strings.t("solar.dusk"),       value: Model.formatTime(root.solarData.dusk, root.timeFormatMode, root.formatLocale),       isBlue: false }
                 ]
 
                 RowLayout {
@@ -1099,7 +1115,7 @@ BarWidget {
                   Text {
                     textFormat: Text.PlainText
                     text: modelData.icon
-                    color: trackerPopup.popupSolarColor
+                    color: modelData.isBlue ? trackerPopup.popupBlueHourColor : trackerPopup.popupSolarColor
                     font.family: Style.font.family
                     font.pixelSize: Style.font.small || 11
                   }
@@ -1107,8 +1123,8 @@ BarWidget {
                   Text {
                     textFormat: Text.PlainText
                     text: modelData.label
-                    color: Color.foreground
-                    opacity: 0.72
+                    color: modelData.isBlue ? trackerPopup.popupBlueHourColor : Color.foreground
+                    opacity: modelData.isBlue ? 0.92 : 0.72
                     font.family: Style.font.family
                     font.pixelSize: Style.font.small || 11
                     Layout.fillWidth: true
@@ -1118,7 +1134,7 @@ BarWidget {
                   Text {
                     textFormat: Text.PlainText
                     text: modelData.value
-                    color: Color.foreground
+                    color: modelData.isBlue ? trackerPopup.popupBlueHourColor : Color.foreground
                     font.family: Style.font.family
                     font.pixelSize: Style.font.small || 11
                     font.bold: true
@@ -1246,6 +1262,11 @@ BarWidget {
                     icon: "󰭦",
                     label: strings.t("lunar.zodiac"),
                     value: root.lunarData.zodiacName
+                  },
+                  {
+                    icon: root.lunarData.nextQuarterIsFirst ? "󰽡" : "󰽣",
+                    label: strings.t("lunar.nextQuarter"),
+                    value: root.lunarData.nextQuarterDate.toLocaleDateString(root.formatLocale, "MMM d") + " (" + Model.formatCountdownDays(root.lunarData.daysToQuarter) + ")"
                   },
                   {
                     icon: "󰽢",

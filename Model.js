@@ -221,7 +221,8 @@ function getSunTimesForDay(date, lat, lon) {
   }
 
   var sunStd = pairForAngle(-0.833)       // Official Sunrise / Sunset
-  var civil = pairForAngle(-6.0)          // Civil Dawn / Dusk
+  var blue = pairForAngle(-4.0)           // Blue Hour inner boundary (-4° to -6°)
+  var civil = pairForAngle(-6.0)          // Civil Dawn / Dusk (-6°, outer Blue Hour boundary)
   var nautical = pairForAngle(-12.0)      // Nautical Dawn / Dusk
   var astro = pairForAngle(-18.0)         // Astronomical Dawn / Dusk
   var golden = pairForAngle(6.0)          // Golden Hour end (morning) / start (evening)
@@ -244,6 +245,10 @@ function getSunTimesForDay(date, lat, lon) {
     sunset: sunStd.set,
     dawn: civil.rise,
     dusk: civil.set,
+    blueHourMorningStart: civil.rise,
+    blueHourMorningEnd: blue.rise,
+    blueHourEveningStart: blue.set,
+    blueHourEveningEnd: civil.set,
     nauticalDawn: nautical.rise,
     nauticalDusk: nautical.set,
     astroDawn: astro.rise,
@@ -267,6 +272,7 @@ function computeSolarSummary(now, lat, lon) {
   var dayDiffSec = today.dayLengthSeconds - yesterday.dayLengthSeconds
 
   var isDay = pos.altitude > -0.833
+  var isBlueHour = pos.altitude <= -3.5 && pos.altitude >= -6.5
   var phaseKey = "night"
   var phaseName = "Night"
   var phaseIcon = "󰖔"
@@ -277,8 +283,18 @@ function computeSolarSummary(now, lat, lon) {
   var sn = today.solarNoon ? today.solarNoon.getTime() : null
   var ghMorningEnd = today.goldenHourEnd ? today.goldenHourEnd.getTime() : null
   var ghEveningStart = today.goldenHourStart ? today.goldenHourStart.getTime() : null
+  var bhMorningStart = today.blueHourMorningStart ? today.blueHourMorningStart.getTime() : null
+  var bhMorningEnd = today.blueHourMorningEnd ? today.blueHourMorningEnd.getTime() : null
+  var bhEveningStart = today.blueHourEveningStart ? today.blueHourEveningStart.getTime() : null
+  var bhEveningEnd = today.blueHourEveningEnd ? today.blueHourEveningEnd.getTime() : null
 
-  if (sr !== null && Math.abs(t - sr) <= 18 * 60000) {
+  if ((bhMorningStart !== null && bhMorningEnd !== null && t >= bhMorningStart && t <= bhMorningEnd) ||
+      (bhEveningStart !== null && bhEveningEnd !== null && t >= bhEveningStart && t <= bhEveningEnd) ||
+      isBlueHour) {
+    phaseKey = "blue_hour"
+    phaseName = t < (sn || t) ? "Morning Blue Hour" : "Evening Blue Hour"
+    phaseIcon = "󰖚"
+  } else if (sr !== null && Math.abs(t - sr) <= 18 * 60000) {
     phaseKey = "sunrise"
     phaseName = "Sunrise"
     phaseIcon = "󰖜"
@@ -361,8 +377,27 @@ function computeSolarSummary(now, lat, lon) {
     }
   }
 
+  // Active/upcoming Blue Hour & Golden Hour timestamps for the daily timetable
+  var activeBlueHour = today.blueHourEveningStart
+  var activeBlueHourIsMorning = false
+  if (bhMorningEnd !== null && t < bhMorningEnd) {
+    activeBlueHour = today.blueHourMorningStart
+    activeBlueHourIsMorning = true
+  } else if (bhEveningEnd !== null && t > bhEveningEnd && tomorrow.blueHourMorningStart) {
+    activeBlueHour = tomorrow.blueHourMorningStart
+    activeBlueHourIsMorning = true
+  }
+
+  var activeGoldenHour = today.goldenHourStart
+  var activeGoldenHourIsMorning = false
+  if (ghMorningEnd !== null && t < ghMorningEnd) {
+    activeGoldenHour = today.sunrise
+    activeGoldenHourIsMorning = true
+  }
+
   return {
     isDay: isDay,
+    isBlueHour: phaseKey === "blue_hour",
     phaseKey: phaseKey,
     phaseName: phaseName,
     phaseIcon: phaseIcon,
@@ -375,6 +410,14 @@ function computeSolarSummary(now, lat, lon) {
     solarNoon: today.solarNoon,
     dawn: today.dawn,
     dusk: today.dusk,
+    blueHour: activeBlueHour,
+    blueHourIsMorning: activeBlueHourIsMorning,
+    blueHourMorningStart: today.blueHourMorningStart,
+    blueHourMorningEnd: today.blueHourMorningEnd,
+    blueHourEveningStart: today.blueHourEveningStart,
+    blueHourEveningEnd: today.blueHourEveningEnd,
+    goldenHour: activeGoldenHour,
+    goldenHourIsMorning: activeGoldenHourIsMorning,
     goldenHourEnd: today.goldenHourEnd,
     goldenHourStart: today.goldenHourStart,
     dayLengthSeconds: today.dayLengthSeconds,
@@ -534,9 +577,14 @@ function computeLunarSummary(now, lat, lon) {
 
   var nextFull = findNextLunarPhaseDate(now, 0.5)
   var nextNew = findNextLunarPhaseDate(now, 0.0)
+  var nextFirstQ = findNextLunarPhaseDate(now, 0.25)
+  var nextLastQ = findNextLunarPhaseDate(now, 0.75)
+  var useFirstQ = nextFirstQ.getTime() <= nextLastQ.getTime()
+  var nextQuarter = useFirstQ ? nextFirstQ : nextLastQ
 
   var daysToFull = Math.max(0, (nextFull.getTime() - now.getTime()) / DAY_MS)
   var daysToNew = Math.max(0, (nextNew.getTime() - now.getTime()) / DAY_MS)
+  var daysToQuarter = Math.max(0, (nextQuarter.getTime() - now.getTime()) / DAY_MS)
 
   // 7-day forecast strip starting from today (index 0 uses exact current time)
   var forecast = []
@@ -575,8 +623,11 @@ function computeLunarSummary(now, lat, lon) {
     zodiacSymbol: zodiac.symbol,
     nextFullDate: nextFull,
     nextNewDate: nextNew,
+    nextQuarterDate: nextQuarter,
+    nextQuarterIsFirst: useFirstQ,
     daysToFull: daysToFull,
     daysToNew: daysToNew,
+    daysToQuarter: daysToQuarter,
     forecast: forecast
   }
 }
