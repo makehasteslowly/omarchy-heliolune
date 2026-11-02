@@ -25,6 +25,10 @@ A real-time **Solar & Lunar Phase Tracker** bar widget and popup panel for [Omar
 - **Lunar Phase Telemetry & 7-Day Forecast**:
   - Phase name, illumination percentage, waxing/waning state, lunar age (`d h / 29.5d`), earth-moon distance (`km`), ecliptic zodiac sign, and countdowns to the **Next Quarter** (first or last, whichever comes sooner), **Next Full Moon**, and **Next New Moon**.
   - 7-day upcoming lunar forecast strip with daily vector moon discs.
+- **Next Equinox / Solstice**:
+  - Countdown to whichever comes next (Spring/Autumn Equinox, Summer/Winter Solstice), with its exact local date and time (Meeus, ~1 minute accuracy).
+  - Hemisphere-aware: in the southern hemisphere the December solstice is the Summer Solstice.
+  - Shows the current season and how far through it you are (e.g. `Autumn · day 41 of 90`).
 - **Zero-Config Offline Astronomy + Smart Location Sync**:
   - All solar and lunar math runs 100% locally using NOAA and Jean Meeus astronomical equations.
   - Automatically syncs coordinates from Omarchy Weather (`~/.local/state/omarchy/settings/weather.json`), falls back to `geo.omarchy.org` IP geolocation if unset (cached in `~/.local/state/omarchy/solar-lunar-tracker/location.json` so it works instantly and offline at next login, retried automatically if the network isn't up yet, and refreshed every 3 hours so it follows you when you travel), or accepts manual `latitude`/`longitude` overrides directly in the widget settings.

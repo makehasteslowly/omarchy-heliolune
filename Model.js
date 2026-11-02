@@ -790,6 +790,104 @@ function formatDaylightDiff(diffSeconds) {
   return sign + m + "m " + (s < 10 ? "0" + s : s) + "s"
 }
 
+// ============================================================================
+// Equinoxes & Solstices (Meeus, Astronomical Algorithms ch. 27; ~1 min accuracy)
+// ============================================================================
+
+var SEASON_TERMS = [
+  [485, 324.96, 1934.136], [203, 337.23, 32964.467], [199, 342.08, 20.186],
+  [182, 27.85, 445267.112], [156, 73.14, 45036.886], [136, 171.52, 22518.443],
+  [77, 222.54, 65928.934], [74, 296.72, 3034.906], [70, 243.58, 9037.513],
+  [58, 119.81, 33718.147], [52, 297.17, 150.678], [50, 21.02, 2281.226],
+  [45, 247.54, 29929.562], [44, 325.15, 31555.956], [29, 60.93, 4443.417],
+  [18, 155.12, 67555.328], [17, 288.79, 4562.452], [16, 198.04, 62894.029],
+  [14, 199.76, 31436.921], [12, 95.39, 14577.848], [12, 287.11, 31931.756],
+  [12, 320.81, 34777.259], [9, 227.73, 1222.114], [8, 15.45, 16859.074]
+]
+
+// kind: 0 = March equinox, 1 = June solstice, 2 = September equinox, 3 = December solstice
+function seasonEventDate(year, kind) {
+  var Y = (year - 2000) / 1000.0
+  var jde0
+  if (kind === 0) jde0 = 2451623.80984 + 365242.37404 * Y + 0.05169 * Y * Y - 0.00411 * Y * Y * Y - 0.00057 * Y * Y * Y * Y
+  else if (kind === 1) jde0 = 2451716.56767 + 365241.62603 * Y + 0.00325 * Y * Y + 0.00888 * Y * Y * Y - 0.00030 * Y * Y * Y * Y
+  else if (kind === 2) jde0 = 2451810.21715 + 365242.01767 * Y - 0.11575 * Y * Y + 0.00337 * Y * Y * Y + 0.00078 * Y * Y * Y * Y
+  else jde0 = 2451900.05952 + 365242.74049 * Y - 0.06223 * Y * Y - 0.00823 * Y * Y * Y + 0.00032 * Y * Y * Y * Y
+
+  var T = (jde0 - J2000) / 36525.0
+  var W = (35999.373 * T - 2.47) * DEG2RAD
+  var dLambda = 1 + 0.0334 * Math.cos(W) + 0.0007 * Math.cos(2 * W)
+  var S = 0
+  for (var i = 0; i < SEASON_TERMS.length; i++) {
+    var t = SEASON_TERMS[i]
+    S += t[0] * Math.cos((t[1] + t[2] * T) * DEG2RAD)
+  }
+  var jde = jde0 + 0.00001 * S / dLambda
+  var deltaT = 69.0 + 0.3 * (year - 2025)   // TT - UT in seconds (close enough for this century)
+  return fromJulian(jde - deltaT / 86400.0)
+}
+
+// Season that each event begins, per hemisphere (index = kind)
+var SEASONS_NORTH = ["spring", "summer", "autumn", "winter"]
+var SEASONS_SOUTH = ["autumn", "winter", "spring", "summer"]
+var SEASON_META = {
+  spring: { name: "Spring", event: "Spring Equinox", icon: "󰉊" },
+  summer: { name: "Summer", event: "Summer Solstice", icon: "󰖨" },
+  autumn: { name: "Autumn", event: "Autumn Equinox", icon: "󰌪" },
+  winter: { name: "Winter", event: "Winter Solstice", icon: "󰜗" }
+}
+
+// Whole local calendar days from a to b (DST-safe)
+function calendarDaysBetween(a, b) {
+  var da = Date.UTC(a.getFullYear(), a.getMonth(), a.getDate())
+  var db = Date.UTC(b.getFullYear(), b.getMonth(), b.getDate())
+  return Math.round((db - da) / DAY_MS)
+}
+
+function formatSeasonCountdown(calendarDays) {
+  if (calendarDays <= 0) return "Today"
+  if (calendarDays === 1) return "Tomorrow"
+  return calendarDays + " days"
+}
+
+function computeSeasonSummary(now, lat) {
+  var south = Number(lat) < 0
+  var table = south ? SEASONS_SOUTH : SEASONS_NORTH
+  var t = now.getTime()
+  var year = now.getFullYear()
+  var events = []
+  for (var y = year - 1; y <= year + 1; y++) {
+    for (var k = 0; k < 4; k++) events.push({ kind: k, date: seasonEventDate(y, k) })
+  }
+  var prev = null
+  var next = null
+  for (var i = 0; i < events.length; i++) {
+    if (events[i].date.getTime() > t) {
+      next = events[i]
+      prev = events[i - 1]
+      break
+    }
+  }
+  var nextMeta = SEASON_META[table[next.kind]]
+  var curMeta = SEASON_META[table[prev.kind]]
+  var span = next.date.getTime() - prev.date.getTime()
+  var elapsed = t - prev.date.getTime()
+  return {
+    nextEventName: nextMeta.event,
+    nextSeasonName: nextMeta.name,
+    nextIcon: nextMeta.icon,
+    nextDate: next.date,
+    daysUntil: (next.date.getTime() - t) / DAY_MS,
+    calendarDaysUntil: calendarDaysBetween(now, next.date),
+    isSolstice: next.kind === 1 || next.kind === 3,
+    currentSeasonName: curMeta.name,
+    currentIcon: curMeta.icon,
+    seasonDay: Math.floor(elapsed / DAY_MS) + 1,
+    seasonLengthDays: Math.round(span / DAY_MS),
+    seasonProgress: clamp(elapsed / span, 0.0, 1.0)
+  }
+}
+
 function formatCountdownDays(daysFloat) {
   var d = Math.max(0, Number(daysFloat) || 0)
   if (d < 0.04) return "Now"

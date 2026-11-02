@@ -31,5 +31,6 @@
   "settings.colorMode": "Colors",
   "settings.timeFormat": "Time Format",
   "settings.moonStyle": "Moon Render",
-  "settings.locationSource": "Location"
+  "settings.locationSource": "Location",
+  "season.dayOf": "%1 · day %2 of %3"
 }

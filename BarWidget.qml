@@ -291,6 +291,7 @@ BarWidget {
   property date currentDate: new Date()
   property var solarData: Model.computeSolarSummary(currentDate, activeLat, activeLon)
   property var lunarData: Model.computeLunarSummary(currentDate, activeLat, activeLon)
+  property var seasonData: Model.computeSeasonSummary(currentDate, activeLat)
   property var skySamples: []
 
   readonly property var formatLocale: Qt.locale(Commons.I18n.formatLocale)
@@ -300,6 +301,7 @@ BarWidget {
     root.currentDate = now
     root.solarData = Model.computeSolarSummary(now, root.activeLat, root.activeLon)
     root.lunarData = Model.computeLunarSummary(now, root.activeLat, root.activeLon)
+    root.seasonData = Model.computeSeasonSummary(now, root.activeLat)
     if (root.opened) {
       root.rebuildSkySamples(now)
     }
@@ -1541,6 +1543,102 @@ BarWidget {
                     }
                   }
                 }
+              }
+            }
+          }
+        }
+
+        // ---- 4. Next Equinox / Solstice
+        Rectangle {
+          Layout.fillWidth: true
+          implicitHeight: seasonCol.implicitHeight + Style.space(14)
+          radius: Math.max(4, Style.cornerRadius - 2)
+          color: trackerPopup.cardSurfaceColor
+          border.width: 1
+          border.color: trackerPopup.cardBorderColor
+
+          ColumnLayout {
+            id: seasonCol
+            anchors.fill: parent
+            anchors.margins: Style.space(8)
+            spacing: Style.space(6)
+
+            RowLayout {
+              Layout.fillWidth: true
+              spacing: Style.space(8)
+
+              Text {
+                Layout.alignment: Qt.AlignVCenter
+                textFormat: Text.PlainText
+                text: root.seasonData.nextIcon
+                color: trackerPopup.popupSolarColor
+                font.family: Style.font.family
+                font.pixelSize: Math.round((Style.font.size || 13) * 1.6)
+              }
+
+              ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 1
+
+                RowLayout {
+                  Layout.fillWidth: true
+                  Text {
+                    textFormat: Text.PlainText
+                    text: root.seasonData.nextEventName
+                    color: Color.foreground
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.size || 13
+                    font.bold: true
+                  }
+                  Item { Layout.fillWidth: true }
+                  Text {
+                    textFormat: Text.PlainText
+                    text: Model.formatSeasonCountdown(root.seasonData.calendarDaysUntil)
+                    color: trackerPopup.popupSolarColor
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.size || 13
+                    font.bold: true
+                  }
+                }
+
+                RowLayout {
+                  Layout.fillWidth: true
+                  Text {
+                    textFormat: Text.PlainText
+                    text: root.seasonData.nextDate.toLocaleDateString(root.formatLocale, "ddd, MMM d")
+                      + " · " + Model.formatTime(root.seasonData.nextDate, root.timeFormatMode, root.formatLocale)
+                    color: Color.foreground
+                    opacity: 0.72
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.small || 11
+                  }
+                  Item { Layout.fillWidth: true }
+                  Text {
+                    textFormat: Text.PlainText
+                    text: strings.t("season.dayOf")
+                      .arg(root.seasonData.currentSeasonName)
+                      .arg(root.seasonData.seasonDay)
+                      .arg(root.seasonData.seasonLengthDays)
+                    color: Color.foreground
+                    opacity: 0.72
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.small || 11
+                  }
+                }
+              }
+            }
+
+            Rectangle {
+              Layout.fillWidth: true
+              height: 5
+              radius: 2.5
+              color: Qt.alpha(Color.foreground, 0.12)
+
+              Rectangle {
+                width: Math.max(4, parent.width * root.seasonData.seasonProgress)
+                height: parent.height
+                radius: parent.radius
+                color: trackerPopup.popupSolarColor
               }
             }
           }
