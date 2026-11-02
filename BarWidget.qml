@@ -158,11 +158,13 @@ BarWidget {
     onFileChanged: reload()
     onLoaded: {
       root.weatherLocationState = Model.parseLocationFile(text())
+      root.weatherLocationChecked = true
       root.checkAutoGeo(false)
       root.recalculate()
     }
     onLoadFailed: {
       root.weatherLocationState = Model.parseLocationFile("")
+      root.weatherLocationChecked = true
       root.checkAutoGeo(false)
       root.recalculate()
     }
@@ -201,6 +203,8 @@ BarWidget {
   property real geoNextRetryAt: 0
   property int geoFailures: 0
   property bool geoSucceeded: false
+  property bool locationCacheChecked: false
+  property bool weatherLocationChecked: false
 
   // Only needed when the user hasn't pinned a location (manual override or Omarchy Weather)
   function geoWanted() {
@@ -209,7 +213,8 @@ BarWidget {
   }
 
   function checkAutoGeo(force) {
-    if (!root.geoWanted() || root.detectingGeo || geoProc.running) return
+    // Wait for weather.json and the cached lookup so a pinned or fresh location isn't refetched on every login
+    if (!root.locationCacheChecked || !root.weatherLocationChecked || !root.geoWanted() || root.detectingGeo || geoProc.running) return
     var now = Date.now()
     var stale = root.detectedLocationState.latitude === null || (now - root.geoFetchedAt) > root.geoRefreshMs
     if (!force && (!stale || now < root.geoNextRetryAt)) return
@@ -273,6 +278,12 @@ BarWidget {
         root.geoFetchedAt = cached.fetchedAt
         root.recalculate()
       }
+      root.locationCacheChecked = true
+      root.checkAutoGeo(false)
+    }
+    onLoadFailed: {
+      root.locationCacheChecked = true
+      root.checkAutoGeo(false)
     }
   }
 
