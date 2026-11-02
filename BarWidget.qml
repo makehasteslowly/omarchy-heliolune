@@ -610,6 +610,10 @@ BarWidget {
     function show(): void { root.open() }
     function hide(): void { root.close() }
     function toggle(): void { root.togglePanel() }
+    // Time travel from scripts and keybindings: move the popup's date by n days
+    // (negative goes back), or return it to today.
+    function stepDays(n: int): void { root.stepView(n) }
+    function today(): void { root.setViewOffset(0) }
   }
 
   // ============================================================================

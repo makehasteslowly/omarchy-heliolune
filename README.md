@@ -63,6 +63,8 @@ Look at any date up to ten years either way, and every card follows.
 - **Scroll over it** to step a day at a time (Shift: a week), or use **← / →**, and **T** for today.
 - A *Viewing …* chip shows the date you are on. Closing the popup always returns to live.
 
+![Stepping through half a year: the sky path, timetable, Moon, forecast and countdowns follow, and today's Sun travels round the figure-8](docs/screenshots/time-travel.gif)
+
 ---
 
 ## Themes
@@ -133,6 +135,8 @@ From a script or keybinding:
 
 ```bash
 omarchy-shell makehasteslowly.heliolune toggle   # also: open, close, refresh
+omarchy-shell makehasteslowly.heliolune stepDays 7   # time travel: +/- n days
+omarchy-shell makehasteslowly.heliolune today
 ```
 
 ---
