@@ -1,12 +1,12 @@
 {
   "schemaVersion": 1,
-  "id": "solar-lunar-tracker",
-  "name": "Solar & Lunar Phase Tracker",
-  "version": "1.1.0",
+  "id": "makehasteslowly.heliolune",
+  "name": "Heliolune — Sun, Moon & Seasons",
+  "version": "2.0.0",
   "author": "makehasteslowly",
   "license": "MIT",
-  "homepage": "https://github.com/makehasteslowly/omarchy-solar-lunar-tracker",
-  "description": "Real-time Solar & Lunar phase tracker for the Omarchy bar featuring offline NOAA/Meeus astronomical calculations, automatic weather, IP & system-timezone location sync with manual coordinate override, custom vector moon terminator rendering, a 24-hour sky horizon arc, blue hour & golden hour timetable, lunar quarter/full/new countdowns, and a 7-day lunar phase forecast.",
+  "homepage": "https://github.com/makehasteslowly/omarchy-heliolune",
+  "description": "Heliolune: a sun, moon and seasons instrument for the Omarchy bar. Live solar and lunar phases, sunrise/sunset with blue and golden hours, moonrise/moonset, a 24-hour sky path, 7-day moon forecast, and the Sun's yearly analemma with equinox and solstice countdowns. Drag the figure-8 or use the arrow keys to travel through the year. All astronomy is computed offline (Meeus) and validated against the US Naval Observatory to within a minute. Three period themes (Atomic, Art Deco, Art Nouveau) restyle the whole widget with Soft/Bold intensity and light-theme-adaptive colours.",
   "kinds": [
     "bar-widget"
   ],
@@ -14,10 +14,11 @@
     "barWidget": "BarWidget.qml"
   },
   "barWidget": {
-    "displayName": "Solar & Lunar Tracker",
-    "description": "Combined solar cycle & lunar phase indicator with 24h sky horizon arc, blue & golden hour times, and 7-day moon forecast.",
+    "displayName": "Heliolune",
+    "description": "Sun & moon phases on the bar; popup with sky path, solar timetable, lunar forecast and the Sun's yearly figure-8.",
     "category": "Time",
     "aliases": [
+      "heliolune",
       "sun",
       "moon",
       "solar",
@@ -25,18 +26,27 @@
       "astronomy",
       "phases",
       "sunrise",
-      "sunset"
+      "sunset",
+      "almanac",
+      "analemma",
+      "solstice",
+      "equinox",
+      "seasons",
+      "moonrise",
+      "moonset",
+      "time travel"
     ],
     "allowMultiple": false,
     "defaultSection": "center",
     "defaults": {
       "displayMode": "both",
       "colorMode": "celestial",
-      "moonStyle": "vector",
+      "moonStyle": "atomic",
       "timeFormat": "auto",
       "latitude": "",
       "longitude": "",
-      "locationName": ""
+      "locationName": "",
+      "weather": "auto"
     },
     "schema": [
       {
@@ -96,17 +106,21 @@
       {
         "key": "moonStyle",
         "type": "enum",
-        "label": "Moon Phase Renderer",
-        "description": "Render the moon phase as a smooth custom vector disc with exact terminator geometry, or as a Nerd Font glyph.",
-        "defaultValue": "vector",
+        "label": "Moon Phase Renderer & Theme",
+        "description": "Pick the moon renderer, which also themes the whole widget: Atomic (flat moon with orbiting electrons; Atomic Age palette of teal, atomic orange, mustard and cream), Art Deco (banded disc with stepped terminator; Emerald & Ruby palette), or Art Nouveau (shaded moon in a beaded halo with vines; Mucha Botanical palette).",
+        "defaultValue": "atomic",
         "options": [
           {
-            "value": "vector",
-            "label": "Vector Disc (Exact illuminated terminator curve)"
+            "value": "atomic",
+            "label": "Atomic (Orbits and starbursts, Atomic Age theme)"
           },
           {
-            "value": "glyph",
-            "label": "Nerd Font Glyph (󰽤 󰽧 󰽡 󰽨 󰽢 󰽦 󰽣 󰽥)"
+            "value": "deco",
+            "label": "Art Deco (Streamline bands, stepped terminator, Emerald & Ruby theme)"
+          },
+          {
+            "value": "nouveau",
+            "label": "Art Nouveau (Halo, vines and leaves, Mucha Botanical theme)"
           }
         ]
       },
@@ -128,6 +142,31 @@
           {
             "value": "24",
             "label": "24-Hour (e.g. 18:42)"
+          }
+        ]
+      },
+      {
+        "key": "weather",
+        "type": "enum",
+        "label": "Current Weather",
+        "description": "Show the current temperature and sky condition next to the city. Fetched from Open-Meteo (api.open-meteo.com, no account or key) every 30 minutes using your rounded coordinates. Auto picks °F for US locales, °C elsewhere. Off makes no weather requests.",
+        "defaultValue": "auto",
+        "options": [
+          {
+            "value": "auto",
+            "label": "Auto (°C or °F from locale)"
+          },
+          {
+            "value": "c",
+            "label": "Celsius"
+          },
+          {
+            "value": "f",
+            "label": "Fahrenheit"
+          },
+          {
+            "value": "off",
+            "label": "Off (no weather requests)"
           }
         ]
       },

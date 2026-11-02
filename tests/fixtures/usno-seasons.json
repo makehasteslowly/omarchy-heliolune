@@ -1,0 +1,198 @@
+[
+ {
+  "day": 20,
+  "month": 3,
+  "phenom": "Equinox",
+  "time": "03:06",
+  "year": 2024
+ },
+ {
+  "day": 20,
+  "month": 6,
+  "phenom": "Solstice",
+  "time": "20:51",
+  "year": 2024
+ },
+ {
+  "day": 22,
+  "month": 9,
+  "phenom": "Equinox",
+  "time": "12:44",
+  "year": 2024
+ },
+ {
+  "day": 21,
+  "month": 12,
+  "phenom": "Solstice",
+  "time": "09:20",
+  "year": 2024
+ },
+ {
+  "day": 20,
+  "month": 3,
+  "phenom": "Equinox",
+  "time": "09:01",
+  "year": 2025
+ },
+ {
+  "day": 21,
+  "month": 6,
+  "phenom": "Solstice",
+  "time": "02:42",
+  "year": 2025
+ },
+ {
+  "day": 22,
+  "month": 9,
+  "phenom": "Equinox",
+  "time": "18:19",
+  "year": 2025
+ },
+ {
+  "day": 21,
+  "month": 12,
+  "phenom": "Solstice",
+  "time": "15:03",
+  "year": 2025
+ },
+ {
+  "day": 20,
+  "month": 3,
+  "phenom": "Equinox",
+  "time": "14:46",
+  "year": 2026
+ },
+ {
+  "day": 21,
+  "month": 6,
+  "phenom": "Solstice",
+  "time": "08:24",
+  "year": 2026
+ },
+ {
+  "day": 23,
+  "month": 9,
+  "phenom": "Equinox",
+  "time": "00:05",
+  "year": 2026
+ },
+ {
+  "day": 21,
+  "month": 12,
+  "phenom": "Solstice",
+  "time": "20:50",
+  "year": 2026
+ },
+ {
+  "day": 20,
+  "month": 3,
+  "phenom": "Equinox",
+  "time": "20:25",
+  "year": 2027
+ },
+ {
+  "day": 21,
+  "month": 6,
+  "phenom": "Solstice",
+  "time": "14:11",
+  "year": 2027
+ },
+ {
+  "day": 23,
+  "month": 9,
+  "phenom": "Equinox",
+  "time": "06:02",
+  "year": 2027
+ },
+ {
+  "day": 22,
+  "month": 12,
+  "phenom": "Solstice",
+  "time": "02:42",
+  "year": 2027
+ },
+ {
+  "day": 20,
+  "month": 3,
+  "phenom": "Equinox",
+  "time": "02:17",
+  "year": 2028
+ },
+ {
+  "day": 20,
+  "month": 6,
+  "phenom": "Solstice",
+  "time": "20:02",
+  "year": 2028
+ },
+ {
+  "day": 22,
+  "month": 9,
+  "phenom": "Equinox",
+  "time": "11:45",
+  "year": 2028
+ },
+ {
+  "day": 21,
+  "month": 12,
+  "phenom": "Solstice",
+  "time": "08:19",
+  "year": 2028
+ },
+ {
+  "day": 20,
+  "month": 3,
+  "phenom": "Equinox",
+  "time": "08:02",
+  "year": 2029
+ },
+ {
+  "day": 21,
+  "month": 6,
+  "phenom": "Solstice",
+  "time": "01:48",
+  "year": 2029
+ },
+ {
+  "day": 22,
+  "month": 9,
+  "phenom": "Equinox",
+  "time": "17:38",
+  "year": 2029
+ },
+ {
+  "day": 21,
+  "month": 12,
+  "phenom": "Solstice",
+  "time": "14:14",
+  "year": 2029
+ },
+ {
+  "day": 20,
+  "month": 3,
+  "phenom": "Equinox",
+  "time": "13:52",
+  "year": 2030
+ },
+ {
+  "day": 21,
+  "month": 6,
+  "phenom": "Solstice",
+  "time": "07:31",
+  "year": 2030
+ },
+ {
+  "day": 22,
+  "month": 9,
+  "phenom": "Equinox",
+  "time": "23:27",
+  "year": 2030
+ },
+ {
+  "day": 21,
+  "month": 12,
+  "phenom": "Solstice",
+  "time": "20:09",
+  "year": 2030
+ }
+]
