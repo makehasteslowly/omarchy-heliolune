@@ -1,0 +1,157 @@
+{
+  "schemaVersion": 1,
+  "id": "solar-lunar-tracker",
+  "name": "Solar & Lunar Phase Tracker",
+  "version": "1.0.0",
+  "author": "makehasteslowly",
+  "license": "MIT",
+  "homepage": "https://github.com/makehasteslowly/omarchy-solar-lunar-tracker",
+  "description": "Real-time Solar & Lunar phase tracker for the Omarchy bar featuring offline NOAA/Meeus astronomical calculations, automatic IP & weather location sync with manual coordinate override, custom vector moon terminator rendering, a 24-hour sky horizon arc, golden hour & twilight timetable, and a 7-day lunar phase forecast.",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Solar & Lunar Tracker",
+    "description": "Combined solar cycle & lunar phase indicator with 24h sky horizon arc, golden hour times, and 7-day moon forecast.",
+    "category": "Time",
+    "aliases": [
+      "sun",
+      "moon",
+      "solar",
+      "lunar",
+      "astronomy",
+      "phases",
+      "sunrise",
+      "sunset"
+    ],
+    "allowMultiple": false,
+    "defaultSection": "center",
+    "defaults": {
+      "displayMode": "both",
+      "colorMode": "celestial",
+      "moonStyle": "vector",
+      "timeFormat": "auto",
+      "latitude": "",
+      "longitude": "",
+      "locationName": ""
+    },
+    "schema": [
+      {
+        "key": "displayMode",
+        "type": "enum",
+        "label": "Bar Display Mode",
+        "description": "Choose what appears on the bar: Both Solar & Lunar (icon + illumination%), Compact Icons, Detailed (next solar event + moon %), Dynamic (Sun by day / Moon by night), Lunar only, or Solar only. Right-click the widget to switch anytime.",
+        "defaultValue": "both",
+        "options": [
+          {
+            "value": "both",
+            "label": "󰖙 󰽢  Both Solar & Lunar (Icons + Moon %)"
+          },
+          {
+            "value": "compact",
+            "label": "󰖙 󰽥  Compact (Solar + Lunar icons only)"
+          },
+          {
+            "value": "detailed",
+            "label": "󰖜 󰽢  Detailed (Next sun time + Moon %)"
+          },
+          {
+            "value": "dynamic",
+            "label": "󰖨  Dynamic (Sun by day, Moon by night)"
+          },
+          {
+            "value": "lunar",
+            "label": "󰽢  Lunar Only (Moon phase + Illumination %)"
+          },
+          {
+            "value": "solar",
+            "label": "󰖙  Solar Only (Sun phase + Next event)"
+          }
+        ]
+      },
+      {
+        "key": "colorMode",
+        "type": "enum",
+        "label": "Celestial Colors",
+        "description": "Choose between Soft Celestial colors, Bold Vivid celestial colors, or the active Omarchy theme's colors.",
+        "defaultValue": "celestial",
+        "options": [
+          {
+            "value": "celestial",
+            "label": "Soft Celestial (Warm solar gold & lunar silver-blue)"
+          },
+          {
+            "value": "bold",
+            "label": "Bold Vivid (High-saturation amber sun & electric cyan moon)"
+          },
+          {
+            "value": "theme",
+            "label": "Theme Colors (Follow active Omarchy theme)"
+          }
+        ]
+      },
+      {
+        "key": "moonStyle",
+        "type": "enum",
+        "label": "Moon Phase Renderer",
+        "description": "Render the moon phase as a smooth custom vector disc with exact terminator geometry, or as a Nerd Font glyph.",
+        "defaultValue": "vector",
+        "options": [
+          {
+            "value": "vector",
+            "label": "Vector Disc (Exact illuminated terminator curve)"
+          },
+          {
+            "value": "glyph",
+            "label": "Nerd Font Glyph (󰽤 󰽧 󰽡 󰽨 󰽢 󰽦 󰽣 󰽥)"
+          }
+        ]
+      },
+      {
+        "key": "timeFormat",
+        "type": "enum",
+        "label": "Time Format",
+        "description": "Format sunrise, sunset, golden hour, and solar noon times in 12-hour, 24-hour, or system locale format.",
+        "defaultValue": "auto",
+        "options": [
+          {
+            "value": "auto",
+            "label": "Auto (Follow system locale)"
+          },
+          {
+            "value": "12",
+            "label": "12-Hour (e.g. 6:42 PM)"
+          },
+          {
+            "value": "24",
+            "label": "24-Hour (e.g. 18:42)"
+          }
+        ]
+      },
+      {
+        "key": "latitude",
+        "type": "string",
+        "label": "Manual Latitude Override",
+        "description": "Optional decimal latitude (-90 to 90, e.g. 38.72). Leave empty to automatically sync with Omarchy Weather or IP geolocation.",
+        "defaultValue": ""
+      },
+      {
+        "key": "longitude",
+        "type": "string",
+        "label": "Manual Longitude Override",
+        "description": "Optional decimal longitude (-180 to 180, e.g. -9.14). Leave empty to automatically sync with Omarchy Weather or IP geolocation.",
+        "defaultValue": ""
+      },
+      {
+        "key": "locationName",
+        "type": "string",
+        "label": "Custom Location Label",
+        "description": "Optional city/place name displayed when using manual coordinates.",
+        "defaultValue": ""
+      }
+    ]
+  }
+}
