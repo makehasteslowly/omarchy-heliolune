@@ -1323,7 +1323,8 @@ BarWidget {
     }
     return parts.join("   ")
   }
-  readonly property color reminderColor: root.barSolarColor
+  // Calm metal tone (gold in Deco): red stays reserved for weather warnings
+  readonly property color reminderColor: root.barMetal
 
   function sendNotification(title, body) {
     var t = Model.sanitizeText(title, 80), b = Model.sanitizeText(body, 200)
@@ -1381,6 +1382,25 @@ BarWidget {
     interval: 25000
     onTriggered: root.reminderTestText = ""
   }
+  // Test (Bar > Scrolling, or `omarchy-shell makehasteslowly.heliolune testAlert`):
+  // one pass of a sample weather alert and a sample sky reminder across the bar,
+  // in their real colors, whether or not either is switched on; clears itself
+  property string alertTestText: ""
+  Timer {
+    id: alertTestClear
+    interval: 25000
+    onTriggered: root.alertTestText = ""
+  }
+  function testAlert() {
+    var h = new Date().getHours()
+    root.alertTestText = "⚠ " + strings.t("alert.test").arg(strings.t("alert.fromTo")
+      .arg(strings.t("weather.thunderstorm")).arg(root.hourLabel((h + 3) % 24)).arg(root.hourLabel((h + 6) % 24)))
+    root.reminderTestText = "✦ " + strings.t("notify.testTitle") + " · " + (root.notifyOn ? root.notifyNextText : strings.t("notify.goldenEvening"))
+    alertTestClear.restart()
+    reminderTestClear.restart()
+    if (!root.vertical) { barTickerAnim.stop(); barTickerShift.x = 0; barAlertLabel.x = barViewport.width; barAlertDelay.restart() }
+  }
+
   function testNotification() {
     var body = root.notifyOn ? root.notifyNextText : strings.t("notify.testOff")
     root.reminderTestText = "✦ " + strings.t("notify.testTitle") + " · " + body
@@ -1426,6 +1446,7 @@ BarWidget {
     // Time travel from scripts and keybindings: move the popup's date by n days
     // (negative goes back), or return it to today.
     function stepDays(n: int): void { root.stepView(n) }
+    function testAlert(): void { root.testAlert() }
     function today(): void { root.setViewOffset(0) }
     // Open the popup straight on its settings view (toggles like right-click)
     function settings(): void { root.toggleSettings() }
@@ -3669,6 +3690,7 @@ BarWidget {
   // scrolls back in. Again every 20 s, and at once when an alert appears.
   readonly property var weatherAlert: root.alertsOn && root.weatherEnabled ? Model.computeWeatherAlert(root.weatherNow, 12) : null
   readonly property string weatherAlertText: {
+    if (root.alertTestText !== "") return root.alertTestText
     var a = root.weatherAlert
     if (!a) return ""
     var cond = strings.t("weather." + a.key)
@@ -7828,6 +7850,28 @@ BarWidget {
                 text: modelData.label
                 onClicked: root.setOpt(modelData.key, modelData.on ? "off" : "on")
               }
+            }
+          }
+
+          RowLayout {
+            Layout.fillWidth: true
+            spacing: Style.space(6)
+
+            Text {
+              Layout.fillWidth: true
+              textFormat: Text.PlainText
+              text: strings.t("settings.scrollTestHint")
+              color: Qt.alpha(Color.foreground, 0.7)
+              font.family: Style.font.family
+              font.pixelSize: Style.font.caption
+              wrapMode: Text.Wrap
+            }
+
+            ChoiceButton {
+              Layout.preferredHeight: Style.space(28)
+              selected: root.alertTestText !== ""
+              text: strings.t("settings.scrollTest")
+              onClicked: root.testAlert()
             }
           }
 

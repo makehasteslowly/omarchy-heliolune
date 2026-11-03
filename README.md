@@ -35,7 +35,7 @@ Pick what it shows in settings, under **Bar**:
 
 - **Show:** Sun, Moon and Weather, each on or off (at least one stays on).
 - **Details:** *Icons only*, or *With values*: an arrow and the time of the Sun's next event (hover to see which), the Moon's illumination and the temperature.
-- **Scrolling:** *Weather alerts* and *Sky reminders*, each on or off.
+- **Scrolling:** *Weather alerts* and *Sky reminders*, each on or off. **Test alert** scrolls a sample of each across the bar once, so you can see how they look without waiting for a storm.
 
 Every icon shows what is happening **now**: the Sun's is the sky's current phase (day, golden hour, blue hour, twilight or night), the Moon's its current phase. The weather icon is line-drawn in the theme's metal tone, so it never looks like one of the sky icons beside it.
 
@@ -151,6 +151,7 @@ omarchy-shell makehasteslowly.heliolune stepDays 7   # time travel: +/- n days
 omarchy-shell makehasteslowly.heliolune today
 omarchy-shell makehasteslowly.heliolune forecast   # open the weather forecast
 omarchy-shell makehasteslowly.heliolune moon       # open the Moon view
+omarchy-shell makehasteslowly.heliolune testAlert  # scroll a sample weather alert and sky reminder
 ```
 
 ---
@@ -194,7 +195,7 @@ The same keys can be set on the widget's entry in `~/.config/omarchy/shell.json`
 
 **Location.** Heliolune follows Omarchy Weather's location, then your approximate location, then your time zone. To pick a place yourself, type its name under **Settings → Location → Search for a city**, press **Search** (or Enter) and click the right match; it is saved as `latitude`, `longitude` and `locationName`. **Enter coordinates** takes coordinates directly, and **Use automatic** goes back to the automatic location.
 
-**Sky reminders** scroll across the bar widget the same way weather alerts do (both switch on and off under **Settings → Bar → Scrolling**; the reminder options appear in **Sky Reminders** below while they are on), in the Sun's color (weather alerts keep the urgent color), and they also appear in the widget's tooltip:
+**Sky reminders** scroll across the bar widget the same way weather alerts do (both switch on and off under **Settings → Bar → Scrolling**; the reminder options appear in **Sky Reminders** below while they are on), in the theme's metal tone (gold in Art Deco; weather alerts keep the urgent red), and they also appear in the widget's tooltip:
 
 - **Golden** and **Blue:** from shortly before the evening golden or blue hour begins until 15 minutes after (the morning ones too with **Golden & blue → Both**). **Lead time** sets how early: at start, 10 or 30 minutes.
 - **Moon:** full moon and new moon, from 09:00 on the day, or from 18:00 the evening before when the moment falls in the morning.

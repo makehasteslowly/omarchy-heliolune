@@ -243,5 +243,8 @@
   "settings.save": "Save",
   "settings.coordsLabel": "Label (e.g. Lisbon)",
   "settings.coordsLat": "Lat (38.72)",
-  "settings.coordsLon": "Lon (-9.14)"
+  "settings.coordsLon": "Lon (-9.14)",
+  "alert.test": "Test · %1",
+  "settings.scrollTest": "Test alert",
+  "settings.scrollTestHint": "Scroll a sample weather alert and sky reminder across the bar."
 }
