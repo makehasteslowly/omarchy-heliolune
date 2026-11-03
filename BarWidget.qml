@@ -1817,6 +1817,34 @@ BarWidget {
     }
   }
 
+  // Bar item highlight. Horizontal: px/pw along the row, centred vertically;
+  // vertical: py/ph down the column, centred horizontally. `opened` draws the
+  // open view's accent outline, otherwise the hover fill.
+  component BarSegPill: Rectangle {
+    property bool shown: false
+    property bool opened: false
+    property bool vertical: false
+    property real px: 0
+    property real pw: 0
+    property real py: 0
+    property real ph: 0
+    readonly property real pad: Style.space(4)
+    visible: shown
+    x: vertical ? (parent.width - width) / 2 : px - pad
+    y: vertical ? py - pad : (parent.height - height) / 2
+    width: vertical ? Math.min(parent.width - Style.space(4), Style.space(26)) : pw + 2 * pad
+    height: vertical ? ph + 2 * pad : Math.min(parent.height - Style.space(10), Style.space(18))
+    radius: root.decoStyle ? 0 : Math.min(width, height) / 2
+    color: opened ? Qt.alpha(root.ornate ? root.barMetal : Color.accent, 0.10)
+                  : Qt.alpha(root.ornate ? root.barMetal : Color.foreground, 0.16)
+    border.width: opened ? 1 : 0
+    border.color: Qt.alpha(root.ornate ? root.barMetal : Color.accent, 0.9)
+    Behavior on x { NumberAnimation { duration: Style.duration(120); easing.type: Easing.OutCubic } }
+    Behavior on width { NumberAnimation { duration: Style.duration(120); easing.type: Easing.OutCubic } }
+    Behavior on y { NumberAnimation { duration: Style.duration(120); easing.type: Easing.OutCubic } }
+    Behavior on height { NumberAnimation { duration: Style.duration(120); easing.type: Easing.OutCubic } }
+  }
+
   component RowLabel: Text {
     Layout.preferredWidth: root.ornate ? Style.space(124) : Style.space(98)
     textFormat: Text.PlainText
@@ -3011,6 +3039,46 @@ BarWidget {
     }
   }
 
+  // ---- Hover and the open view, per bar item ("sun" | "moon" | "weather" | "")
+  readonly property string barHoverSeg: root.showSolarOnBar && (barSunHover.hovered || barSunVHover.hovered) ? "sun"
+    : (root.showLunarOnBar && (barMoonHover.hovered || barMoonVHover.hovered) ? "moon"
+    : (root.showWeatherOnBar && (barWeatherHover.hovered || barWeatherIconHover.hovered || barWeatherTextHover.hovered) ? "weather" : ""))
+  readonly property string barActiveSeg: !root.opened || root.settingsOpen ? ""
+    : (root.weatherOpen ? "weather" : (root.moonOpen ? "moon" : "sun"))
+  // The item's own tooltip: what it shows, then what a click opens
+  readonly property string barTooltip: {
+    if (root.opened) return ""
+    var foot = "\n" + strings.t("tip.footer")
+    var S = root.solarData, L = root.lunarData
+    if (root.barHoverSeg === "sun") {
+      return (S.nextEventName !== ""
+          ? strings.t("tip.sunNext").arg(S.nextEventName).arg(Model.formatTime(S.nextEventTime, root.timeFormatMode, root.formatLocale)) + "\n" : "")
+        + strings.t("tip.sunNow").arg(S.phaseName).arg(Math.round(S.altitude)).arg(Model.azimuthToCompass(S.azimuth))
+        + "\n" + strings.t("tip.clickSun") + foot
+    }
+    if (root.barHoverSeg === "moon") {
+      return strings.t("tip.moonNow").arg(L.phaseName).arg(L.illuminationPct)
+        + (root.nextMoonEventText !== "" ? "\n" + root.nextMoonEventText : "")
+        + "\n" + strings.t("tip.clickMoon") + foot
+    }
+    if (root.barHoverSeg === "weather") {
+      var details = root.weatherDetailParts.map(function(p) { return p.text }).join(" · ")
+      return root.weatherTempText + " " + root.weatherConditionText
+        + (details !== "" ? "\n" + details : "")
+        + (root.weatherAlertText !== "" ? "\n" + root.weatherAlertText : "")
+        + "\n" + strings.t("tip.clickWeather") + foot
+    }
+    return S.phaseName + " (" + Math.round(S.altitude) + "°) · " + L.phaseName + " (" + L.illuminationPct + "%)"
+      + (root.weatherNow && root.weatherEnabled ? " · " + root.weatherTempText + " " + root.weatherConditionText : "")
+      + (root.weatherAlertText !== "" ? "\n" + root.weatherAlertText : "")
+      + foot
+  }
+  // Moving from one item to the next swaps the tooltip at once
+  onBarHoverSegChanged: if (root.bar && barButton.tooltipHovered && !root.opened) root.bar.showTooltip(barButton, root.barTooltip)
+  function barSegItem(seg) {
+    return seg === "sun" ? barSolarGroup : (seg === "moon" ? barLunarGroup : (seg === "weather" ? barWeatherGroup : null))
+  }
+
   implicitWidth: root.vertical ? root.barSize : Math.max(Style.bar.iconSlot, root.barRowWidth + Style.space(root.barCapsuleOn ? 24 : 16))
   implicitHeight: root.vertical ? Math.max(Style.bar.iconSlot, barContentCol.implicitHeight + Style.space(root.barCapsuleOn ? 20 : 12)) : root.barSize
 
@@ -3022,25 +3090,16 @@ BarWidget {
     labelVisible: false
     hasVisualContent: true
     active: root.opened
-    tooltipText: root.opened ? "" : (
-      root.solarData.phaseName + " (" + Math.round(root.solarData.altitude) + "°) · "
-      + root.lunarData.phaseName + " (" + root.lunarData.illuminationPct + "%)"
-      + (root.nextMoonEventText !== "" ? " · " + root.nextMoonEventText : "")
-      + (root.weatherNow && root.weatherEnabled ? " · " + root.weatherTempText + " " + root.weatherConditionText : "")
-      + (root.weatherAlertText !== "" ? "\n" + root.weatherAlertText : "")
-      + (root.showWeatherOnBar ? " · Click the weather: forecast" : "")
-      + (root.showLunarOnBar ? " · Click the moon: Moon" : "")
-      + " · Right-click: settings"
-    )
+    tooltipText: root.barTooltip
 
     onPressed: function(b) {
       if (b === Qt.RightButton) {
         root.toggleSettings()
       } else if (b === Qt.MiddleButton) {
         root.refresh()
-      } else if (root.showWeatherOnBar && (barWeatherHover.hovered || barWeatherIconHover.hovered || barWeatherTextHover.hovered)) {
+      } else if (root.barHoverSeg === "weather") {
         root.toggleWeather()
-      } else if (root.showLunarOnBar && (barMoonHover.hovered || barMoonVHover.hovered)) {
+      } else if (root.barHoverSeg === "moon") {
         root.toggleMoon()
       } else {
         root.togglePanel()
@@ -3092,6 +3151,21 @@ BarWidget {
       height: parent.height
       clip: root.barAlerting || barTickerAnim.running
 
+      // Open view: an accent outline around its item. Hover: a soft fill.
+      BarSegPill {
+        readonly property Item target: root.barSegItem(root.barActiveSeg)
+        shown: target !== null && target.visible && !barTickerAnim.running
+        opened: true
+        px: target ? barContentRow.x + target.x : 0
+        pw: target ? target.width : 0
+      }
+      BarSegPill {
+        readonly property Item target: root.barSegItem(root.barHoverSeg)
+        shown: target !== null && target.visible && !barTickerAnim.running
+        px: target ? barContentRow.x + target.x : 0
+        pw: target ? target.width : 0
+      }
+
       // The alert, parked off to the right until it scrolls through
       Text {
         id: barAlertLabel
@@ -3120,6 +3194,7 @@ BarWidget {
           visible: root.showSolarOnBar
           spacing: Style.space(4)
           anchors.verticalCenter: parent.verticalCenter
+          HoverHandler { id: barSunHover }
 
           BarWeatherIcon {
             anchors.verticalCenter: parent.verticalCenter
@@ -3198,6 +3273,21 @@ BarWidget {
       }
     }
 
+    // Vertical bar: the same open-view outline and hover fill, per item
+    Repeater {
+      model: root.vertical ? [{ seg: root.barActiveSeg, open: true }, { seg: root.barHoverSeg, open: false }] : []
+      BarSegPill {
+        required property var modelData
+        readonly property Item firstItem: modelData.seg === "sun" ? barSunV : (modelData.seg === "moon" ? barMoonV : (modelData.seg === "weather" ? barWeatherV : null))
+        readonly property Item lastItem: modelData.seg === "weather" && barWeatherTextV.visible ? barWeatherTextV : firstItem
+        vertical: true
+        opened: modelData.open
+        shown: firstItem !== null && firstItem.visible
+        py: firstItem ? barContentCol.y + firstItem.y : 0
+        ph: firstItem ? lastItem.y + lastItem.height - firstItem.y : 0
+      }
+    }
+
     // Vertical bar layout
     Column {
       id: barContentCol
@@ -3207,9 +3297,11 @@ BarWidget {
       scale: barButton.pressScale
 
       BarWeatherIcon {
+        id: barSunV
         visible: root.showSolarOnBar
         anchors.horizontalCenter: parent.horizontalCenter
         kind: root.sunPhaseKind(root.solarData.phaseKey)
+        HoverHandler { id: barSunVHover }
       }
 
       Rectangle {
@@ -3223,6 +3315,7 @@ BarWidget {
       }
 
       MoonDisc {
+        id: barMoonV
         visible: root.showLunarOnBar
         HoverHandler { id: barMoonVHover }
         renderStyle: root.moonStyle
@@ -3235,11 +3328,13 @@ BarWidget {
       }
 
       BarWeatherIcon {
+        id: barWeatherV
         visible: root.showWeatherOnBar
         anchors.horizontalCenter: parent.horizontalCenter
         HoverHandler { id: barWeatherIconHover }
       }
       Text {
+        id: barWeatherTextV
         visible: root.showWeatherOnBar && root.barValues
         anchors.horizontalCenter: parent.horizontalCenter
         HoverHandler { id: barWeatherTextHover }

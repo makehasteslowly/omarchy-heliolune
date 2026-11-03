@@ -141,5 +141,12 @@
   "lapse.dayOf": "Day %1 of %2",
   "lapse.now": "Now",
   "lapse.titleCycle": "This Cycle",
-  "lapse.titleSky": "Next 24 Hours"
+  "lapse.titleSky": "Next 24 Hours",
+  "tip.footer": "Right-click: settings · Middle-click: refresh",
+  "tip.sunNext": "%1 at %2",
+  "tip.sunNow": "Now %1 · %2° %3",
+  "tip.clickSun": "Click: Sun",
+  "tip.moonNow": "%1 · %2% lit",
+  "tip.clickMoon": "Click: Moon",
+  "tip.clickWeather": "Click: forecast"
 }
