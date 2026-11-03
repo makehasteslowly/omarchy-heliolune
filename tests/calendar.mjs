@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const src = fs.readFileSync(path.join(here, "..", "Model.js"), "utf8").replace(/^\.pragma library.*$/m, "");
-const M = new Function(src + "\nreturn { isoWeek, weekNumber, computeSeasonSummary, getSunTimesForDay, getMoonTimes, computeSolarSummary, formatWind, parseCurrentWeather, WEATHER_MAX_BYTES, computeWeatherAlert };")();
+const M = new Function(src + "\nreturn { isoWeek, weekNumber, computeSeasonSummary, getSunTimesForDay, getMoonTimes, computeSolarSummary, formatWind, parseCurrentWeather, WEATHER_MAX_BYTES, computeWeatherAlert, lunarDays, moonVisibility, firstWindow, getMoonPosition };")();
 const cases = [
   ["2026-11-02", 45, 2026], ["2026-01-01", 1, 2026], ["2027-01-01", 53, 2026], ["2027-01-03", 53, 2026],
   ["2027-01-04", 1, 2027], ["2024-12-30", 1, 2025], ["2025-12-29", 1, 2026], ["2021-01-03", 53, 2020],
@@ -113,6 +113,21 @@ checks.push(["alerts: light rain and light snow do not alert", M.computeWeatherA
 const toEnd = JSON.parse(JSON.stringify(calm)); toEnd.forecast.hourly[12] = hour(12, 96); toEnd.forecast.hourly[13] = hour(13, 96);
 const a3 = M.computeWeatherAlert(toEnd);
 checks.push(["alerts: spell running past the forecast has no end hour", a3 && a3.startH === 12 && a3.endH === null]);
+
+// 30-day Moon: principal phases land on the right days (USNO, Nov-Dec 2026, Eastern time)
+const days30 = M.lunarDays(new Date(2026, 10, 3, 1, 0), 30);
+const evOn = d => (days30.find(x => x.date.getMonth() === d[0] && x.date.getDate() === d[1]) || {}).event;
+checks.push(["30 days: 30 entries, day 0 now", days30.length === 30 && days30[0].date.getHours() === 1]);
+checks.push(["30 days: new Moon Nov 9, first quarter Nov 17, full Nov 24, last quarter Dec 1",
+  evOn([10, 9]) === "new" && evOn([10, 17]) === "first" && evOn([10, 24]) === "full" && evOn([11, 1]) === "last"]);
+checks.push(["30 days: exactly four principal phases", days30.filter(x => x.event).length === 4]);
+// Visibility: 24 hourly samples from the current hour; visible only with the Moon up and the Sun down
+const vis = M.moonVisibility(new Date(2026, 10, 3, 1, 20), 40.71, -74.0, 24);
+checks.push(["visibility: 24 samples from the top of the hour", vis.length === 24 && vis[0].h === 1 && vis[0].t.getMinutes() === 0]);
+checks.push(["visibility: never visible with the Sun up", vis.every(v => !v.visible || v.sunAlt < 0)]);
+checks.push(["visibility: altitude matches getMoonPosition", Math.abs(vis[5].moonAlt - M.getMoonPosition(vis[5].t, 40.71, -74.0).altitude) < 1e-9]);
+const win = M.firstWindow(vis, v => v.visible);
+checks.push(["visibility: waning crescent rises after midnight and is visible before dawn", win && win.from.getHours() <= 3 && win.to.getHours() <= 7]);
 
 for (const [label, ok] of checks) { if (!ok) { failed++; console.log("FAIL " + label); } else if (process.argv.includes("--verbose")) console.log("ok   " + label); }
 console.log(`Options: ${checks.filter(c => c[1]).length}/${checks.length} checks pass`);

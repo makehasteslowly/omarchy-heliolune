@@ -606,6 +606,54 @@ BarWidget {
     return root.forecastDate(e).toLocaleDateString(root.formatLocale, "ddd")
   }
 
+  // Moon view (click the moon on the bar, or M): Today with visibility, 7 Days, 30 Days
+  property bool moonOpen: false
+  property string moonRange: "today"   // "today" | "7" | "30"
+  // Computed only while shown; currentDate refreshes them every minute
+  // Every 15 minutes for 24 hours (96 samples): the rows use every 12th (3 h)
+  readonly property var moonHours: root.moonOpen && root.moonRange === "today"
+    ? Model.moonVisibility(root.currentDate, root.activeLat, root.activeLon, 24, 15) : []
+  readonly property var moonMonth: root.moonOpen && root.moonRange === "30"
+    ? Model.lunarDays(root.currentDate, 30) : []
+  // Clear enough to see the Moon at hourly forecast index i (no weather: assume clear)
+  function skyClearAt(i) {
+    var hw = root.forecastReady ? root.forecast.hourly[i] : null
+    return !hw || ["clear", "clearNight", "partly", "partlyNight"].indexOf(hw.kind) >= 0
+  }
+  readonly property var moonBestWindow: Model.firstWindow(root.moonHours, function(v, i) { return v.visible && root.skyClearAt(Math.floor(i / 4)) })
+  readonly property var moonUpWindow: Model.firstWindow(root.moonHours, function(v) { return v.visible })
+  // Window edges snapped to the exact sunset / sunrise (the samples are 15 min apart)
+  function snapToSun(w) {
+    if (!w) return null
+    var from = w.from, to = w.to
+    var atEnd = Model.getSunTimesForDay(to, root.activeLat, root.activeLon, root.astroOpts)
+    var atStart = Model.getSunTimesForDay(from, root.activeLat, root.activeLon, root.astroOpts)
+    if (atEnd.sunrise && atEnd.sunrise > from && atEnd.sunrise < to) to = atEnd.sunrise
+    if (atStart.sunset && atStart.sunset > from && atStart.sunset < to) from = atStart.sunset
+    return { from: from, to: to }
+  }
+  readonly property string moonVisibilityText: {
+    function t(d) { return Model.formatTime(d, root.timeFormatMode, root.formatLocale) }
+    var best = root.snapToSun(root.moonBestWindow)
+    if (best) {
+      return best.from.getTime() <= Date.now()
+        ? strings.t("moon.bestNow").arg(t(best.to))
+        : strings.t("moon.best").arg(t(best.from)).arg(t(best.to))
+    }
+    var up = root.snapToSun(root.moonUpWindow)
+    if (up) return strings.t("moon.clouded").arg(t(up.from)).arg(t(up.to))
+    return strings.t("moon.notVisible")
+  }
+  function toggleMoon() {
+    if (root.opened && root.moonOpen) {
+      root.close()
+      return
+    }
+    if (!root.opened) root.open()
+    if (root.viewOffsetDays !== 0) root.setViewOffset(0)
+    root.moonOpen = true
+  }
+
   // Open the popup on the forecast, or close it if the forecast is already showing
   function toggleWeather() {
     if (root.opened && root.weatherOpen) {
@@ -625,6 +673,7 @@ BarWidget {
     barButton.hideOwnTooltip()
     root.settingsOpen = false
     root.weatherOpen = false
+    root.moonOpen = false
     root.recalculate()
     root.rebuildSkySamples(root.currentDate)
     root.rebuildAnalemma(root.currentDate)
@@ -636,11 +685,12 @@ BarWidget {
     root.opened = false
     root.settingsOpen = false
     root.weatherOpen = false
+    root.moonOpen = false
     root.editingCustomCoords = false
   }
 
   function togglePanel() {
-    if (root.opened && !root.settingsOpen && !root.weatherOpen) {
+    if (root.opened && !root.settingsOpen && !root.weatherOpen && !root.moonOpen) {
       root.close()
     } else {
       root.open()
@@ -785,6 +835,8 @@ BarWidget {
     function settings(): void { root.toggleSettings() }
     // Open the popup on the weather forecast (toggles like clicking the weather)
     function forecast(): void { root.toggleWeather() }
+    // Open the popup on the 7-day Moon (toggles like clicking the moon)
+    function moon(): void { root.toggleMoon() }
   }
 
   // ============================================================================
@@ -2074,7 +2126,7 @@ BarWidget {
 
   // Daylight vs yesterday badge (popup header)
   component DaylightBadge: Rectangle {
-    visible: !root.settingsOpen && !root.weatherOpen
+    visible: !root.settingsOpen && !root.weatherOpen && !root.moonOpen
     implicitHeight: Style.space(18)
     implicitWidth: badgeLabel.implicitWidth + Style.space(10)
     radius: trackerPopup.chipRadius
@@ -2115,6 +2167,14 @@ BarWidget {
       selected: root.weatherOpen
       text: root.weatherOpen ? "󰅖" : "󰖕"
       onClicked: root.weatherOpen = !root.weatherOpen
+    }
+    // Moon view toggle
+    ChoiceButton {
+      Layout.preferredWidth: Style.space(28)
+      Layout.preferredHeight: Style.space(28)
+      selected: root.moonOpen
+      text: root.moonOpen ? "󰅖" : "󰖔"
+      onClicked: root.moonOpen = !root.moonOpen
     }
     // Refresh button
     ChoiceButton {
@@ -2928,6 +2988,7 @@ BarWidget {
       + (root.weatherNow && root.weatherEnabled ? " · " + root.weatherTempText + " " + root.weatherConditionText : "")
       + (root.weatherAlertText !== "" ? "\n" + root.weatherAlertText : "")
       + (root.showWeatherOnBar ? " · Click the weather: forecast" : "")
+      + (root.showLunarOnBar ? " · Click the moon: 7-day Moon" : "")
       + " · Right-click: settings"
     )
 
@@ -2938,6 +2999,8 @@ BarWidget {
         root.refresh()
       } else if (root.showWeatherOnBar && (barWeatherHover.hovered || barWeatherIconHover.hovered || barWeatherTextHover.hovered)) {
         root.toggleWeather()
+      } else if (root.showLunarOnBar && (barMoonHover.hovered || barMoonVHover.hovered)) {
+        root.toggleMoon()
       } else {
         root.togglePanel()
       }
@@ -3045,6 +3108,7 @@ BarWidget {
           visible: root.showLunarOnBar
           spacing: Style.space(4)
           anchors.verticalCenter: parent.verticalCenter
+          HoverHandler { id: barMoonHover }
 
           MoonDisc {
             renderStyle: root.moonStyle
@@ -3118,6 +3182,7 @@ BarWidget {
 
       MoonDisc {
         visible: root.showLunarOnBar
+        HoverHandler { id: barMoonVHover }
         renderStyle: root.moonStyle
         anchors.horizontalCenter: parent.horizontalCenter
         discSize: 13
@@ -3149,12 +3214,23 @@ BarWidget {
   onSettingsOpenChanged: {
     popupScroll.contentY = 0
     root.confirmingReset = false
-    if (root.settingsOpen) root.weatherOpen = false
+    if (root.settingsOpen) {
+      root.weatherOpen = false
+      root.moonOpen = false
+    }
+  }
+  onMoonOpenChanged: {
+    popupScroll.contentY = 0
+    if (root.moonOpen) {
+      root.settingsOpen = false
+      root.weatherOpen = false
+    }
   }
   onWeatherOpenChanged: {
     popupScroll.contentY = 0
     if (root.weatherOpen) {
       root.settingsOpen = false
+      root.moonOpen = false
       root.fetchWeather(false)
     }
   }
@@ -3221,7 +3297,7 @@ BarWidget {
 
       // Keyboard: ←/→ day (Shift: week), T today, S settings, W forecast, R refresh,
       // ↑/↓ PgUp/PgDn Home scroll, Esc close; in settings 1/2/3 pick the theme;
-      // in the forecast ←/→ or 1/2/3 pick Today / 3 Days / 7 Days.
+      // in the forecast ←/→ or 1/2/3 pick Today / 3 Days / 7 Days; M the 7-day Moon.
       Keys.onPressed: function(event) {
         var shift = (event.modifiers & Qt.ShiftModifier) !== 0
         var k = event.key
@@ -3229,6 +3305,7 @@ BarWidget {
         if (k === Qt.Key_Escape) {
           if (root.editingCustomCoords) root.editingCustomCoords = false
           else if (root.weatherOpen) root.weatherOpen = false
+          else if (root.moonOpen) root.moonOpen = false
           else root.close()
         } else if (root.weatherOpen && (k === Qt.Key_Left || k === Qt.Key_Right)) {
           var ri = ranges.indexOf(root.forecastRange) + (k === Qt.Key_Right ? 1 : -1)
@@ -3237,6 +3314,14 @@ BarWidget {
           root.forecastRange = ranges[k - Qt.Key_1]
         } else if (k === Qt.Key_W && root.weatherEnabled) {
           root.weatherOpen = !root.weatherOpen
+        } else if (k === Qt.Key_M) {
+          root.moonOpen = !root.moonOpen
+        } else if (root.moonOpen && (k === Qt.Key_Left || k === Qt.Key_Right)) {
+          var mr = ["today", "7", "30"]
+          var mi = mr.indexOf(root.moonRange) + (k === Qt.Key_Right ? 1 : -1)
+          root.moonRange = mr[(mi + mr.length) % mr.length]
+        } else if (root.moonOpen && k >= Qt.Key_1 && k <= Qt.Key_3) {
+          root.moonRange = ["today", "7", "30"][k - Qt.Key_1]
         } else if (k === Qt.Key_Left && !root.settingsOpen) {
           root.stepView(shift ? -7 : -1)
         } else if (k === Qt.Key_Right && !root.settingsOpen) {
@@ -3370,7 +3455,7 @@ BarWidget {
                 Layout.alignment: Qt.AlignRight
                 textFormat: Text.PlainText
                 readonly property bool deco: root.decoStyle
-                text: root.settingsOpen ? strings.t("section.settings") : (root.weatherOpen ? strings.t("section.forecast") : strings.t("plugin.title"))
+                text: root.settingsOpen ? strings.t("section.settings") : (root.weatherOpen ? strings.t("section.forecast") : (root.moonOpen ? strings.t("section.moon") : strings.t("plugin.title")))
                 color: root.ornate ? root.ornMetal : Color.foreground
                 font.family: Style.font.family
                 font.pixelSize: Style.font.body
@@ -3385,7 +3470,7 @@ BarWidget {
                 spacing: Style.space(6)
                 Item {
                   Layout.alignment: Qt.AlignVCenter
-                  visible: !root.settingsOpen && !root.weatherOpen   // same rule as DaylightBadge
+                  visible: !root.settingsOpen && !root.weatherOpen && !root.moonOpen   // same rule as DaylightBadge
                   implicitWidth: heroBadge.implicitWidth
                   implicitHeight: heroBadge.implicitHeight
                   DaylightBadge { id: heroBadge }
@@ -3403,7 +3488,7 @@ BarWidget {
 Text {
               textFormat: Text.PlainText
               readonly property bool deco: root.decoStyle
-              text: root.settingsOpen ? strings.t("section.settings") : (root.weatherOpen ? strings.t("section.forecast") : strings.t("plugin.title"))
+              text: root.settingsOpen ? strings.t("section.settings") : (root.weatherOpen ? strings.t("section.forecast") : (root.moonOpen ? strings.t("section.moon") : strings.t("plugin.title")))
               elide: Text.ElideRight
               Layout.maximumWidth: implicitWidth
               Layout.minimumWidth: Math.min(implicitWidth, Style.space(60))
@@ -3581,6 +3666,475 @@ Text {
             onTapped: {
               root.forecastRange = "today"
               root.weatherOpen = true
+            }
+          }
+        }
+
+        // ======================================================================
+        // MOON VIEW (click the moon on the bar, the moon button, or M): Today
+        // with visibility, 7 Days and 30 Days, in the forecast's row style
+        // ======================================================================
+        ColumnLayout {
+          id: moonView
+          visible: root.moonOpen && !root.settingsOpen
+          Layout.fillWidth: true
+          spacing: Style.space(10)
+
+          // Range picker, as in the forecast
+          RowLayout {
+            Layout.fillWidth: true
+            spacing: Style.space(4)
+
+            Repeater {
+              model: ["today", "7", "30"]
+
+              ChoiceButton {
+                required property string modelData
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                Layout.preferredHeight: Style.space(28)
+                selected: root.moonRange === modelData
+                text: strings.t("moon.range." + modelData)
+                onClicked: root.moonRange = modelData
+              }
+            }
+          }
+
+          // ---- Today: the Moon now, and when it can be seen
+          Rectangle {
+            visible: root.moonRange === "today"
+            Layout.fillWidth: true
+            implicitHeight: moonTodayCol.implicitHeight + Style.space(16) + root.cardFootPad
+            radius: trackerPopup.cardRadius
+            color: trackerPopup.cardSurfaceColor
+            border.width: 1
+            border.color: trackerPopup.cardBorderColor
+            OrnCardFrame {}
+
+            ColumnLayout {
+              id: moonTodayCol
+              anchors.fill: parent
+              anchors.margins: Style.space(8)
+              anchors.bottomMargin: Style.space(8) + root.cardFootPad
+              spacing: Style.space(6)
+
+              RowLayout {
+                Layout.fillWidth: true
+                CardTitle {
+                  text: (root.decoStyle ? "◆ " : (root.nouveauStyle ? "❦ " : (root.atomicStyle ? "✦ " : ""))) + strings.t("moon.today")
+                }
+                Item { Layout.fillWidth: true }
+                Text {
+                  textFormat: Text.PlainText
+                  text: strings.t("lunar.inSign").arg(root.lunarData.zodiacName)
+                  color: trackerPopup.popupLunarColor
+                  font.family: Style.font.family
+                  font.pixelSize: Style.font.bodySmall
+                }
+              }
+
+              RowLayout {
+                Layout.fillWidth: true
+                spacing: Style.space(10)
+
+                MoonDisc {
+                  Layout.preferredWidth: 46
+                  Layout.preferredHeight: 46
+                  discSize: 44
+                  phase: root.lunarData.phase
+                  litColor: trackerPopup.popupLunarLitColor
+                  darkColor: root.ornatePalette ? root.ornMoonShadow(root.isLightPopup, 0.22) : (root.isLightPopup ? Qt.rgba(0.14, 0.19, 0.28, 0.22) : Qt.rgba(0.05, 0.08, 0.14, 0.82))
+                  rimColor: Qt.alpha(trackerPopup.popupLunarColor, 0.5)
+                  renderStyle: root.moonStyle
+                }
+
+                ColumnLayout {
+                  Layout.fillWidth: true
+                  spacing: 1
+                  Text {
+                    textFormat: Text.PlainText
+                    text: root.lunarData.phaseName
+                    color: trackerPopup.popupLunarColor
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.body
+                    font.bold: true
+                  }
+                  Text {
+                    Layout.fillWidth: true
+                    textFormat: Text.PlainText
+                    elide: Text.ElideRight
+                    text: strings.t("moon.litAge")
+                      .arg(Commons.I18n.formatNumber(root.lunarData.illuminationPct))
+                      .arg(strings.t(root.lunarData.waxing ? "lunar.waxing" : "lunar.waning"))
+                      .arg(Model.formatAgeDays(root.lunarData.ageDays))
+                    color: Color.foreground
+                    opacity: 0.8
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.bodySmall
+                  }
+                }
+
+                ColumnLayout {
+                  spacing: 1
+                  Text {
+                    Layout.alignment: Qt.AlignRight
+                    textFormat: Text.PlainText
+                    text: "↑ " + root.moonEventText(root.lunarData.nextMoonrise)
+                    color: Color.foreground
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.bodySmall
+                    font.bold: true
+                  }
+                  Text {
+                    Layout.alignment: Qt.AlignRight
+                    textFormat: Text.PlainText
+                    text: "↓ " + root.moonEventText(root.lunarData.nextMoonset)
+                    color: Color.foreground
+                    opacity: 0.8
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.bodySmall
+                  }
+                }
+              }
+
+              // The verdict: when it is up in a dark sky and (with weather on) not clouded over
+              Text {
+                Layout.fillWidth: true
+                textFormat: Text.PlainText
+                wrapMode: Text.WordWrap
+                text: root.moonVisibilityText
+                color: root.moonBestWindow ? trackerPopup.popupLunarColor : Color.foreground
+                opacity: root.moonBestWindow ? 1.0 : 0.78
+                font.family: Style.font.family
+                font.pixelSize: Style.font.bodySmall
+                font.bold: root.moonBestWindow !== null
+              }
+            }
+          }
+
+          Rectangle {
+            visible: root.moonRange === "today"
+            Layout.fillWidth: true
+            implicitHeight: moonHoursCol.implicitHeight + Style.space(16) + root.cardFootPad
+            radius: trackerPopup.cardRadius
+            color: trackerPopup.cardSurfaceColor
+            border.width: 1
+            border.color: trackerPopup.cardBorderColor
+            OrnCardFrame {}
+
+            ColumnLayout {
+              id: moonHoursCol
+              anchors.fill: parent
+              anchors.margins: Style.space(8)
+              anchors.bottomMargin: Style.space(8) + root.cardFootPad
+              spacing: Style.space(4)
+
+              CardTitle {
+                text: (root.decoStyle ? "◆ " : (root.nouveauStyle ? "❦ " : (root.atomicStyle ? "✦ " : ""))) + strings.t("moon.next24")
+              }
+
+              // Every third hour, the weather rows' columns: time, sky, status, altitude
+              Repeater {
+                model: root.moonHours.filter(function(v, i) { return i % 12 === 0 })
+
+                RowLayout {
+                  id: moonHourRow
+                  required property var modelData
+                  required property int index
+                  readonly property int hourIndex: index * 3
+                  readonly property var sky: root.forecast.hourly[hourIndex] || null
+                  readonly property string vis: !modelData.up ? "below"
+                    : (!modelData.visible ? "daylight" : (root.skyClearAt(hourIndex) ? "visible" : "clouds"))
+                  Layout.fillWidth: true
+                  spacing: Style.space(6)
+
+                  Text {
+                    Layout.preferredWidth: Style.space(64)
+                    textFormat: Text.PlainText
+                    text: moonHourRow.index === 0 ? strings.t("forecast.now") : root.hourLabel(moonHourRow.modelData.h)
+                    color: moonHourRow.index === 0 ? trackerPopup.popupLunarColor : Color.foreground
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.bodySmall
+                    font.bold: moonHourRow.index === 0
+                  }
+                  Item {
+                    Layout.preferredWidth: Style.space(24)
+                    Layout.preferredHeight: Style.space(24)
+                    SkyIcon {
+                      visible: moonHourRow.sky !== null
+                      anchors.fill: parent
+                      kind: moonHourRow.sky ? moonHourRow.sky.kind : "clear"
+                    }
+                  }
+                  Text {
+                    Layout.fillWidth: true
+                    Layout.preferredWidth: 0   // share leftover space equally: bars line up
+                    textFormat: Text.PlainText
+                    elide: Text.ElideRight
+                    text: strings.t("moon.state." + moonHourRow.vis)
+                    color: moonHourRow.vis === "visible" ? trackerPopup.popupLunarColor : Color.foreground
+                    opacity: moonHourRow.vis === "visible" ? 1.0 : 0.6
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.bodySmall
+                    font.bold: moonHourRow.vis === "visible"
+                  }
+                  Item { Layout.preferredWidth: Style.space(32) }
+                  Item { Layout.preferredWidth: Style.space(30) }
+                  // Height above the horizon (0-90°)
+                  Item {
+                    Layout.preferredWidth: Style.space(72)
+                    Layout.preferredHeight: Style.space(6)
+                    Rectangle {
+                      anchors.fill: parent
+                      radius: height / 2
+                      color: Qt.alpha(Color.foreground, root.isLightPopup ? 0.08 : 0.1)
+                    }
+                    Rectangle {
+                      visible: moonHourRow.modelData.up
+                      width: Math.max(height, parent.width * Math.max(0, Math.min(90, moonHourRow.modelData.moonAlt)) / 90)
+                      height: parent.height
+                      radius: height / 2
+                      color: trackerPopup.popupLunarLitColor
+                      opacity: moonHourRow.vis === "visible" ? 1.0 : 0.45
+                    }
+                  }
+                  Text {
+                    Layout.preferredWidth: Style.space(30)
+                    textFormat: Text.PlainText
+                    text: moonHourRow.modelData.up ? Math.max(0, Math.round(moonHourRow.modelData.moonAlt)) + "°" : "–"
+                    color: trackerPopup.popupLunarColor
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.bodySmall
+                    font.bold: true
+                  }
+                }
+              }
+            }
+          }
+
+          // ---- 30 Days: a month of Moons, principal phases marked
+          Rectangle {
+            visible: root.moonRange === "30"
+            Layout.fillWidth: true
+            implicitHeight: moonMonthCol.implicitHeight + Style.space(16) + root.cardFootPad
+            radius: trackerPopup.cardRadius
+            color: trackerPopup.cardSurfaceColor
+            border.width: 1
+            border.color: trackerPopup.cardBorderColor
+            OrnCardFrame {}
+
+            ColumnLayout {
+              id: moonMonthCol
+              anchors.fill: parent
+              anchors.margins: Style.space(8)
+              anchors.bottomMargin: Style.space(8) + root.cardFootPad
+              spacing: Style.space(6)
+
+              CardTitle {
+                text: (root.decoStyle ? "◆ " : (root.nouveauStyle ? "❦ " : (root.atomicStyle ? "✦ " : ""))) + strings.t("moon.next30")
+              }
+
+              GridLayout {
+                Layout.fillWidth: true
+                columns: 7
+                columnSpacing: Style.space(4)
+                rowSpacing: Style.space(4)
+
+                Repeater {
+                  model: root.moonMonth
+
+                  Rectangle {
+                    id: moonCell
+                    required property var modelData
+                    required property int index
+                    readonly property bool marked: modelData.event !== ""
+                    Layout.fillWidth: true
+                    Layout.preferredWidth: 1
+                    implicitHeight: cellCol.implicitHeight + Style.space(8)
+                    radius: trackerPopup.chipRadius
+                    color: moonCell.index === 0 || moonCell.marked
+                      ? Qt.alpha(trackerPopup.popupLunarColor, root.isLightPopup ? 0.12 : 0.16)
+                      : Qt.alpha(Color.foreground, root.isLightPopup ? 0.03 : 0.04)
+                    border.width: moonCell.index === 0 || moonCell.marked ? 1 : (root.ornate ? 1 : 0)
+                    border.color: moonCell.index === 0 || moonCell.marked
+                      ? (root.ornate ? Qt.alpha(root.ornMetal, 0.8) : Qt.alpha(trackerPopup.popupLunarColor, 0.5))
+                      : Qt.alpha(root.ornMetal, 0.25)
+
+                    ColumnLayout {
+                      id: cellCol
+                      anchors.centerIn: parent
+                      spacing: 1
+
+                      Text {
+                        Layout.alignment: Qt.AlignHCenter
+                        textFormat: Text.PlainText
+                        text: moonCell.index === 0 ? strings.t("forecast.now")
+                          : moonCell.modelData.date.toLocaleDateString(root.formatLocale, moonCell.modelData.date.getDate() === 1 || moonCell.index === 1 ? "MMM d" : "ddd d")
+                        color: moonCell.index === 0 ? trackerPopup.popupLunarColor : Color.foreground
+                        opacity: moonCell.index === 0 ? 1.0 : 0.72
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.caption
+                        font.bold: moonCell.index === 0
+                      }
+                      MoonDisc {
+                        Layout.alignment: Qt.AlignHCenter
+                        discSize: 18
+                        phase: moonCell.modelData.phase
+                        litColor: trackerPopup.popupLunarLitColor
+                        darkColor: root.ornatePalette ? root.ornMoonShadow(root.isLightPopup, 0.22) : (root.isLightPopup ? Qt.rgba(0.14, 0.19, 0.28, 0.22) : Qt.rgba(0.05, 0.08, 0.14, 0.82))
+                        rimColor: Qt.alpha(trackerPopup.popupLunarColor, 0.5)
+                        renderStyle: root.moonStyle
+                      }
+                      Text {
+                        Layout.alignment: Qt.AlignHCenter
+                        textFormat: Text.PlainText
+                        text: moonCell.marked ? strings.t("moon.event." + moonCell.modelData.event)
+                          : Commons.I18n.formatNumber(moonCell.modelData.illuminationPct) + "%"
+                        color: moonCell.marked ? trackerPopup.popupLunarColor : Color.foreground
+                        opacity: moonCell.marked ? 1.0 : 0.8
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.caption
+                        font.bold: moonCell.marked
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+
+          // ---- 7 Days
+          Rectangle {
+            visible: root.moonRange === "7"
+            Layout.fillWidth: true
+            implicitHeight: moonWeekCol.implicitHeight + Style.space(16) + root.cardFootPad
+            radius: trackerPopup.cardRadius
+            color: trackerPopup.cardSurfaceColor
+            border.width: 1
+            border.color: trackerPopup.cardBorderColor
+            OrnCardFrame {}
+
+            ColumnLayout {
+              id: moonWeekCol
+              anchors.fill: parent
+              anchors.margins: Style.space(8)
+              anchors.bottomMargin: Style.space(8) + root.cardFootPad
+              spacing: Style.space(4)
+
+              RowLayout {
+                Layout.fillWidth: true
+                CardTitle {
+                  text: (root.decoStyle ? "◆ " : (root.nouveauStyle ? "❦ " : (root.atomicStyle ? "✦ " : ""))) + strings.t("moon.next7")
+                }
+                Item { Layout.fillWidth: true }
+                Text {
+                  textFormat: Text.PlainText
+                  text: strings.t("lunar.inSign").arg(root.lunarData.zodiacName)
+                  color: trackerPopup.popupLunarColor
+                  font.family: Style.font.family
+                  font.pixelSize: Style.font.bodySmall
+                }
+              }
+
+              Repeater {
+                model: root.lunarData.forecast || []
+
+                RowLayout {
+                  id: moonRow
+                  required property var modelData
+                  required property int index
+                  readonly property var times: Model.getMoonTimes(moonRow.modelData.date, root.activeLat, root.activeLon, root.astroOpts)
+                  Layout.fillWidth: true
+                  spacing: Style.space(6)
+
+                  Text {
+                    Layout.preferredWidth: Style.space(64)
+                    textFormat: Text.PlainText
+                    elide: Text.ElideRight
+                    text: moonRow.index === 0 ? strings.t("view.today")
+                      : (moonRow.index === 1 ? strings.t("forecast.tomorrow")
+                      : moonRow.modelData.date.toLocaleDateString(root.formatLocale, "ddd"))
+                    color: moonRow.index === 0 ? trackerPopup.popupLunarColor : Color.foreground
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.bodySmall
+                    font.bold: moonRow.index === 0
+                  }
+                  MoonDisc {
+                    Layout.preferredWidth: 22
+                    Layout.preferredHeight: 22
+                    discSize: 20
+                    phase: moonRow.modelData.phase
+                    litColor: trackerPopup.popupLunarLitColor
+                    darkColor: root.ornatePalette ? root.ornMoonShadow(root.isLightPopup, 0.22) : (root.isLightPopup ? Qt.rgba(0.14, 0.19, 0.28, 0.22) : Qt.rgba(0.05, 0.08, 0.14, 0.82))
+                    rimColor: Qt.alpha(trackerPopup.popupLunarColor, 0.5)
+                    renderStyle: root.moonStyle
+                  }
+                  Text {
+                    Layout.fillWidth: true
+                    Layout.preferredWidth: 0   // share leftover space equally: bars line up
+                    textFormat: Text.PlainText
+                    elide: Text.ElideRight
+                    text: moonRow.modelData.phaseName
+                    color: Color.foreground
+                    opacity: 0.8
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.bodySmall
+                  }
+                  // Moonrise that day (or up / down all day)
+                  Text {
+                    Layout.preferredWidth: Style.space(70)
+                    horizontalAlignment: Text.AlignRight
+                    textFormat: Text.PlainText
+                    text: moonRow.times.rise
+                      ? "↑ " + Model.formatTime(moonRow.times.rise, root.timeFormatMode, root.formatLocale)
+                      : (moonRow.times.alwaysUp ? "↑ —" : "")
+                    color: trackerPopup.popupLunarColor
+                    opacity: 0.85
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.caption
+                  }
+                  // Illumination, on the same bar as the weather rows
+                  Item {
+                    Layout.preferredWidth: Style.space(72)
+                    Layout.preferredHeight: Style.space(6)
+                    Rectangle {
+                      anchors.fill: parent
+                      radius: height / 2
+                      color: Qt.alpha(Color.foreground, root.isLightPopup ? 0.08 : 0.1)
+                    }
+                    Rectangle {
+                      width: Math.max(height, parent.width * moonRow.modelData.illuminationPct / 100)
+                      height: parent.height
+                      radius: height / 2
+                      color: trackerPopup.popupLunarLitColor
+                    }
+                  }
+                  Text {
+                    Layout.preferredWidth: Style.space(34)
+                    textFormat: Text.PlainText
+                    text: Commons.I18n.formatNumber(moonRow.modelData.illuminationPct) + "%"
+                    color: trackerPopup.popupLunarColor
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.bodySmall
+                    font.bold: true
+                  }
+                }
+              }
+
+              // Next full and new Moon, as in the Moon card
+              Text {
+                Layout.fillWidth: true
+                Layout.topMargin: Style.space(2)
+                textFormat: Text.PlainText
+                elide: Text.ElideRight
+                text: strings.t("lunar.nextFull") + " " + root.lunarData.nextFullDate.toLocaleDateString(root.formatLocale, "MMM d")
+                  + " (" + Model.formatCountdownDays(root.lunarData.daysToFull) + ")  ·  "
+                  + strings.t("lunar.nextNew") + " " + root.lunarData.nextNewDate.toLocaleDateString(root.formatLocale, "MMM d")
+                  + " (" + Model.formatCountdownDays(root.lunarData.daysToNew) + ")"
+                color: trackerPopup.popupLunarColor
+                font.family: Style.font.family
+                font.pixelSize: Style.font.bodySmall
+              }
             }
           }
         }
@@ -4054,7 +4608,7 @@ Text {
         // ======================================================================
         ColumnLayout {
           id: trackerView
-          visible: !root.settingsOpen && !root.weatherOpen
+          visible: !root.settingsOpen && !root.weatherOpen && !root.moonOpen
           Layout.fillWidth: true
           spacing: Style.space(10)
 

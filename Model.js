@@ -796,6 +796,72 @@ function phaseInfoFromValue(phase) {
   return { index: 7, key: "waning_crescent", name: "Waning Crescent", shortName: "Wan Cres", icon: "󰽥", unicode: "🌘", waxing: false }
 }
 
+// The Moon for `n` consecutive days from `now` (day 0 at the current time, the
+// others at local noon). Days holding the exact moment of a new, first-quarter,
+// full or last-quarter Moon carry `event` ("new" | "first" | "full" | "last").
+function lunarDays(now, n) {
+  var start = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  var end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + n)
+  var events = {}
+  var targets = [[0.0, "new"], [0.25, "first"], [0.5, "full"], [0.75, "last"]]
+  for (var k = 0; k < targets.length; k++) {
+    var from = new Date(start.getTime() - DAY_MS)
+    for (var guard = 0; guard < 4; guard++) {
+      var at = findNextLunarPhaseDate(from, targets[k][0])
+      if (at >= end) break
+      if (at >= start) events[at.getFullYear() + "-" + at.getMonth() + "-" + at.getDate()] = { key: targets[k][1], at: at }
+      from = new Date(at.getTime() + DAY_MS)
+    }
+  }
+  var out = []
+  for (var i = 0; i < n; i++) {
+    var d = i === 0 ? now : new Date(now.getFullYear(), now.getMonth(), now.getDate() + i, 12, 0, 0)
+    var di = getMoonIllumination(d)
+    var info = phaseInfoFromValue(di.phase)
+    var ev = events[d.getFullYear() + "-" + d.getMonth() + "-" + d.getDate()] || null
+    out.push({
+      date: d, dayOffset: i, phase: di.phase,
+      illuminationPct: Math.round(di.fraction * 100),
+      phaseName: info.name, shortName: info.shortName, icon: info.icon,
+      event: ev ? ev.key : "", eventAt: ev ? ev.at : null
+    })
+  }
+  return out
+}
+
+// Moon visibility from the start of the current hour, every `stepMin` minutes
+// (default 60) for `hours` hours: [{ t, h, moonAlt, sunAlt, up, visible }].
+// Up uses the moonrise horizon (upper limb with refraction, about -0.8 deg for
+// the Moon's centre), so "up" agrees with the moonrise time; visible = up with
+// the Sun down (sunAlt < 0). Clouds are judged by the caller from the weather.
+function moonVisibility(now, lat, lon, hours, stepMin) {
+  var step = (stepMin || 60) * 60000
+  var t0 = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours())
+  var n = Math.round(hours * 3600000 / step)
+  var out = []
+  for (var i = 0; i < n; i++) {
+    var t = new Date(t0.getTime() + i * step)
+    var m = getMoonPosition(t, lat, lon)
+    var sAlt = getSunPosition(t, lat, lon).altitude
+    var up = m.altitude > -0.8
+    out.push({ t: t, h: t.getHours(), moonAlt: m.altitude, sunAlt: sAlt, up: up, visible: up && sAlt < 0 })
+  }
+  return out
+}
+
+// First run of samples passing `ok(sample, index)` -> { from, to } (Dates; `to`
+// is one step after the run's last sample) or null
+function firstWindow(samples, ok) {
+  for (var i = 0; i < samples.length; i++) {
+    if (!ok(samples[i], i)) continue
+    var j = i
+    while (j + 1 < samples.length && ok(samples[j + 1], j + 1)) j++
+    var stepMs = samples.length > 1 ? samples[1].t.getTime() - samples[0].t.getTime() : 3600000
+    return { from: samples[i].t, to: new Date(samples[j].t.getTime() + stepMs), endsInside: j + 1 < samples.length }
+  }
+  return null
+}
+
 function zodiacFromLongitude(lonDeg) {
   var signs = [
     { name: "Aries",       symbol: "♈\uFE0E" },
