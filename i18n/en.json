@@ -26,7 +26,6 @@
   "lunar.nextNew": "Next New",
   "lunar.waxing": "Waxing",
   "lunar.waning": "Waning",
-  "settings.barDisplay": "Bar Display",
   "settings.colorMode": "Colors",
   "settings.timeFormat": "Time Format",
   "settings.moonStyle": "Style",
@@ -134,5 +133,9 @@
   "moon.event.first": "1st Qtr",
   "moon.event.full": "Full",
   "moon.event.last": "Last Qtr",
-  "moon.bestNow": "Visible now, until %1"
+  "moon.bestNow": "Visible now, until %1",
+  "settings.barShow": "Show",
+  "settings.barDetails": "Details",
+  "settings.barIcons": "Icons only",
+  "settings.barValues": "With values"
 }

@@ -18,15 +18,9 @@ BarWidget {
   }
 
   // ---- User settings with live local overrides for instant click feedback
-  property string localDisplayModeOverride: ""
-  readonly property string configuredDisplayMode: {
-    var v = String(setting("displayMode", "both")).toLowerCase()
-    if (v === "both" || v === "compact" || v === "detailed" || v === "dynamic" || v === "lunar" || v === "solar") return v
-    return "both"
-  }
-  readonly property string displayMode: root.localDisplayModeOverride !== ""
-    ? root.localDisplayModeOverride
-    : root.configuredDisplayMode
+  // Bar items. The old six-mode displayMode is read only to seed these for
+  // setups saved before Show/Details existed.
+  readonly property string legacyDisplayMode: String(setting("displayMode", "")).toLowerCase()
 
   property string localColorModeOverride: ""
   readonly property string configuredColorMode: {
@@ -106,6 +100,16 @@ BarWidget {
 
   // Weather alerts: severe weather now or within 12 hours scrolls across the bar
   readonly property bool alertsOn: root.opt("weatherAlerts", ["on", "off"], "on") === "on"
+  readonly property bool barSunOn: root.opt("barSun", ["on", "off"], root.legacyDisplayMode === "lunar" ? "off" : "on") === "on"
+  readonly property bool barMoonOn: root.opt("barMoon", ["on", "off"], root.legacyDisplayMode === "solar" ? "off" : "on") === "on"
+  readonly property bool barValues: root.opt("barDetails", ["icons", "values"], root.legacyDisplayMode === "compact" ? "icons" : "values") === "values"
+  // Show toggles; the last item showing cannot be switched off
+  function toggleBarItem(item) {
+    var on = { sun: root.barSunOn, moon: root.barMoonOn, weather: root.barWeatherMode === "on" }
+    if (on[item] && (on.sun ? 1 : 0) + (on.moon ? 1 : 0) + (on.weather ? 1 : 0) <= 1) return
+    if (item === "weather") root.selectBarWeather(on.weather ? "off" : "on")
+    else root.setOpt(item === "sun" ? "barSun" : "barMoon", on[item] ? "off" : "on")
+  }
   readonly property string windSetting: root.opt("windUnit", ["auto", "kmh", "mph", "ms"], "auto")
   readonly property string windUnit: root.windSetting === "auto" ? (root.weatherImperial ? "mph" : "kmh") : root.windSetting
   readonly property string weatherRefreshSetting: root.opt("weatherRefresh", ["15", "30", "60"], "30")
@@ -134,7 +138,6 @@ BarWidget {
   readonly property bool showForecast: root.cardOn("cardForecast")
   readonly property bool showYear: root.cardOn("cardYear")
 
-  onConfiguredDisplayModeChanged: root.localDisplayModeOverride = ""
   onConfiguredColorModeChanged: root.localColorModeOverride = ""
   onConfiguredMoonStyleChanged: root.localMoonStyleOverride = ""
   onConfiguredTimeFormatChanged: root.localTimeFormatOverride = ""
@@ -725,12 +728,6 @@ BarWidget {
     }
   }
 
-  function selectDisplayMode(mode) {
-    var m = (mode === "compact" || mode === "detailed" || mode === "dynamic" || mode === "lunar" || mode === "solar") ? mode : "both"
-    root.localDisplayModeOverride = m
-    root.saveBarSetting("displayMode", m)
-  }
-
   function selectColorMode(mode) {
     var m = (mode === "bold" || mode === "theme") ? mode : "celestial"
     root.localColorModeOverride = m
@@ -767,7 +764,7 @@ BarWidget {
   property bool confirmingReset: false
   function resetSettings() {
     var defaults = {
-      displayMode: "both", colorMode: "celestial", moonStyle: "atomic", timeFormat: "auto",
+      barSun: "on", barMoon: "on", barDetails: "values", colorMode: "celestial", moonStyle: "atomic", timeFormat: "auto",
       weather: "auto", barWeather: "on", weatherAlerts: "on", windUnit: "auto", weatherRefresh: "30",
       cardSky: "on", cardSun: "on", cardMoon: "on", cardForecast: "on", cardYear: "on",
       weekScheme: "auto", seasons: "astronomical", lightPreset: "standard", elevation: "0"
@@ -778,7 +775,6 @@ BarWidget {
       cmds.push("omarchy-bar set " + Util.shellQuote(root.pluginId) + " " + Util.shellQuote(k) + " " + Util.shellQuote(defaults[k]))
       local[k] = defaults[k]
     }
-    root.localDisplayModeOverride = "both"
     root.localColorModeOverride = "celestial"
     root.localMoonStyleOverride = "atomic"
     root.localTimeFormatOverride = "auto"
@@ -2860,23 +2856,14 @@ BarWidget {
   // ============================================================================
   // Bar Button Presentation
   // ============================================================================
-  readonly property bool showSolarOnBar: {
-    if (root.displayMode === "lunar") return false
-    if (root.displayMode === "dynamic") return root.solarData.isDay
-    return true
-  }
+  readonly property bool showSolarOnBar: root.barSunOn
 
-  readonly property bool showLunarOnBar: {
-    if (root.displayMode === "solar") return false
-    if (root.displayMode === "dynamic") return !root.solarData.isDay
-    return true
-  }
+  // The Moon also stands in when nothing else would show (weather toggled
+  // on but off or not loaded yet), so the bar is never empty
+  readonly property bool showLunarOnBar: root.barMoonOn || (!root.barSunOn && !root.showWeatherOnBar)
 
   readonly property string barSolarText: {
-    if (root.displayMode === "detailed" || root.displayMode === "solar") {
-      return Model.formatTime(root.solarData.nextEventTime, root.timeFormatMode, root.formatLocale)
-    }
-    return ""
+    return root.barValues ? Model.formatTime(root.solarData.nextEventTime, root.timeFormatMode, root.formatLocale) : ""
   }
 
   // With a time on the bar it is the next event's, so the icon is that event's
@@ -2886,7 +2873,7 @@ BarWidget {
     : root.sunPhaseKind(root.solarData.phaseKey)
 
   readonly property string barLunarText: {
-    if (root.displayMode === "compact") return ""
+    if (!root.barValues) return ""
     return Commons.I18n.formatNumber(root.lunarData.illuminationPct) + "%"
   }
 
@@ -2903,7 +2890,7 @@ BarWidget {
   readonly property color barPrimary: root.useThemeColors ? Color.accent : root.ornPick("primary", root.isLightBar, root.effectiveBarBg)
   // Extra bottom padding on cards for the Atomic frame's centre motif
   readonly property real cardFootPad: root.atomicStyle ? Style.space(10) : 0
-  readonly property bool barCapsuleOn: root.ornate && (root.showSolarOnBar || root.showLunarOnBar)
+  readonly property bool barCapsuleOn: root.ornate && (root.showSolarOnBar || root.showLunarOnBar || root.showWeatherOnBar)
 
   // ---- Weather alert: the bar stays as it is; while severe weather is on the
   // way, the strip scrolls out, the alert itself scrolls across, and the strip
@@ -3145,6 +3132,7 @@ BarWidget {
 
           BarWeatherIcon { anchors.verticalCenter: parent.verticalCenter }
           Text {
+            visible: root.barValues
             anchors.verticalCenter: parent.verticalCenter
             textFormat: Text.PlainText
             text: root.barTempText
@@ -3198,7 +3186,7 @@ BarWidget {
         HoverHandler { id: barWeatherIconHover }
       }
       Text {
-        visible: root.showWeatherOnBar
+        visible: root.showWeatherOnBar && root.barValues
         anchors.horizontalCenter: parent.horizontalCenter
         HoverHandler { id: barWeatherTextHover }
         textFormat: Text.PlainText
@@ -5821,42 +5809,43 @@ Text {
             text: strings.t("settings.section.bar")
           }
 
-          GridLayout {
+          // Show: each item toggles on or off (one always stays on)
+          RowLayout {
             Layout.fillWidth: true
-            columns: 3
-            columnSpacing: Style.space(4)
-            rowSpacing: Style.space(4)
+            spacing: Style.space(4)
+
+            RowLabel {
+              text: strings.t("settings.barShow")
+            }
 
             Repeater {
               model: [
-                { key: "both",     label: "Both" },
-                { key: "compact",  label: "Icons" },
-                { key: "detailed", label: "Detailed" },
-                { key: "dynamic",  label: "Dynamic" },
-                { key: "lunar",    label: "Lunar" },
-                { key: "solar",    label: "Solar" }
+                { key: "sun",     label: strings.t("settings.card.sun") },
+                { key: "moon",    label: strings.t("settings.card.moon") },
+                { key: "weather", label: strings.t("settings.weather") }
               ]
 
               ChoiceButton {
                 required property var modelData
                 Layout.fillWidth: true
-                Layout.preferredWidth: 1   // equal widths within a row
+                Layout.preferredWidth: 1
                 Layout.preferredHeight: Style.space(28)
-                selected: root.displayMode === modelData.key
+                selected: modelData.key === "sun" ? root.barSunOn
+                  : (modelData.key === "moon" ? root.barMoonOn : root.barWeatherMode === "on")
                 text: modelData.label
-                onClicked: root.selectDisplayMode(modelData.key)
+                onClicked: root.toggleBarItem(modelData.key)
               }
             }
           }
 
           OptionRow {
-            label: strings.t("settings.barWeather")
+            label: strings.t("settings.barDetails")
             choices: [
-              { key: "on",  label: "On" },
-              { key: "off", label: "Off" }
+              { key: "icons",  label: strings.t("settings.barIcons") },
+              { key: "values", label: strings.t("settings.barValues") }
             ]
-            current: root.barWeatherMode
-            onPicked: key => root.selectBarWeather(key)
+            current: root.barValues ? "values" : "icons"
+            onPicked: key => root.setOpt("barDetails", key)
           }
 
           // ---- Weather

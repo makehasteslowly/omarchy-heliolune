@@ -39,7 +39,9 @@
     "allowMultiple": false,
     "defaultSection": "center",
     "defaults": {
-      "displayMode": "both",
+      "barSun": "on",
+      "barMoon": "on",
+      "barDetails": "values",
       "colorMode": "celestial",
       "moonStyle": "atomic",
       "timeFormat": "auto",
@@ -51,35 +53,53 @@
     },
     "schema": [
       {
-        "key": "displayMode",
+        "key": "barSun",
         "type": "enum",
-        "label": "Bar Display Mode",
-        "description": "Choose what appears on the bar: Both Solar & Lunar (icon + illumination%), Compact Icons, Detailed (next solar event + moon %), Dynamic (Sun by day / Moon by night), Lunar only, or Solar only. Right-click the widget to switch anytime.",
-        "defaultValue": "both",
+        "label": "Sun on the Bar",
+        "description": "Show the Sun on the bar: the icon of its next event (blue hour, sunrise, golden hour, noon, sunset) and, with values, that event's time.",
+        "defaultValue": "on",
         "options": [
           {
-            "value": "both",
-            "label": "󰖙 󰽢  Both Solar & Lunar (Icons + Moon %)"
+            "value": "on",
+            "label": "Shown"
           },
           {
-            "value": "compact",
-            "label": "󰖙 󰽥  Compact (Solar + Lunar icons only)"
+            "value": "off",
+            "label": "Hidden"
+          }
+        ]
+      },
+      {
+        "key": "barMoon",
+        "type": "enum",
+        "label": "Moon on the Bar",
+        "description": "Show the Moon on the bar: its phase disc and, with values, the illumination. Click it for the Moon view.",
+        "defaultValue": "on",
+        "options": [
+          {
+            "value": "on",
+            "label": "Shown"
           },
           {
-            "value": "detailed",
-            "label": "󰖜 󰽢  Detailed (Next sun time + Moon %)"
+            "value": "off",
+            "label": "Hidden"
+          }
+        ]
+      },
+      {
+        "key": "barDetails",
+        "type": "enum",
+        "label": "Bar Details",
+        "description": "Icons only, or icons with values (the Sun's next event time, the Moon's illumination, the temperature).",
+        "defaultValue": "values",
+        "options": [
+          {
+            "value": "icons",
+            "label": "Icons only"
           },
           {
-            "value": "dynamic",
-            "label": "󰖨  Dynamic (Sun by day, Moon by night)"
-          },
-          {
-            "value": "lunar",
-            "label": "󰽢  Lunar Only (Moon phase + Illumination %)"
-          },
-          {
-            "value": "solar",
-            "label": "󰖙  Solar Only (Sun phase + Next event)"
+            "value": "values",
+            "label": "With values"
           }
         ]
       },
@@ -175,7 +195,7 @@
         "key": "barWeather",
         "type": "enum",
         "label": "Weather on the Bar",
-        "description": "Show a themed weather icon and the temperature on the bar widget. Needs Current Weather to be on.",
+        "description": "Show the weather on the bar: a themed icon and, with values, the temperature. Needs Current Weather to be on. Click it for the forecast.",
         "defaultValue": "on",
         "options": [
           {

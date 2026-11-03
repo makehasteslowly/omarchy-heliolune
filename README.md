@@ -27,22 +27,16 @@ There are good moon widgets and good sunrise widgets for Omarchy. Heliolune is o
 
 ### On the bar
 
-The Sun and Moon share one themed capsule (here in `detailed` mode: Atomic, Art Deco and Art Nouveau, Soft and Bold):
+The Sun and Moon share one themed capsule (here with values: Atomic, Art Deco and Art Nouveau, Soft and Bold):
 
 ![The bar capsule in each theme](docs/screenshots/bar.png)
 
-Pick what it shows from six modes:
+Pick what it shows in settings, under **Bar**:
 
-| Mode | Shows |
-|---|---|
-| `both` (default) | Sun phase icon · Moon disc · illumination % |
-| `compact` | Sun and Moon icons only |
-| `detailed` | Sun icon · next sunrise or sunset · Moon disc · illumination % |
-| `dynamic` | The Sun by day, the Moon by night |
-| `solar` | Sun phase · next sun event |
-| `lunar` | Moon disc · illumination % |
+- **Show:** Sun, Moon and Weather, each on or off (at least one stays on).
+- **Details:** *Icons only*, or *With values*: the time of the Sun's next event (its icon matches: blue hour, sunrise, golden hour, noon, sunset), the Moon's illumination and the temperature.
 
-With weather on, the capsule also shows the current conditions as a small themed icon and the temperature (`barWeather: off` hides it). Hover for a summary including the next moonrise or moonset and the full weather reading.
+With weather on, the capsule also shows the current conditions as a small themed icon and the temperature. Hover for a summary including the next moonrise or moonset and the full weather reading.
 
 ### In the popup
 
@@ -153,7 +147,8 @@ Everything is in the right-click panel. The same keys can be set on the widget's
 
 | Key | Values | Default |
 |---|---|---|
-| `displayMode` | `both` · `compact` · `detailed` · `dynamic` · `solar` · `lunar` | `both` |
+| `barSun`, `barMoon` | `on` · `off`: the Sun and the Moon on the bar | `on` |
+| `barDetails` | `icons` · `values` (next Sun event time, Moon %, temperature) | `values` |
 | `moonStyle` | `nouveau` · `deco` · `atomic` | `atomic` |
 | `colorMode` | `celestial` (Soft) · `bold` · `theme` | `celestial` |
 | `timeFormat` | `auto` · `12` · `24` | `auto` |
@@ -170,7 +165,7 @@ Everything is in the right-click panel. The same keys can be set on the widget's
 | `latitude`, `longitude`, `locationName` | Manual location override | empty (automatic) |
 
 ```json
-{ "id": "makehasteslowly.heliolune", "moonStyle": "deco", "colorMode": "bold", "displayMode": "detailed" }
+{ "id": "makehasteslowly.heliolune", "moonStyle": "deco", "colorMode": "bold", "barDetails": "icons" }
 ```
 
 ---
