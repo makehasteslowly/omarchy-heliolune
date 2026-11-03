@@ -2238,14 +2238,20 @@ BarWidget {
   component SectionHeading: Item {
     id: heading
     property string text: ""
+    // Settings sections fold: click the heading; ▾ open, ▸ folded
+    property string section: ""
+    readonly property string shownText: section === "" ? text
+      : text + (root.sectionCollapsed(section) ? "  ▸" : "  ▾")
     Layout.fillWidth: true
+    HoverHandler { enabled: heading.section !== ""; cursorShape: Qt.PointingHandCursor }
+    TapHandler { enabled: heading.section !== ""; onTapped: root.toggleSection(heading.section) }
     implicitHeight: root.ornate ? Style.space(18) : plainHeading.implicitHeight
 
     Text {
       id: plainHeading
       visible: !root.ornate
       textFormat: Text.PlainText
-      text: heading.text
+      text: heading.shownText
       color: Color.foreground
       opacity: 0.78
       font.family: Style.font.family
@@ -2262,7 +2268,7 @@ BarWidget {
       Rectangle { width: 5; height: 5; rotation: 45; color: root.ornatePalette ? root.ornAccent : root.ornMetal }
       Text {
         textFormat: Text.PlainText
-        text: heading.text
+        text: heading.shownText
         color: root.ornMetal
         font.family: Style.font.family
         font.pixelSize: Style.font.bodySmall
@@ -2282,7 +2288,7 @@ BarWidget {
       NouveauVine { Layout.fillWidth: true; Layout.preferredHeight: 14; towardRight: true }
       Text {
         textFormat: Text.PlainText
-        text: heading.text
+        text: heading.shownText
         color: root.ornMetal
         font.family: Style.font.family
         font.pixelSize: Style.font.bodySmall
@@ -2300,7 +2306,7 @@ BarWidget {
       AtomicRule { Layout.fillWidth: true; Layout.preferredHeight: 14; towardRight: true }
       Text {
         textFormat: Text.PlainText
-        text: heading.text
+        text: heading.shownText
         color: root.ornMetal
         font.family: Style.font.family
         font.pixelSize: Style.font.bodySmall
@@ -2368,6 +2374,15 @@ BarWidget {
     Behavior on width { NumberAnimation { duration: Style.duration(120); easing.type: Easing.OutCubic } }
     Behavior on y { NumberAnimation { duration: Style.duration(120); easing.type: Easing.OutCubic } }
     Behavior on height { NumberAnimation { duration: Style.duration(120); easing.type: Easing.OutCubic } }
+  }
+
+  // Folded settings sections (this session); Calendar and Advanced start folded
+  property var collapsedSections: ({ calendar: true, advanced: true })
+  function sectionCollapsed(name) { return root.collapsedSections[name] === true }
+  function toggleSection(name) {
+    var next = Object.assign({}, root.collapsedSections)
+    next[name] = !(next[name] === true)
+    root.collapsedSections = next
   }
 
   // Popup title: a quiet "Heliolune ·" wordmark, then the open view's name
@@ -4198,6 +4213,8 @@ BarWidget {
               Layout.preferredHeight: Style.space(58)
               Layout.alignment: Qt.AlignVCenter
               kind: root.weatherNow ? root.weatherNow.kind : "clear"
+              // Line-drawn in the metal tone, the same as the weather on the bar
+              outline: true
               // Clicking the current weather opens (or leaves) the forecast
               HoverHandler { cursorShape: Qt.PointingHandCursor }
               TapHandler { onTapped: root.weatherOpen = !root.weatherOpen }
@@ -7453,8 +7470,13 @@ BarWidget {
 
           // ---- Location source & override
           SectionHeading {
+            section: "location"
             text: strings.t("settings.section.location")
           }
+          ColumnLayout {
+            Layout.fillWidth: true
+            spacing: Style.space(8)
+            visible: !root.sectionCollapsed("location")
 
           RowLayout {
             Layout.fillWidth: true
@@ -7585,10 +7607,16 @@ BarWidget {
             }
           }
 
+          }
           // ---- Appearance
           SectionHeading {
+            section: "appearance"
             text: strings.t("settings.section.appearance")
           }
+          ColumnLayout {
+            Layout.fillWidth: true
+            spacing: Style.space(8)
+            visible: !root.sectionCollapsed("appearance")
 
           OptionRow {
             label: strings.t("settings.moonStyle")
@@ -7624,10 +7652,16 @@ BarWidget {
             onPicked: key => root.selectTimeFormat(key)
           }
 
+          }
           // ---- Bar
           SectionHeading {
+            section: "bar"
             text: strings.t("settings.section.bar")
           }
+          ColumnLayout {
+            Layout.fillWidth: true
+            spacing: Style.space(8)
+            visible: !root.sectionCollapsed("bar")
 
           // Show: each item toggles on or off (one always stays on)
           RowLayout {
@@ -7695,10 +7729,16 @@ BarWidget {
             }
           }
 
+          }
           // ---- Weather
           SectionHeading {
+            section: "weather"
             text: strings.t("settings.section.weather")
           }
+          ColumnLayout {
+            Layout.fillWidth: true
+            spacing: Style.space(8)
+            visible: !root.sectionCollapsed("weather")
 
           // Forecast: whether weather is fetched at all (the network switch);
           // Units only while it is on. Hiding it from the bar is Bar > Show.
@@ -7749,10 +7789,16 @@ BarWidget {
             onPicked: key => root.setOpt("weatherRefresh", key)
           }
 
+          }
           // ---- Popup cards (each button toggles one card)
           SectionHeading {
+            section: "cards"
             text: strings.t("settings.section.popup")
           }
+          ColumnLayout {
+            Layout.fillWidth: true
+            spacing: Style.space(8)
+            visible: !root.sectionCollapsed("cards")
 
           RowLayout {
             Layout.fillWidth: true
@@ -7783,10 +7829,16 @@ BarWidget {
             }
           }
 
+          }
           // ---- Calendar
           SectionHeading {
+            section: "calendar"
             text: strings.t("settings.section.calendar")
           }
+          ColumnLayout {
+            Layout.fillWidth: true
+            spacing: Style.space(8)
+            visible: !root.sectionCollapsed("calendar")
 
           OptionRow {
             label: strings.t("settings.week")
@@ -7809,11 +7861,17 @@ BarWidget {
             onPicked: key => root.setOpt("seasons", key)
           }
 
+          }
           // ---- Sky reminders (switched on under Bar > Scrolling)
           SectionHeading {
+            section: "reminders"
             visible: root.notifyOn
             text: strings.t("settings.section.notifications")
           }
+          ColumnLayout {
+            Layout.fillWidth: true
+            spacing: Style.space(8)
+            visible: !root.sectionCollapsed("reminders")
 
           RowLayout {
             visible: root.notifyOn
@@ -7900,10 +7958,16 @@ BarWidget {
             }
           }
 
+          }
           // ---- Advanced
           SectionHeading {
+            section: "advanced"
             text: strings.t("settings.section.advanced")
           }
+          ColumnLayout {
+            Layout.fillWidth: true
+            spacing: Style.space(8)
+            visible: !root.sectionCollapsed("advanced")
 
           OptionRow {
             label: strings.t("settings.light")
@@ -7971,6 +8035,7 @@ BarWidget {
                 else root.confirmingReset = true
               }
             }
+          }
           }
         }
       }
