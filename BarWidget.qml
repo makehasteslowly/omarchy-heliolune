@@ -2217,143 +2217,148 @@ BarWidget {
         width: popupScroll.width
         spacing: Style.space(10)
 
-        // ---- Top Header Row: Title, Location Badge, Daylight Delta, and Actions
-        RowLayout {
+        // ---- Header: three tidy rows, full width each
+        //   title + daylight badge ........................ [refresh] [settings]
+        //   city  coordinates ....................................... weather
+        //   date · week
+        ColumnLayout {
           Layout.fillWidth: true
-          spacing: Style.space(8)
+          spacing: Style.space(3)
 
-          ColumnLayout {
+          RowLayout {
             Layout.fillWidth: true
-            spacing: Style.space(2)
+            spacing: Style.space(6)
 
-            RowLayout {
-              spacing: Style.space(6)
+            Text {
+              textFormat: Text.PlainText
+              readonly property bool deco: root.decoStyle
+              text: root.settingsOpen ? strings.t("section.settings") : strings.t("plugin.title")
+              color: root.ornate ? root.ornMetal : Color.foreground
+              font.family: Style.font.family
+              font.pixelSize: Style.font.body
+              font.bold: true
+              font.capitalization: deco ? Font.AllUppercase : Font.MixedCase
+              font.letterSpacing: deco ? 3.0 : (root.nouveauStyle ? 1.2 : (root.atomicStyle ? 0.8 : 0))
+              font.italic: root.atomicStyle
+            }
+
+            // Daylight vs yesterday badge
+            Rectangle {
+              visible: !root.settingsOpen
+              Layout.preferredHeight: Style.space(18)
+              Layout.preferredWidth: deltaLabel.implicitWidth + Style.space(10)
+              radius: trackerPopup.chipRadius
+              color: Qt.alpha(trackerPopup.popupSolarColor, root.isLightPopup ? 0.14 : 0.18)
+              border.width: 1
+              border.color: root.ornate ? Qt.alpha(root.ornMetal, 0.7) : Qt.alpha(trackerPopup.popupSolarColor, 0.35)
 
               Text {
+                id: deltaLabel
+                anchors.centerIn: parent
                 textFormat: Text.PlainText
-                readonly property bool deco: root.decoStyle
-                text: root.settingsOpen ? strings.t("section.settings") : strings.t("plugin.title")
+                text: "󰖙 " + Model.formatDaylightDiff(root.solarData.dayDiffSeconds)
+                color: trackerPopup.popupSolarColor
+                font.family: Style.font.family
+                font.pixelSize: Style.font.small || 11
+                font.bold: true
+              }
+            }
+
+            Item { Layout.fillWidth: true }
+
+            // Refresh button
+            ChoiceButton {
+              Layout.preferredWidth: Style.space(28)
+              Layout.preferredHeight: Style.space(28)
+              text: "󰑐"
+              onClicked: root.refresh()
+            }
+
+            // Toggle Settings / Tracker view button
+            ChoiceButton {
+              Layout.preferredWidth: Style.space(28)
+              Layout.preferredHeight: Style.space(28)
+              selected: root.settingsOpen
+              text: root.settingsOpen ? "󰅖" : "󰒓"
+              onClicked: {
+                if (!root.settingsOpen) {
+                  root.customLatInput = String(setting("latitude", ""))
+                  root.customLonInput = String(setting("longitude", ""))
+                  root.customNameInput = String(setting("locationName", ""))
+                }
+                root.settingsOpen = !root.settingsOpen
+              }
+            }
+          }
+
+          // City and coordinates on the left, current weather on the right.
+          // Only the coordinates give way if a long city name needs the room.
+          RowLayout {
+            Layout.fillWidth: true
+            spacing: Style.space(8)
+
+            Text {
+              textFormat: Text.PlainText
+              text: "󰍎 " + root.activeLocationName
+              color: Color.foreground
+              opacity: 0.8
+              font.family: Style.font.family
+              font.pixelSize: Style.font.small || 11
+              font.bold: true
+              elide: Text.ElideRight
+              Layout.maximumWidth: Style.space(200)
+            }
+
+            Text {
+              textFormat: Text.PlainText
+              text: (root.activeLat >= 0 ? root.activeLat.toFixed(2) + "°N" : Math.abs(root.activeLat).toFixed(2) + "°S")
+                + "  " + (root.activeLon >= 0 ? root.activeLon.toFixed(2) + "°E" : Math.abs(root.activeLon).toFixed(2) + "°W")
+              color: Color.foreground
+              opacity: 0.45
+              font.family: Style.font.family
+              font.pixelSize: Style.font.small || 11
+              elide: Text.ElideRight
+              Layout.fillWidth: true
+            }
+
+            Row {
+              visible: root.weatherText !== "" && !root.browsing
+              spacing: Style.space(4)
+              Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+              Text {
+                anchors.verticalCenter: parent.verticalCenter
+                textFormat: Text.PlainText
+                text: root.weatherNow ? root.weatherNow.icon : ""
+                color: trackerPopup.popupSolarColor
+                font.family: Style.font.family
+                font.pixelSize: Math.round((Style.font.small || 11) * 1.25)
+              }
+              Text {
+                anchors.verticalCenter: parent.verticalCenter
+                textFormat: Text.PlainText
+                text: root.weatherText
                 color: root.ornate ? root.ornMetal : Color.foreground
                 font.family: Style.font.family
-                font.pixelSize: Style.font.body
+                font.pixelSize: Style.font.small || 11
                 font.bold: true
-                font.capitalization: deco ? Font.AllUppercase : Font.MixedCase
-                font.letterSpacing: deco ? 3.0 : (root.nouveauStyle ? 1.2 : (root.atomicStyle ? 0.8 : 0))
-                font.italic: root.atomicStyle
-              }
-
-              // Daylight vs yesterday badge
-              Rectangle {
-                visible: !root.settingsOpen
-                height: Style.space(18)
-                width: deltaLabel.implicitWidth + Style.space(10)
-                radius: trackerPopup.chipRadius
-                color: Qt.alpha(trackerPopup.popupSolarColor, root.isLightPopup ? 0.14 : 0.18)
-                border.width: 1
-                border.color: root.ornate ? Qt.alpha(root.ornMetal, 0.7) : Qt.alpha(trackerPopup.popupSolarColor, 0.35)
-
-                Text {
-                  id: deltaLabel
-                  anchors.centerIn: parent
-                  textFormat: Text.PlainText
-                  text: "󰖙 " + Model.formatDaylightDiff(root.solarData.dayDiffSeconds)
-                  color: trackerPopup.popupSolarColor
-                  font.family: Style.font.family
-                  font.pixelSize: Style.font.small || 11
-                  font.bold: true
-                }
-              }
-            }
-
-            // Location subtitle: city, current weather, then coordinates (trimmed first)
-            RowLayout {
-              Layout.fillWidth: true
-              spacing: Style.space(6)
-
-              Text {
-                textFormat: Text.PlainText
-                text: "󰍎 " + root.activeLocationName
-                color: Color.foreground
-                opacity: 0.62
-                font.family: Style.font.family
-                font.pixelSize: Style.font.small || 11
-                elide: Text.ElideRight
-                Layout.maximumWidth: Style.space(170)
-              }
-
-              // Date and ISO week of the day shown (follows time travel)
-              Text {
-                textFormat: Text.PlainText
-                text: root.currentDate.toLocaleDateString(root.formatLocale, "ddd, MMM d")
-                  + " · " + strings.t("header.week").arg(Model.isoWeek(root.currentDate).week)
-                color: root.browsing ? trackerPopup.popupSolarColor : Color.foreground
-                opacity: root.browsing ? 1.0 : 0.62
-                font.family: Style.font.family
-                font.pixelSize: Style.font.small || 11
-                font.bold: root.browsing
-              }
-
-              Row {
-                visible: root.weatherText !== "" && !root.browsing
-                spacing: Style.space(4)
-                Text {
-                  anchors.verticalCenter: parent.verticalCenter
-                  textFormat: Text.PlainText
-                  text: root.weatherNow ? root.weatherNow.icon : ""
-                  color: trackerPopup.popupSolarColor
-                  font.family: Style.font.family
-                  font.pixelSize: Math.round((Style.font.small || 11) * 1.25)
-                }
-                Text {
-                  anchors.verticalCenter: parent.verticalCenter
-                  textFormat: Text.PlainText
-                  text: root.weatherText
-                  color: root.ornate ? root.ornMetal : Color.foreground
-                  font.family: Style.font.family
-                  font.pixelSize: Style.font.small || 11
-                  font.bold: true
-                }
-              }
-
-              Text {
-                textFormat: Text.PlainText
-                text: "(" + (root.activeLat >= 0 ? root.activeLat.toFixed(2) + "°N" : Math.abs(root.activeLat).toFixed(2) + "°S")
-                  + ", " + (root.activeLon >= 0 ? root.activeLon.toFixed(2) + "°E" : Math.abs(root.activeLon).toFixed(2) + "°W") + ")"
-                color: Color.foreground
-                opacity: 0.45
-                font.family: Style.font.family
-                font.pixelSize: Style.font.small || 11
-                elide: Text.ElideRight
-                Layout.fillWidth: true
               }
             }
           }
 
-          // Refresh button
-          ChoiceButton {
-            Layout.preferredWidth: Style.space(28)
-            Layout.preferredHeight: Style.space(28)
-            text: "󰑐"
-            onClicked: root.refresh()
-          }
-
-          // Toggle Settings / Tracker view button
-          ChoiceButton {
-            Layout.preferredWidth: Style.space(28)
-            Layout.preferredHeight: Style.space(28)
-            selected: root.settingsOpen
-            text: root.settingsOpen ? "󰅖" : "󰒓"
-            onClicked: {
-              if (!root.settingsOpen) {
-                root.customLatInput = String(setting("latitude", ""))
-                root.customLonInput = String(setting("longitude", ""))
-                root.customNameInput = String(setting("locationName", ""))
-              }
-              root.settingsOpen = !root.settingsOpen
-            }
+          // Date and ISO week of the day shown (follows time travel)
+          Text {
+            Layout.fillWidth: true
+            textFormat: Text.PlainText
+            text: "󰃭 " + root.currentDate.toLocaleDateString(root.formatLocale, "ddd, MMM d, yyyy")
+              + "  ·  " + strings.t("header.week").arg(Model.isoWeek(root.currentDate).week)
+            color: root.browsing ? trackerPopup.popupSolarColor : Color.foreground
+            opacity: root.browsing ? 1.0 : 0.62
+            font.family: Style.font.family
+            font.pixelSize: Style.font.small || 11
+            font.bold: root.browsing
+            elide: Text.ElideRight
           }
         }
-
         // ---- Time-travel chip: shown while the popup is on another date
         Rectangle {
           visible: root.browsing && !root.settingsOpen
@@ -2437,8 +2442,6 @@ BarWidget {
                   text: (root.decoStyle ? "◆ " : (root.nouveauStyle ? "󰌪 " : (root.atomicStyle ? "✦ " : ""))) + strings.t("section.skyHorizon")
                 }
 
-                Item { Layout.fillWidth: true }
-
                 Text {
                   textFormat: Text.PlainText
                   text: root.solarData.nextEventName !== ""
@@ -2450,6 +2453,9 @@ BarWidget {
                   font.family: Style.font.family
                   font.pixelSize: Style.font.small || 11
                   font.bold: true
+                  Layout.fillWidth: true
+                  horizontalAlignment: Text.AlignRight
+                  elide: Text.ElideRight
                 }
               }
 

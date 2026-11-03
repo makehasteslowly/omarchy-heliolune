@@ -48,7 +48,7 @@ Hover for a summary that includes the next moonrise or moonset.
 
 ![The Heliolune popup in the default Atomic theme](docs/screenshots/popup.png)
 
-- **Header:** your city with the **date and ISO week number** (e.g. `Mon, Nov 2 · W45`) and the **current temperature and sky** (optional, see [Privacy](#privacy--network)), and the daylight gained or lost since yesterday.
+- **Header:** your city with the **date and ISO week number** (e.g. `Mon, Nov 2, 2026 · Week 45`) and the **current temperature and sky** (optional, see [Privacy](#privacy--network)), and the daylight gained or lost since yesterday.
 - **24-hour sky path:** the Sun's and Moon's altitude through the day against your horizon, and where they are right now.
 - **The Sun:** sky phase (from astronomical night through blue hour, golden hour and solar noon), altitude and compass bearing, day length, and the day's timetable: blue hour, sunrise, golden hour, solar noon, sunset, blue hour.
 - **The Moon:** phase, illumination, waxing or waning, age, **moonrise and moonset**, altitude, distance, ecliptic sign, and countdowns to the next quarter, full and new Moon.

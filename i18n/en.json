@@ -17,7 +17,7 @@
   "solar.dayLength": "Day Length",
   "solar.altitude": "Altitude",
   "solar.azimuth": "Azimuth",
-  "solar.next": "Next: %1 at %2",
+  "solar.next": "› %1 · %2",
   "lunar.illumination": "%1% Lit",
   "lunar.age": "Lunar Age",
   "lunar.distance": "Distance",
@@ -68,5 +68,5 @@
   "weather.snowShowers": "Snow showers",
   "weather.thunderstorm": "Thunderstorm",
   "weather.thunderHail": "Thunderstorm with hail",
-  "header.week": "W%1"
+  "header.week": "Week %1"
 }
