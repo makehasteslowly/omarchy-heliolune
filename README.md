@@ -48,7 +48,7 @@ Hover for a summary that includes the next moonrise or moonset.
 
 ![The Heliolune popup in the default Atomic theme](docs/screenshots/popup.png)
 
-- **Header:** your city with the **date and ISO week number** (e.g. `Mon, Nov 2, 2026 · Week 45`) and the **current temperature and sky** (optional, see [Privacy](#privacy--network)), and the daylight gained or lost since yesterday.
+- **Header:** the **current weather** up top: a large drawn icon for the conditions, the temperature, the sky, and feels-like, wind and humidity (optional, see [Privacy](#privacy--network)). Below it, your city and coordinates, the **date and ISO week number** (e.g. `Mon, Nov 2, 2026 · Week 45`), and the daylight gained or lost since yesterday.
 - **24-hour sky path:** the Sun's and Moon's altitude through the day against your horizon, and where they are right now.
 - **The Sun:** sky phase (from astronomical night through blue hour, golden hour and solar noon), altitude and compass bearing, day length, and the day's timetable: blue hour, sunrise, golden hour, solar noon, sunset, blue hour.
 - **The Moon:** phase, illumination, waxing or waning, age, **moonrise and moonset**, altitude, distance, ecliptic sign, and countdowns to the next quarter, full and new Moon.
@@ -77,6 +77,7 @@ Right-click the widget and pick a **Moon Render**: the choice restyles the whole
 | **The Moon** | Flat poster disc circled by orbiting electrons | Streamline bands with a stepped terminator, double rim and diamond studs | Softly shaded disc in a beaded halo, with a vine and leaves |
 | **Palette** | *Atomic Age:* teal, atomic orange, mustard, cream on walnut | *Emerald & Ruby:* emerald, ruby red, gold on onyx | *Mucha Botanical:* sage, amber, dusty rose, bronze, cream |
 | **Ornament** | Starbursts, boomerangs, atom dots, rounded tabs | Sunburst crest, gilded double frames, ziggurat steps, spaced capitals | Halo-and-blossom crest, vine dividers, curling corner tendrils, pill buttons |
+| **Weather icons** | Flat poster shapes: starburst sun, bold-outlined clouds, teardrop rain, sparkle snow | Stepped gilded geometry: sunburst-fan sun, ziggurat clouds, straight rain, diamond snow | Organic forms: flame-ray sun, scroll-curl clouds, teardrops, blossom snowflakes |
 
 **Celestial Colors** sets the intensity:
 

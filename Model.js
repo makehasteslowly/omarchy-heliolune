@@ -1174,6 +1174,17 @@ var WEATHER_ICONS = {
   HAIL: "󰖒"
 }
 
+// Drawn icon kind per condition key: [day, night]
+var WEATHER_KINDS = {
+  clear: ["clear", "clearNight"], mainlyClear: ["clear", "clearNight"],
+  partlyCloudy: ["partly", "partlyNight"], overcast: ["cloudy", "cloudy"], fog: ["fog", "fog"],
+  drizzle: ["drizzle", "drizzle"], freezingDrizzle: ["freezing", "freezing"],
+  lightRain: ["rain", "rain"], rain: ["rain", "rain"], heavyRain: ["heavyRain", "heavyRain"],
+  freezingRain: ["freezing", "freezing"], lightSnow: ["snow", "snow"], snow: ["snow", "snow"],
+  heavySnow: ["snow", "snow"], showers: ["rain", "rain"], heavyShowers: ["heavyRain", "heavyRain"],
+  snowShowers: ["snow", "snow"], thunderstorm: ["thunder", "thunder"], thunderHail: ["hail", "hail"]
+}
+
 // WMO weather interpretation codes -> condition key + day/night icons
 var WEATHER_CODES = {
   0: ["clear", "SUN", "NIGHT"], 1: ["mainlyClear", "SUN", "NIGHT"], 2: ["partlyCloudy", "PARTLY", "PARTLYNIGHT"],
@@ -1193,7 +1204,8 @@ function weatherUrl(lat, lon) {
   var la = Number(lat), lo = Number(lon)
   if (!isFinite(la) || !isFinite(lo) || la < -90 || la > 90 || lo < -180 || lo > 180) return ""
   return "https://api.open-meteo.com/v1/forecast?latitude=" + la.toFixed(2) + "&longitude=" + lo.toFixed(2)
-    + "&current=temperature_2m,weather_code,is_day&timezone=auto"
+    + "&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weather_code,is_day"
+    + "&wind_speed_unit=kmh&timezone=auto"
 }
 
 // Untrusted response -> {tempC, code, key, icon, isDay} or null
@@ -1210,7 +1222,22 @@ function parseCurrentWeather(raw) {
   if (!isFinite(code) || Math.floor(code) !== code || !WEATHER_CODES.hasOwnProperty(code)) return null
   var isDay = Number(cur.is_day) === 1
   var row = WEATHER_CODES[code]
-  return { tempC: t, code: code, key: row[0], icon: WEATHER_ICONS[isDay ? row[1] : row[2]], isDay: isDay }
+  // Optional extras: kept only when present and physically plausible
+  function opt(v, lo, hi) { var n = Number(v); return (v !== null && v !== undefined && isFinite(n) && n >= lo && n <= hi) ? n : null }
+  return {
+    tempC: t, code: code, key: row[0], isDay: isDay,
+    icon: WEATHER_ICONS[isDay ? row[1] : row[2]],
+    kind: WEATHER_KINDS[row[0]][isDay ? 0 : 1],
+    feelsC: opt(cur.apparent_temperature, -100, 75),
+    humidity: opt(cur.relative_humidity_2m, 0, 100),
+    windKmh: opt(cur.wind_speed_10m, 0, 400)
+  }
+}
+
+function formatWind(kmh, imperial) {
+  var v = Number(kmh)
+  if (!isFinite(v)) return ""
+  return imperial ? Math.round(v * 0.621371) + " mph" : Math.round(v) + " km/h"
 }
 
 function formatTemperature(tempC, imperial) {

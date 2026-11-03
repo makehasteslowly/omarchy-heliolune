@@ -331,6 +331,20 @@ BarWidget {
     }
   }
 
+  readonly property bool weatherHeroShown: root.weatherNow !== null && root.weatherEnabled && !root.browsing
+  readonly property string weatherTempText: root.weatherNow ? Model.formatTemperature(root.weatherNow.tempC, root.weatherImperial) : ""
+  readonly property string weatherConditionText: root.weatherNow ? strings.t("weather." + root.weatherNow.key) : ""
+  // "Feels 50°  [wind] 6 mph  [humidity] 62%": only the values the response actually had
+  readonly property string weatherDetailsText: {
+    var w = root.weatherNow
+    if (!w) return ""
+    var parts = []
+    // the unit is already on the big temperature, so feels-like shows just the degree
+    if (w.feelsC !== null) parts.push(strings.t("weather.feels").arg(Model.formatTemperature(w.feelsC, root.weatherImperial).replace(/°[CF]$/, "°")))
+    if (w.windKmh !== null) parts.push("󰖝 " + Model.formatWind(w.windKmh, root.weatherImperial))
+    if (w.humidity !== null) parts.push("󰖎 " + Math.round(w.humidity) + "%")
+    return parts.join("   ")
+  }
   readonly property string weatherText: root.weatherNow && root.weatherEnabled
     ? Model.formatTemperature(root.weatherNow.tempC, root.weatherImperial) + " " + strings.t("weather." + root.weatherNow.key)
     : ""
@@ -1869,6 +1883,391 @@ BarWidget {
     }
   }
 
+  // Daylight vs yesterday badge (popup header)
+  component DaylightBadge: Rectangle {
+    visible: !root.settingsOpen
+    implicitHeight: Style.space(18)
+    implicitWidth: badgeLabel.implicitWidth + Style.space(10)
+    radius: trackerPopup.chipRadius
+    color: Qt.alpha(trackerPopup.popupSolarColor, root.isLightPopup ? 0.14 : 0.18)
+    border.width: 1
+    border.color: root.ornate ? Qt.alpha(root.ornMetal, 0.7) : Qt.alpha(trackerPopup.popupSolarColor, 0.35)
+
+    Text {
+      id: badgeLabel
+      anchors.centerIn: parent
+      textFormat: Text.PlainText
+      text: "󰖙 " + Model.formatDaylightDiff(root.solarData.dayDiffSeconds)
+      color: trackerPopup.popupSolarColor
+      font.family: Style.font.family
+      font.pixelSize: Style.font.small || 11
+      font.bold: true
+    }
+  }
+
+  // Refresh and settings buttons (popup header)
+  component HeaderButtons: RowLayout {
+    spacing: Style.space(6)
+    // Refresh button
+    ChoiceButton {
+      Layout.preferredWidth: Style.space(28)
+      Layout.preferredHeight: Style.space(28)
+      text: "󰑐"
+      onClicked: root.refresh()
+    }
+
+    // Toggle Settings / Tracker view button
+    ChoiceButton {
+      Layout.preferredWidth: Style.space(28)
+      Layout.preferredHeight: Style.space(28)
+      selected: root.settingsOpen
+      text: root.settingsOpen ? "󰅖" : "󰒓"
+      onClicked: {
+        if (!root.settingsOpen) {
+          root.customLatInput = String(setting("latitude", ""))
+          root.customLonInput = String(setting("longitude", ""))
+          root.customNameInput = String(setting("locationName", ""))
+        }
+        root.settingsOpen = !root.settingsOpen
+      }
+    }
+  }
+
+  // ---- Weather icons: drawn vector art (crisp at any size), one set per theme.
+  // kind:      clear, clearNight, partly, partlyNight, cloudy, fog, drizzle, rain,
+  //            heavyRain, freezing, snow, thunder, hail
+  // iconStyle: "atomic" (flat poster shapes), "deco" (geometric, stepped, gilded),
+  //            "nouveau" (organic curls, petals, flame rays)
+  // Each kind is one composition; the primitives (sun, moon, cloud, rain, snow,
+  // bolt, fog, star) change shape with the style.
+  component WeatherIcon: Canvas {
+    id: wx
+    property string kind: "clear"
+    property string iconStyle: "atomic"
+    property real iconSize: 48
+    property color sunColor: "#F5B83D"
+    property color moonColor: "#EDE6D3"
+    property color cloudColor: "#D9DEE7"
+    property color edgeColor: Qt.rgba(0, 0, 0, 0.3)   // outlines / gilding
+    property color rainColor: "#6EC5E9"
+    property color snowColor: "#F4F7FB"
+    property color boltColor: "#FFD23F"
+    implicitWidth: iconSize
+    implicitHeight: iconSize
+    antialiasing: true
+    onKindChanged: requestPaint()
+    onIconStyleChanged: requestPaint()
+    onSunColorChanged: requestPaint()
+    onMoonColorChanged: requestPaint()
+    onCloudColorChanged: requestPaint()
+    onEdgeColorChanged: requestPaint()
+    onRainColorChanged: requestPaint()
+    onWidthChanged: requestPaint()
+    onHeightChanged: requestPaint()
+
+    readonly property bool deco: iconStyle === "deco"
+    readonly property bool nouveau: iconStyle === "nouveau"
+
+    // ---------- sun
+    function sun(ctx, cx, cy, r) {
+      var i, a
+      ctx.lineCap = "round"
+      if (deco) {
+        // sunburst fan of sharp wedges, a gilded ring, a flat disc
+        ctx.fillStyle = String(sunColor)
+        for (i = 0; i < 12; i++) {
+          a = i * Math.PI / 6
+          var len = (i % 2 === 0) ? r * 2.0 : r * 1.6
+          ctx.beginPath()
+          ctx.moveTo(cx + Math.cos(a - 0.13) * r * 1.2, cy + Math.sin(a - 0.13) * r * 1.2)
+          ctx.lineTo(cx + Math.cos(a) * len, cy + Math.sin(a) * len)
+          ctx.lineTo(cx + Math.cos(a + 0.13) * r * 1.2, cy + Math.sin(a + 0.13) * r * 1.2)
+          ctx.closePath(); ctx.fill()
+        }
+        ctx.strokeStyle = String(edgeColor); ctx.lineWidth = Math.max(1, r * 0.1)
+        ctx.beginPath(); ctx.arc(cx, cy, r * 1.12, 0, Math.PI * 2); ctx.stroke()
+        ctx.fillStyle = String(sunColor)
+        ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill()
+        ctx.strokeStyle = String(Qt.darker(sunColor, 1.35)); ctx.lineWidth = Math.max(1, r * 0.07)
+        ctx.beginPath(); ctx.arc(cx, cy, r * 0.62, 0, Math.PI * 2); ctx.stroke()
+      } else if (nouveau) {
+        // wavy flame rays and a softly shaded disc
+        ctx.strokeStyle = String(sunColor); ctx.lineWidth = Math.max(1.4, r * 0.16)
+        for (i = 0; i < 10; i++) {
+          a = i * Math.PI / 5
+          var nx = -Math.sin(a), ny = Math.cos(a)
+          var x0 = cx + Math.cos(a) * r * 1.3, y0 = cy + Math.sin(a) * r * 1.3
+          var x1 = cx + Math.cos(a) * r * 2.0, y1 = cy + Math.sin(a) * r * 2.0
+          ctx.beginPath(); ctx.moveTo(x0, y0)
+          ctx.bezierCurveTo(x0 + Math.cos(a) * r * 0.25 + nx * r * 0.22, y0 + Math.sin(a) * r * 0.25 + ny * r * 0.22,
+                            x1 - Math.cos(a) * r * 0.25 - nx * r * 0.22, y1 - Math.sin(a) * r * 0.25 - ny * r * 0.22, x1, y1)
+          ctx.stroke()
+        }
+        var g = ctx.createRadialGradient(cx - r * 0.35, cy - r * 0.35, r * 0.1, cx, cy, r)
+        g.addColorStop(0, String(Qt.lighter(sunColor, 1.3))); g.addColorStop(1, String(sunColor))
+        ctx.fillStyle = g
+        ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill()
+      } else {
+        // atomic starburst: alternating long and short spikes, flat disc, bold edge
+        ctx.fillStyle = String(sunColor)
+        ctx.beginPath()
+        for (i = 0; i < 16; i++) {
+          a = i * Math.PI / 8 - Math.PI / 2
+          var rr = (i % 2 === 0) ? r * 1.95 : r * 1.25
+          if (i === 0) ctx.moveTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr)
+          else ctx.lineTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr)
+        }
+        ctx.closePath(); ctx.fill()
+        ctx.strokeStyle = String(edgeColor); ctx.lineWidth = Math.max(1, r * 0.1); ctx.stroke()
+        ctx.fillStyle = String(Qt.lighter(sunColor, 1.15))
+        ctx.beginPath(); ctx.arc(cx, cy, r * 0.95, 0, Math.PI * 2); ctx.fill()
+        ctx.stroke()
+      }
+    }
+
+    // ---------- moon and stars
+    function moon(ctx, cx, cy, r) {
+      ctx.save()
+      ctx.fillStyle = String(moonColor)
+      ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill()
+      ctx.globalCompositeOperation = "destination-out"
+      ctx.beginPath(); ctx.arc(cx + r * 0.55, cy - r * 0.35, r * 0.85, 0, Math.PI * 2); ctx.fill()
+      ctx.restore()
+      if (deco || !nouveau) {
+        // gilded (deco) or bold (atomic) rim on the outer limb
+        ctx.strokeStyle = String(edgeColor); ctx.lineWidth = Math.max(1, r * 0.08)
+        ctx.beginPath(); ctx.arc(cx, cy, r, Math.PI * 0.35, Math.PI * 1.55); ctx.stroke()
+      }
+    }
+    function star(ctx, x, y, r) {
+      ctx.fillStyle = String(moonColor)
+      if (deco) {
+        ctx.beginPath(); ctx.moveTo(x, y - r); ctx.lineTo(x + r * 0.6, y); ctx.lineTo(x, y + r); ctx.lineTo(x - r * 0.6, y); ctx.closePath(); ctx.fill()
+      } else if (nouveau) {
+        for (var k = 0; k < 5; k++) {
+          var a = -Math.PI / 2 + k * Math.PI * 2 / 5
+          ctx.beginPath(); ctx.arc(x + Math.cos(a) * r * 0.5, y + Math.sin(a) * r * 0.5, r * 0.36, 0, Math.PI * 2); ctx.fill()
+        }
+      } else {
+        ctx.beginPath()
+        ctx.moveTo(x, y - r); ctx.quadraticCurveTo(x, y, x + r, y); ctx.quadraticCurveTo(x, y, x, y + r)
+        ctx.quadraticCurveTo(x, y, x - r, y); ctx.quadraticCurveTo(x, y, x, y - r)
+        ctx.fill()
+      }
+    }
+
+    // ---------- cloud whose base spans [x, x + w] at baseline y
+    function cloud(ctx, x, y, w, fill) {
+      var h = w * 0.5
+      if (deco) {
+        // stepped ziggurat of streamline bars, gilded edges
+        var bars = [[0.0, 1.0], [0.12, 0.76], [0.28, 0.46]]
+        var bh = h * 0.3, gap = h * 0.04
+        for (var i = 0; i < bars.length; i++) {
+          var bx = x + w * bars[i][0], bw = w * bars[i][1]
+          var by = y - (i + 1) * bh - i * gap
+          var rad = bh / 2
+          ctx.beginPath()
+          ctx.moveTo(bx + rad, by); ctx.lineTo(bx + bw - rad, by)
+          ctx.arc(bx + bw - rad, by + rad, rad, -Math.PI / 2, Math.PI / 2)
+          ctx.lineTo(bx + rad, by + bh)
+          ctx.arc(bx + rad, by + rad, rad, Math.PI / 2, Math.PI * 1.5)
+          ctx.closePath()
+          ctx.fillStyle = String(i === 0 ? fill : Qt.lighter(fill, 1.0 + i * 0.06))
+          ctx.fill()
+          ctx.strokeStyle = String(edgeColor); ctx.lineWidth = Math.max(1, w * 0.022)
+          ctx.stroke()
+        }
+        return
+      }
+      ctx.beginPath()
+      ctx.moveTo(x + h * 0.35, y)
+      ctx.arc(x + h * 0.38, y - h * 0.36, h * 0.36, Math.PI * 0.5, Math.PI * 1.45)
+      ctx.arc(x + w * 0.42, y - h * 0.62, h * 0.52, Math.PI * 1.1, Math.PI * 1.9)
+      ctx.arc(x + w * 0.72, y - h * 0.45, h * 0.4, Math.PI * 1.35, Math.PI * 0.05)
+      ctx.arc(x + w - h * 0.3, y - h * 0.3, h * 0.3, Math.PI * 1.6, Math.PI * 0.5)
+      ctx.closePath()
+      if (nouveau) {
+        var g = ctx.createLinearGradient(0, y - h, 0, y)
+        g.addColorStop(0, String(Qt.lighter(fill, 1.1))); g.addColorStop(1, String(Qt.darker(fill, 1.1)))
+        ctx.fillStyle = g; ctx.fill()
+        ctx.strokeStyle = String(edgeColor); ctx.lineWidth = Math.max(1, w * 0.02); ctx.stroke()
+        // curling scroll ends
+        ctx.lineCap = "round"; ctx.lineWidth = Math.max(1, w * 0.03)
+        root.ornCurl(ctx, x + h * 0.1, y - h * 0.05, h * 0.22, Math.PI, 0.85, false)
+        root.ornCurl(ctx, x + w - h * 0.05, y - h * 0.08, h * 0.2, 0, 0.85, true)
+      } else {
+        // atomic: flat fill, a flat shading band along the base, bold outline
+        ctx.fillStyle = String(fill); ctx.fill()
+        ctx.save(); ctx.clip()
+        ctx.fillStyle = String(Qt.darker(fill, 1.18))
+        ctx.fillRect(x - 2, y - h * 0.3, w + 4, h * 0.3 + 2)
+        ctx.restore()
+        ctx.strokeStyle = String(edgeColor); ctx.lineWidth = Math.max(1.2, w * 0.04); ctx.stroke()
+      }
+    }
+
+    // ---------- precipitation
+    function drops(ctx, x0, y0, w, n, len, heavy) {
+      ctx.lineCap = "round"
+      for (var i = 0; i < n; i++) {
+        var x = x0 + w * (i + 0.5) / n
+        var yy = y0 + (i % 2) * len * 0.45
+        if (deco) {
+          // straight streamline rain with diamond tips
+          ctx.strokeStyle = String(rainColor); ctx.lineWidth = Math.max(1.2, w * (heavy ? 0.06 : 0.045))
+          ctx.beginPath(); ctx.moveTo(x, yy); ctx.lineTo(x, yy + len); ctx.stroke()
+          ctx.fillStyle = String(rainColor); var d = Math.max(1.5, len * 0.14)
+          ctx.beginPath(); ctx.moveTo(x, yy + len + d); ctx.lineTo(x + d * 0.7, yy + len); ctx.lineTo(x, yy + len - d); ctx.lineTo(x - d * 0.7, yy + len); ctx.closePath(); ctx.fill()
+        } else {
+          // teardrops: nouveau elongated, atomic plump with an outline
+          var r = Math.max(1.4, len * (nouveau ? 0.2 : 0.26))
+          var ty = yy + len * 0.35
+          ctx.fillStyle = String(rainColor)
+          ctx.beginPath()
+          ctx.moveTo(x, ty - len * (nouveau ? 0.55 : 0.4))
+          ctx.bezierCurveTo(x + r * 1.1, ty - r * 0.2, x + r, ty + r, x, ty + r)
+          ctx.bezierCurveTo(x - r, ty + r, x - r * 1.1, ty - r * 0.2, x, ty - len * (nouveau ? 0.55 : 0.4))
+          ctx.fill()
+          if (!nouveau) { ctx.strokeStyle = String(edgeColor); ctx.lineWidth = Math.max(0.8, r * 0.25); ctx.stroke() }
+        }
+      }
+    }
+    function flakes(ctx, x0, y0, w, n, r) {
+      for (var i = 0; i < n; i++) {
+        var x = x0 + w * (i + 0.5) / n, y = y0 + (i % 2) * r * 1.6 + r
+        if (deco) {
+          ctx.strokeStyle = String(snowColor); ctx.lineWidth = Math.max(1, r * 0.3)
+          ctx.beginPath(); ctx.moveTo(x, y - r); ctx.lineTo(x + r * 0.75, y); ctx.lineTo(x, y + r); ctx.lineTo(x - r * 0.75, y); ctx.closePath(); ctx.stroke()
+          ctx.fillStyle = String(snowColor); ctx.beginPath(); ctx.arc(x, y, r * 0.22, 0, Math.PI * 2); ctx.fill()
+        } else if (nouveau) {
+          ctx.fillStyle = String(snowColor)
+          for (var k = 0; k < 6; k++) {
+            var a = k * Math.PI / 3
+            ctx.beginPath(); ctx.arc(x + Math.cos(a) * r * 0.55, y + Math.sin(a) * r * 0.55, r * 0.34, 0, Math.PI * 2); ctx.fill()
+          }
+          ctx.fillStyle = String(sunColor); ctx.beginPath(); ctx.arc(x, y, r * 0.26, 0, Math.PI * 2); ctx.fill()
+        } else {
+          ctx.fillStyle = String(snowColor)
+          ctx.beginPath()
+          ctx.moveTo(x, y - r); ctx.quadraticCurveTo(x, y, x + r, y); ctx.quadraticCurveTo(x, y, x, y + r)
+          ctx.quadraticCurveTo(x, y, x - r, y); ctx.quadraticCurveTo(x, y, x, y - r)
+          ctx.fill()
+        }
+      }
+    }
+
+    // ---------- lightning
+    function bolt(ctx, x, y, s) {
+      ctx.fillStyle = String(boltColor)
+      ctx.strokeStyle = String(Qt.darker(boltColor, 1.5))
+      ctx.lineWidth = Math.max(1, s * 0.05)
+      ctx.beginPath()
+      if (nouveau) {
+        ctx.moveTo(x + s * 0.2, y)
+        ctx.quadraticCurveTo(x + s * 0.45, y + s * 0.18, x + s * 0.3, y + s * 0.42)
+        ctx.lineTo(x + s * 0.6, y + s * 0.42)
+        ctx.quadraticCurveTo(x + s * 0.35, y + s * 0.7, x + s * 0.12, y + s * 1.05)
+        ctx.quadraticCurveTo(x + s * 0.2, y + s * 0.75, x + s * 0.24, y + s * 0.58)
+        ctx.lineTo(x + s * 0.02, y + s * 0.58)
+        ctx.quadraticCurveTo(x + s * 0.1, y + s * 0.3, x + s * 0.2, y)
+      } else if (deco) {
+        ctx.moveTo(x + s * 0.2, y); ctx.lineTo(x + s * 0.5, y); ctx.lineTo(x + s * 0.34, y + s * 0.38)
+        ctx.lineTo(x + s * 0.58, y + s * 0.38); ctx.lineTo(x + s * 0.18, y + s * 1.05); ctx.lineTo(x + s * 0.28, y + s * 0.56)
+        ctx.lineTo(x + s * 0.06, y + s * 0.56)
+      } else {
+        ctx.moveTo(x + s * 0.15, y); ctx.lineTo(x + s * 0.58, y); ctx.lineTo(x + s * 0.4, y + s * 0.4)
+        ctx.lineTo(x + s * 0.66, y + s * 0.4); ctx.lineTo(x + s * 0.1, y + s * 1.08); ctx.lineTo(x + s * 0.26, y + s * 0.56)
+        ctx.lineTo(x, y + s * 0.56)
+      }
+      ctx.closePath(); ctx.fill(); ctx.stroke()
+    }
+
+    // ---------- fog
+    function fogLines(ctx, x0, y0, w, n) {
+      ctx.strokeStyle = String(Qt.alpha(cloudColor, 0.95))
+      ctx.fillStyle = String(edgeColor)
+      ctx.lineCap = "round"
+      ctx.lineWidth = Math.max(1.5, w * (deco ? 0.045 : 0.065))
+      for (var i = 0; i < n; i++) {
+        var inset = (i % 2) * w * 0.12, yy = y0 + i * w * 0.14
+        var xa = x0 + inset, xb = x0 + w - w * 0.12 + inset
+        ctx.beginPath()
+        if (nouveau) {
+          ctx.moveTo(xa, yy)
+          ctx.bezierCurveTo(xa + (xb - xa) * 0.3, yy - w * 0.05, xa + (xb - xa) * 0.6, yy + w * 0.05, xb, yy)
+        } else {
+          ctx.moveTo(xa, yy); ctx.lineTo(xb, yy)
+        }
+        ctx.stroke()
+        if (deco) {
+          var d = w * 0.04
+          ctx.beginPath(); ctx.moveTo(xb + d * 1.6, yy); ctx.lineTo(xb + d * 0.6, yy - d); ctx.lineTo(xb - d * 0.4, yy); ctx.lineTo(xb + d * 0.6, yy + d); ctx.closePath(); ctx.fill()
+        }
+      }
+    }
+
+    onPaint: {
+      var ctx = getContext("2d")
+      ctx.reset()
+      var S = Math.min(width, height)
+      if (S < 8) return
+      var c = cloudColor
+      switch (kind) {
+      case "clear":
+        sun(ctx, S * 0.5, S * 0.5, S * 0.22); break
+      case "clearNight":
+        moon(ctx, S * 0.46, S * 0.54, S * 0.3)
+        star(ctx, S * 0.8, S * 0.22, S * 0.07); star(ctx, S * 0.66, S * 0.1, S * 0.045); star(ctx, S * 0.88, S * 0.46, S * 0.04)
+        break
+      case "partly":
+        sun(ctx, S * 0.36, S * 0.34, S * 0.15)
+        cloud(ctx, S * 0.22, S * 0.84, S * 0.72, c); break
+      case "partlyNight":
+        moon(ctx, S * 0.34, S * 0.34, S * 0.2)
+        star(ctx, S * 0.74, S * 0.14, S * 0.05)
+        cloud(ctx, S * 0.22, S * 0.84, S * 0.72, c); break
+      case "cloudy":
+        cloud(ctx, S * 0.32, S * 0.56, S * 0.6, Qt.darker(c, 1.25))
+        cloud(ctx, S * 0.08, S * 0.84, S * 0.74, c); break
+      case "fog":
+        cloud(ctx, S * 0.14, S * 0.56, S * 0.72, c)
+        fogLines(ctx, S * 0.12, S * 0.68, S * 0.76, 3); break
+      case "drizzle":
+        cloud(ctx, S * 0.12, S * 0.6, S * 0.76, c)
+        drops(ctx, S * 0.2, S * 0.68, S * 0.6, 3, S * 0.12, false); break
+      case "rain":
+        cloud(ctx, S * 0.12, S * 0.58, S * 0.76, c)
+        drops(ctx, S * 0.18, S * 0.66, S * 0.64, 4, S * 0.2, false); break
+      case "heavyRain":
+        cloud(ctx, S * 0.1, S * 0.56, S * 0.8, Qt.darker(c, 1.15))
+        drops(ctx, S * 0.14, S * 0.64, S * 0.72, 5, S * 0.24, true); break
+      case "freezing":
+        cloud(ctx, S * 0.12, S * 0.56, S * 0.76, c)
+        drops(ctx, S * 0.16, S * 0.64, S * 0.32, 2, S * 0.2, false)
+        flakes(ctx, S * 0.5, S * 0.62, S * 0.36, 2, S * 0.065); break
+      case "snow":
+        cloud(ctx, S * 0.12, S * 0.56, S * 0.76, c)
+        flakes(ctx, S * 0.16, S * 0.6, S * 0.68, 3, S * 0.07); break
+      case "thunder":
+        cloud(ctx, S * 0.1, S * 0.54, S * 0.8, Qt.darker(c, 1.2))
+        bolt(ctx, S * 0.4, S * 0.48, S * 0.42)
+        drops(ctx, S * 0.14, S * 0.64, S * 0.2, 1, S * 0.18, false)
+        drops(ctx, S * 0.72, S * 0.64, S * 0.16, 1, S * 0.18, false); break
+      case "hail":
+        cloud(ctx, S * 0.1, S * 0.54, S * 0.8, Qt.darker(c, 1.2))
+        bolt(ctx, S * 0.36, S * 0.48, S * 0.38)
+        ctx.fillStyle = String(snowColor)
+        ctx.strokeStyle = String(edgeColor); ctx.lineWidth = Math.max(0.8, S * 0.012)
+        var pts = [[0.2, 0.74], [0.72, 0.7], [0.82, 0.86], [0.28, 0.9]]
+        for (var i = 0; i < pts.length; i++) {
+          ctx.beginPath(); ctx.arc(S * pts[i][0], S * pts[i][1], S * 0.048, 0, Math.PI * 2); ctx.fill(); ctx.stroke()
+        }
+        break
+      }
+    }
+  }
+
   // ============================================================================
   // Bar Button Presentation
   // ============================================================================
@@ -2217,19 +2616,111 @@ BarWidget {
         width: popupScroll.width
         spacing: Style.space(10)
 
-        // ---- Header: three tidy rows, full width each
-        //   title + daylight badge ........................ [refresh] [settings]
-        //   city  coordinates ....................................... weather
-        //   date · week
+        // ---- Header: weather hero (or compact title row), then location and date
         ColumnLayout {
           Layout.fillWidth: true
           spacing: Style.space(3)
 
+          // Weather hero (today, weather on): big themed icon, temperature,
+          // condition and details on the left; title, actions and badge on the right.
           RowLayout {
+            visible: root.weatherHeroShown
+            Layout.fillWidth: true
+            spacing: Style.space(10)
+
+            WeatherIcon {
+              Layout.preferredWidth: Style.space(58)
+              Layout.preferredHeight: Style.space(58)
+              Layout.alignment: Qt.AlignVCenter
+              kind: root.weatherNow ? root.weatherNow.kind : "clear"
+              iconStyle: root.moonStyle
+              sunColor: root.ornatePalette ? root.ornSunFor(root.isLightPopup) : trackerPopup.popupSolarColor
+              moonColor: trackerPopup.popupLunarLitColor
+              rainColor: trackerPopup.popupBlueHourColor
+              cloudColor: root.isLightPopup ? Qt.rgba(0.6, 0.64, 0.71, 1) : Qt.rgba(0.86, 0.89, 0.94, 1)
+              edgeColor: root.decoStyle ? root.ornMetal
+                : (root.nouveauStyle ? Qt.alpha(root.ornMetal, 0.85)
+                : (root.isLightPopup ? Qt.rgba(0.2, 0.18, 0.16, 1) : Qt.rgba(0.08, 0.06, 0.05, 1)))
+              snowColor: root.isLightPopup ? "#7F93A8" : "#F4F7FB"
+              boltColor: root.nouveauStyle ? root.ornSunFor(root.isLightPopup) : root.ornMetal
+            }
+
+            ColumnLayout {
+              Layout.fillWidth: true
+              spacing: 0
+
+              Text {
+                textFormat: Text.PlainText
+                text: root.weatherTempText
+                color: root.ornate ? root.ornMetal : Color.foreground
+                font.family: Style.font.family
+                font.pixelSize: Math.round(Style.font.body * 2.3)
+                font.bold: true
+                font.italic: root.atomicStyle
+                font.letterSpacing: root.decoStyle ? 1.5 : 0
+              }
+              Text {
+                Layout.fillWidth: true
+                textFormat: Text.PlainText
+                text: root.weatherConditionText
+                color: Color.foreground
+                opacity: 0.9
+                font.family: Style.font.family
+                font.pixelSize: Style.font.body
+                font.bold: true
+                font.capitalization: root.decoStyle ? Font.AllUppercase : Font.MixedCase
+                font.letterSpacing: root.decoStyle ? 1.2 : 0
+                elide: Text.ElideRight
+              }
+              Text {
+                Layout.fillWidth: true
+                visible: root.weatherDetailsText !== ""
+                textFormat: Text.PlainText
+                text: root.weatherDetailsText
+                color: Color.foreground
+                opacity: 0.6
+                font.family: Style.font.family
+                font.pixelSize: Style.font.small || 11
+                elide: Text.ElideRight
+              }
+            }
+
+            ColumnLayout {
+              Layout.alignment: Qt.AlignTop
+              spacing: Style.space(6)
+
+              RowLayout {
+                Layout.alignment: Qt.AlignRight
+                spacing: Style.space(6)
+    Text {
+                  textFormat: Text.PlainText
+                  readonly property bool deco: root.decoStyle
+                  text: root.settingsOpen ? strings.t("section.settings") : strings.t("plugin.title")
+                  color: root.ornate ? root.ornMetal : Color.foreground
+                  font.family: Style.font.family
+                  font.pixelSize: Style.font.body
+                  font.bold: true
+                  font.capitalization: deco ? Font.AllUppercase : Font.MixedCase
+                  font.letterSpacing: deco ? 3.0 : (root.nouveauStyle ? 1.2 : (root.atomicStyle ? 0.8 : 0))
+                  font.italic: root.atomicStyle
+                }
+                HeaderButtons {}
+              }
+              Item {
+                Layout.alignment: Qt.AlignRight
+                implicitWidth: heroBadge.implicitWidth
+                implicitHeight: heroBadge.implicitHeight
+                DaylightBadge { id: heroBadge }
+              }
+            }
+          }
+
+          // Compact title row (weather off, not yet loaded, or browsing another date)
+          RowLayout {
+            visible: !root.weatherHeroShown
             Layout.fillWidth: true
             spacing: Style.space(6)
-
-            Text {
+Text {
               textFormat: Text.PlainText
               readonly property bool deco: root.decoStyle
               text: root.settingsOpen ? strings.t("section.settings") : strings.t("plugin.title")
@@ -2241,54 +2732,9 @@ BarWidget {
               font.letterSpacing: deco ? 3.0 : (root.nouveauStyle ? 1.2 : (root.atomicStyle ? 0.8 : 0))
               font.italic: root.atomicStyle
             }
-
-            // Daylight vs yesterday badge
-            Rectangle {
-              visible: !root.settingsOpen
-              Layout.preferredHeight: Style.space(18)
-              Layout.preferredWidth: deltaLabel.implicitWidth + Style.space(10)
-              radius: trackerPopup.chipRadius
-              color: Qt.alpha(trackerPopup.popupSolarColor, root.isLightPopup ? 0.14 : 0.18)
-              border.width: 1
-              border.color: root.ornate ? Qt.alpha(root.ornMetal, 0.7) : Qt.alpha(trackerPopup.popupSolarColor, 0.35)
-
-              Text {
-                id: deltaLabel
-                anchors.centerIn: parent
-                textFormat: Text.PlainText
-                text: "󰖙 " + Model.formatDaylightDiff(root.solarData.dayDiffSeconds)
-                color: trackerPopup.popupSolarColor
-                font.family: Style.font.family
-                font.pixelSize: Style.font.small || 11
-                font.bold: true
-              }
-            }
-
+            DaylightBadge {}
             Item { Layout.fillWidth: true }
-
-            // Refresh button
-            ChoiceButton {
-              Layout.preferredWidth: Style.space(28)
-              Layout.preferredHeight: Style.space(28)
-              text: "󰑐"
-              onClicked: root.refresh()
-            }
-
-            // Toggle Settings / Tracker view button
-            ChoiceButton {
-              Layout.preferredWidth: Style.space(28)
-              Layout.preferredHeight: Style.space(28)
-              selected: root.settingsOpen
-              text: root.settingsOpen ? "󰅖" : "󰒓"
-              onClicked: {
-                if (!root.settingsOpen) {
-                  root.customLatInput = String(setting("latitude", ""))
-                  root.customLonInput = String(setting("longitude", ""))
-                  root.customNameInput = String(setting("locationName", ""))
-                }
-                root.settingsOpen = !root.settingsOpen
-              }
-            }
+            HeaderButtons {}
           }
 
           // Location and date, each row flowing naturally:
@@ -2299,7 +2745,7 @@ BarWidget {
           GridLayout {
             id: infoGrid
             Layout.fillWidth: true
-            columns: 3
+            columns: 2
             columnSpacing: Style.space(8)
             rowSpacing: Style.space(3)
 
@@ -2354,29 +2800,6 @@ BarWidget {
               }
               Item { Layout.fillWidth: true; Layout.preferredHeight: 1 }
             }
-            // Always present so the grid never shifts; only the content hides
-            Row {
-              Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
-              spacing: Style.space(4)
-              opacity: (root.weatherText !== "" && !root.browsing) ? 1 : 0
-              Text {
-                anchors.verticalCenter: parent.verticalCenter
-                textFormat: Text.PlainText
-                text: root.weatherNow ? root.weatherNow.icon : ""
-                color: trackerPopup.popupSolarColor
-                font.family: Style.font.family
-                font.pixelSize: Math.round(infoGrid.textSize * 1.25)
-              }
-              Text {
-                anchors.verticalCenter: parent.verticalCenter
-                textFormat: Text.PlainText
-                text: root.weatherText
-                color: root.ornate ? root.ornMetal : Color.foreground
-                font.family: Style.font.family
-                font.pixelSize: infoGrid.textSize
-                font.bold: true
-              }
-            }
 
             // ---- row 2: date of the day shown (follows time travel) and its ISO week
             Text {
@@ -2391,7 +2814,6 @@ BarWidget {
             }
             Text {
               Layout.fillWidth: true
-              Layout.columnSpan: 2
               textFormat: Text.PlainText
               text: root.currentDate.toLocaleDateString(root.formatLocale, "ddd, MMM d, yyyy")
                 + "  ·  " + strings.t("header.week").arg(Model.isoWeek(root.currentDate).week)
