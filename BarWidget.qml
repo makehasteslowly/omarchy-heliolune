@@ -2817,6 +2817,12 @@ BarWidget {
     return ""
   }
 
+  // With a time on the bar it is the next event's, so the icon is that event's
+  // (the same drawn icon as its row in the popup); otherwise the current phase.
+  readonly property string barSolarKind: root.barSolarText !== "" && root.solarData.nextEventKind
+    ? root.solarData.nextEventKind
+    : root.sunPhaseKind(root.solarData.phaseKey)
+
   readonly property string barLunarText: {
     if (root.displayMode === "compact") return ""
     return Commons.I18n.formatNumber(root.lunarData.illuminationPct) + "%"
@@ -2921,7 +2927,7 @@ BarWidget {
 
         BarWeatherIcon {
           anchors.verticalCenter: parent.verticalCenter
-          kind: root.sunPhaseKind(root.solarData.phaseKey)
+          kind: root.barSolarKind
         }
 
         Text {
@@ -3948,6 +3954,16 @@ Text {
                   text: (root.decoStyle ? "◆ " : (root.nouveauStyle ? "❦ " : (root.atomicStyle ? "✦ " : ""))) + strings.t("section.skyHorizon")
                 }
 
+                Item { Layout.fillWidth: true }
+
+                // Next event: the same drawn icon as on the bar and in the timetable
+                SkyIcon {
+                  visible: root.solarData.nextEventName !== ""
+                  Layout.preferredWidth: Style.font.bodySmall + 4
+                  Layout.preferredHeight: Style.font.bodySmall + 4
+                  kind: root.solarData.nextEventKind || "sunrise"
+                }
+
                 Text {
                   textFormat: Text.PlainText
                   text: root.solarData.nextEventName !== ""
@@ -3959,8 +3975,7 @@ Text {
                   font.family: Style.font.family
                   font.pixelSize: Style.font.bodySmall
                   font.bold: true
-                  Layout.fillWidth: true
-                  horizontalAlignment: Text.AlignRight
+                  Layout.maximumWidth: implicitWidth
                   elide: Text.ElideRight
                 }
               }

@@ -454,39 +454,49 @@ function computeSolarSummary(now, lat, lon, opts) {
   var nextEventName = ""
   var nextEventTime = null
   var nextEventIcon = "󰖜"
+  // Drawn icon kind, the same as the event's row in the popup timetable
+  var nextEventKind = "sunrise"
 
   if (bhMorningStart !== null && t < bhMorningStart) {
     nextEventName = "Blue Hour"
     nextEventTime = today.blueHourMorningStart
     nextEventIcon = "󰖚"
+    nextEventKind = "blueHour"
   } else if (sr !== null && t < sr) {
     nextEventName = "Sunrise"
     nextEventTime = today.sunrise
     nextEventIcon = "󰖜"
+    nextEventKind = "sunrise"
   } else if (sn !== null && t < sn) {
     nextEventName = "Solar Noon"
     nextEventTime = today.solarNoon
     nextEventIcon = "󰖙"
+    nextEventKind = "noon"
   } else if (ghEveningStart !== null && t < ghEveningStart) {
     nextEventName = "Golden Hour"
     nextEventTime = today.goldenHourStart
     nextEventIcon = "󰖨"
+    nextEventKind = "goldenHour"
   } else if (ss !== null && t < ss) {
     nextEventName = "Sunset"
     nextEventTime = today.sunset
     nextEventIcon = "󰖛"
+    nextEventKind = "sunset"
   } else if (bhEveningStart !== null && t < bhEveningStart) {
     nextEventName = "Blue Hour"
     nextEventTime = today.blueHourEveningStart
     nextEventIcon = "󰖚"
+    nextEventKind = "blueHour"
   } else if (tomorrow.blueHourMorningStart) {
     nextEventName = "Blue Hour"
     nextEventTime = tomorrow.blueHourMorningStart
     nextEventIcon = "󰖚"
+    nextEventKind = "blueHour"
   } else if (tomorrow.sunrise) {
     nextEventName = "Sunrise"
     nextEventTime = tomorrow.sunrise
     nextEventIcon = "󰖜"
+    nextEventKind = "sunrise"
   }
 
   // Progress through current day (sunrise -> sunset) or night (sunset -> sunrise)
@@ -544,6 +554,7 @@ function computeSolarSummary(now, lat, lon, opts) {
     nextEventName: nextEventName,
     nextEventTime: nextEventTime,
     nextEventIcon: nextEventIcon,
+    nextEventKind: nextEventKind,
     cycleProgress: cycleProgress,
     dayProgress: dayProgress
   }
