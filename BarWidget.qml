@@ -2291,47 +2291,70 @@ BarWidget {
             }
           }
 
-          // City and coordinates on the left, current weather on the right.
-          // Only the coordinates give way if a long city name needs the room.
-          RowLayout {
+          // Location and date as an aligned grid:
+          //   [icon] city         coordinates ............ weather
+          //   [icon] date         week
+          // The icon column has a fixed width, the city and date share a left
+          // edge, and the coordinates and week share another. Only the city
+          // name gives way (elides) if it is very long.
+          GridLayout {
+            id: infoGrid
             Layout.fillWidth: true
-            spacing: Style.space(8)
+            columns: 5
+            columnSpacing: Style.space(8)
+            rowSpacing: Style.space(3)
 
+            readonly property real iconWidth: Style.space(14)
+            readonly property real textSize: Style.font.small || 11
+            readonly property color dateColor: root.browsing ? trackerPopup.popupSolarColor : Color.foreground
+
+            // ---- row 1: location
             Text {
+              Layout.preferredWidth: infoGrid.iconWidth
+              horizontalAlignment: Text.AlignHCenter
               textFormat: Text.PlainText
-              text: "󰍎 " + root.activeLocationName
+              text: "󰍎"
               color: Color.foreground
               opacity: 0.8
               font.family: Style.font.family
-              font.pixelSize: Style.font.small || 11
+              font.pixelSize: infoGrid.textSize
+            }
+            Text {
+              Layout.fillWidth: true
+              Layout.minimumWidth: Style.space(40)
+              Layout.maximumWidth: Math.min(implicitWidth, Style.space(190))
+              textFormat: Text.PlainText
+              text: root.activeLocationName
+              color: Color.foreground
+              opacity: 0.8
+              font.family: Style.font.family
+              font.pixelSize: infoGrid.textSize
               font.bold: true
               elide: Text.ElideRight
-              Layout.maximumWidth: Style.space(200)
             }
-
             Text {
               textFormat: Text.PlainText
               text: (root.activeLat >= 0 ? root.activeLat.toFixed(2) + "°N" : Math.abs(root.activeLat).toFixed(2) + "°S")
                 + "  " + (root.activeLon >= 0 ? root.activeLon.toFixed(2) + "°E" : Math.abs(root.activeLon).toFixed(2) + "°W")
               color: Color.foreground
-              opacity: 0.45
+              opacity: 0.5
               font.family: Style.font.family
-              font.pixelSize: Style.font.small || 11
-              elide: Text.ElideRight
-              Layout.fillWidth: true
+              font.pixelSize: infoGrid.textSize
             }
-
+            Item { Layout.fillWidth: true; Layout.preferredHeight: 1 }
+            // GridLayout skips invisible cells, which would shift every later
+            // cell; so this cell stays in place and only its content hides.
             Row {
-              visible: root.weatherText !== "" && !root.browsing
-              spacing: Style.space(4)
               Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+              spacing: Style.space(4)
+              opacity: (root.weatherText !== "" && !root.browsing) ? 1 : 0
               Text {
                 anchors.verticalCenter: parent.verticalCenter
                 textFormat: Text.PlainText
                 text: root.weatherNow ? root.weatherNow.icon : ""
                 color: trackerPopup.popupSolarColor
                 font.family: Style.font.family
-                font.pixelSize: Math.round((Style.font.small || 11) * 1.25)
+                font.pixelSize: Math.round(infoGrid.textSize * 1.25)
               }
               Text {
                 anchors.verticalCenter: parent.verticalCenter
@@ -2339,24 +2362,45 @@ BarWidget {
                 text: root.weatherText
                 color: root.ornate ? root.ornMetal : Color.foreground
                 font.family: Style.font.family
-                font.pixelSize: Style.font.small || 11
+                font.pixelSize: infoGrid.textSize
                 font.bold: true
               }
             }
-          }
 
-          // Date and ISO week of the day shown (follows time travel)
-          Text {
-            Layout.fillWidth: true
-            textFormat: Text.PlainText
-            text: "󰃭 " + root.currentDate.toLocaleDateString(root.formatLocale, "ddd, MMM d, yyyy")
-              + "  ·  " + strings.t("header.week").arg(Model.isoWeek(root.currentDate).week)
-            color: root.browsing ? trackerPopup.popupSolarColor : Color.foreground
-            opacity: root.browsing ? 1.0 : 0.62
-            font.family: Style.font.family
-            font.pixelSize: Style.font.small || 11
-            font.bold: root.browsing
-            elide: Text.ElideRight
+            // ---- row 2: date of the day shown (follows time travel) and its ISO week
+            Text {
+              Layout.preferredWidth: infoGrid.iconWidth
+              horizontalAlignment: Text.AlignHCenter
+              textFormat: Text.PlainText
+              text: "󰃭"
+              color: infoGrid.dateColor
+              opacity: root.browsing ? 1.0 : 0.62
+              font.family: Style.font.family
+              font.pixelSize: infoGrid.textSize
+            }
+            Text {
+              Layout.fillWidth: true
+              Layout.minimumWidth: implicitWidth
+              Layout.maximumWidth: implicitWidth
+              textFormat: Text.PlainText
+              text: root.currentDate.toLocaleDateString(root.formatLocale, "ddd, MMM d, yyyy")
+              color: infoGrid.dateColor
+              opacity: root.browsing ? 1.0 : 0.62
+              font.family: Style.font.family
+              font.pixelSize: infoGrid.textSize
+              font.bold: root.browsing
+            }
+            Text {
+              textFormat: Text.PlainText
+              text: strings.t("header.week").arg(Model.isoWeek(root.currentDate).week)
+              color: infoGrid.dateColor
+              opacity: root.browsing ? 1.0 : 0.62
+              font.family: Style.font.family
+              font.pixelSize: infoGrid.textSize
+              font.bold: root.browsing
+            }
+            Item { Layout.fillWidth: true; Layout.preferredHeight: 1 }
+            Item { Layout.preferredWidth: 1; Layout.preferredHeight: 1 }
           }
         }
         // ---- Time-travel chip: shown while the popup is on another date
