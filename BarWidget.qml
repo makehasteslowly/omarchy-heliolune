@@ -947,8 +947,10 @@ BarWidget {
   readonly property var lapseMoon: root.lapseShown ? Model.getMoonIllumination(root.lapseDate) : null
   readonly property var lapseMoonPos: root.lapseShown && root.lapseMode === "sky" ? Model.getMoonPosition(root.lapseDate, root.activeLat, root.activeLon) : null
   readonly property var lapseSunPos: root.lapseShown && root.lapseMode === "sky" ? Model.getSunPosition(root.lapseDate, root.activeLat, root.activeLon) : null
+  // 36 hours sampled: the chart shows 24, and a pass still up at the end is
+  // drawn on until it sets, so no arc stops in mid-air
   readonly property var lapseSky: root.lapseShown && root.lapseMode === "sky"
-    ? Model.moonVisibility(root.currentDate, root.activeLat, root.activeLon, 24, 15) : []
+    ? Model.moonVisibility(root.currentDate, root.activeLat, root.activeLon, 36, 15) : []
   // Ticks along the track: the cycle's phases, or every 6 hours of sky -> [{ label, pos }]
   readonly property var lapseMarks: {
     var start = root.lapseStartMs, span = root.lapseSpanMs
@@ -4729,18 +4731,36 @@ BarWidget {
                         if (px < 8 || px > w - 8) continue
                         ctx.fillText(points[p][1], px, hy + 14)
                       }
-                      // paths: the Moon solid, the Sun faint; break at the edges
+                      // paths: the Moon solid, the Sun faint. Each pass meets the
+                      // horizon at its interpolated rise and set, and one still up
+                      // when the 24 hours end is finished to its set.
+                      var endMs = samples && samples.length ? samples[0].t.getTime() + 24 * 3600000 : 0
                       function path(altKey, azKey, color, alpha, dash) {
                         ctx.strokeStyle = String(color)
                         ctx.globalAlpha = alpha
                         ctx.lineWidth = 1.6
                         ctx.setLineDash(dash)
                         ctx.beginPath()
-                        var drawing = false, lastX = 0
+                        var drawing = false, lastX = 0, prev = null
+                        function azBetween(a0, a1, f) {
+                          var d = ((a1 - a0 + 540) % 360) - 180
+                          return (a0 + d * f + 360) % 360
+                        }
                         for (var i = 0; i < samples.length; i++) {
-                          var a = samples[i][altKey]
-                          var x = lapseSky.azToX(samples[i][azKey]), y = lapseSky.altToY(a)
-                          if (a < 0 || (drawing && Math.abs(x - lastX) > w / 2)) { drawing = false; lastX = x; if (a < 0) continue }
+                          var smp = samples[i], a = smp[altKey]
+                          var late = smp.t.getTime() >= endMs
+                          if (late && !drawing) break            // nothing new starts after 24 h
+                          var x = lapseSky.azToX(smp[azKey]), y = lapseSky.altToY(a)
+                          // horizon crossing between the previous sample and this one
+                          if (prev && (prev[altKey] < 0) !== (a < 0)) {
+                            var f = prev[altKey] / (prev[altKey] - a)
+                            var cx = lapseSky.azToX(azBetween(prev[azKey], smp[azKey], f)), cy = lapseSky.altToY(0)
+                            if (a >= 0) { ctx.moveTo(cx, cy); drawing = true; lastX = cx }
+                            else if (drawing && Math.abs(cx - lastX) <= w / 2) ctx.lineTo(cx, cy)
+                          }
+                          prev = smp
+                          if (a < 0) { drawing = false; if (late) break; continue }
+                          if (drawing && Math.abs(x - lastX) > w / 2) drawing = false   // wraps past the chart's edge
                           if (!drawing) { ctx.moveTo(x, y); drawing = true } else ctx.lineTo(x, y)
                           lastX = x
                         }
