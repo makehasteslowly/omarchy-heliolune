@@ -1251,10 +1251,75 @@ function weatherUrl(lat, lon) {
   if (!isFinite(la) || !isFinite(lo) || la < -90 || la > 90 || lo < -180 || lo > 180) return ""
   return "https://api.open-meteo.com/v1/forecast?latitude=" + la.toFixed(2) + "&longitude=" + lo.toFixed(2)
     + "&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weather_code,is_day"
+    + "&hourly=temperature_2m,weather_code,precipitation_probability,is_day&forecast_hours=24"
+    + "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max&forecast_days=7"
     + "&wind_speed_unit=kmh&timezone=auto"
 }
 
-// Untrusted response -> {tempC, code, key, icon, isDay} or null
+// "YYYY-MM-DDTHH:MM" or "YYYY-MM-DD" (local time at the location) -> parts, or null
+function parseLocalStamp(v) {
+  var m = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?$/.exec(String(v || ""))
+  if (!m) return null
+  var p = { y: +m[1], mo: +m[2], d: +m[3], h: m[4] === undefined ? 0 : +m[4], mi: m[5] === undefined ? 0 : +m[5] }
+  if (p.mo < 1 || p.mo > 12 || p.d < 1 || p.d > 31 || p.h > 23 || p.mi > 59) return null
+  return p
+}
+
+function conditionFor(code, isDay) {
+  var row = WEATHER_CODES[code]
+  return { code: code, key: row[0], kind: WEATHER_KINDS[row[0]][isDay ? 0 : 1] }
+}
+
+function validCode(v) {
+  var n = Number(v)
+  return v !== null && v !== undefined && isFinite(n) && Math.floor(n) === n && WEATHER_CODES.hasOwnProperty(n)
+}
+
+function plausible(v, lo, hi) {
+  var n = Number(v)
+  return (v !== null && v !== undefined && isFinite(n) && n >= lo && n <= hi) ? n : null
+}
+
+// Hourly and daily forecast blocks of the same response. Each entry is checked
+// on its own; bad entries are skipped, and at most 24 hours / 7 days are kept.
+// -> { hourly: [{y, mo, d, h, tempC, pop, code, key, kind}], daily: [{y, mo, d, maxC, minC, pop, windKmh, code, key, kind}] }
+function parseForecast(data) {
+  var out = { hourly: [], daily: [] }
+  var hr = data && data.hourly
+  if (hr && typeof hr === "object" && Array.isArray(hr.time)) {
+    for (var i = 0; i < hr.time.length && out.hourly.length < 24; i++) {
+      var st = parseLocalStamp(hr.time[i])
+      var t = plausible(hr.temperature_2m && hr.temperature_2m[i], -95, 65)
+      var c = hr.weather_code && hr.weather_code[i]
+      if (!st || t === null || !validCode(c)) continue
+      var day = !(hr.is_day && Number(hr.is_day[i]) === 0)
+      var h = conditionFor(Number(c), day)
+      h.y = st.y; h.mo = st.mo; h.d = st.d; h.h = st.h
+      h.tempC = t
+      h.pop = plausible(hr.precipitation_probability && hr.precipitation_probability[i], 0, 100)
+      out.hourly.push(h)
+    }
+  }
+  var dl = data && data.daily
+  if (dl && typeof dl === "object" && Array.isArray(dl.time)) {
+    for (var j = 0; j < dl.time.length && out.daily.length < 7; j++) {
+      var sd = parseLocalStamp(dl.time[j])
+      var hi = plausible(dl.temperature_2m_max && dl.temperature_2m_max[j], -95, 65)
+      var lo = plausible(dl.temperature_2m_min && dl.temperature_2m_min[j], -95, 65)
+      var dc = dl.weather_code && dl.weather_code[j]
+      if (!sd || hi === null || lo === null || lo > hi || !validCode(dc)) continue
+      var d = conditionFor(Number(dc), true)
+      d.y = sd.y; d.mo = sd.mo; d.d = sd.d
+      d.maxC = hi; d.minC = lo
+      d.pop = plausible(dl.precipitation_probability_max && dl.precipitation_probability_max[j], 0, 100)
+      d.windKmh = plausible(dl.wind_speed_10m_max && dl.wind_speed_10m_max[j], 0, 400)
+      out.daily.push(d)
+    }
+  }
+  return out
+}
+
+// Untrusted response -> {tempC, code, key, icon, isDay, ..., forecast} or null
 function parseCurrentWeather(raw) {
   var text = String(raw || "")
   if (text.length === 0 || text.length > WEATHER_MAX_BYTES) return null
@@ -1276,7 +1341,8 @@ function parseCurrentWeather(raw) {
     kind: WEATHER_KINDS[row[0]][isDay ? 0 : 1],
     feelsC: opt(cur.apparent_temperature, -100, 75),
     humidity: opt(cur.relative_humidity_2m, 0, 100),
-    windKmh: opt(cur.wind_speed_10m, 0, 400)
+    windKmh: opt(cur.wind_speed_10m, 0, 400),
+    forecast: parseForecast(data)
   }
 }
 

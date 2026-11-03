@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const src = fs.readFileSync(path.join(here, "..", "Model.js"), "utf8").replace(/^\.pragma library.*$/m, "");
-const M = new Function(src + "\nreturn { isoWeek, weekNumber, computeSeasonSummary, getSunTimesForDay, getMoonTimes, computeSolarSummary, formatWind };")();
+const M = new Function(src + "\nreturn { isoWeek, weekNumber, computeSeasonSummary, getSunTimesForDay, getMoonTimes, computeSolarSummary, formatWind, parseCurrentWeather, WEATHER_MAX_BYTES };")();
 const cases = [
   ["2026-11-02", 45, 2026], ["2026-01-01", 1, 2026], ["2027-01-01", 53, 2026], ["2027-01-03", 53, 2026],
   ["2027-01-04", 1, 2027], ["2024-12-30", 1, 2025], ["2025-12-29", 1, 2026], ["2021-01-03", 53, 2020],
@@ -64,6 +64,24 @@ checks.push(["wind km/h", M.formatWind(10, "kmh") === "10 km/h"]);
 checks.push(["wind mph", M.formatWind(10, "mph") === "6 mph"]);
 checks.push(["wind m/s", M.formatWind(10, "ms") === "2.8 m/s"]);
 checks.push(["wind boolean compatibility", M.formatWind(10, true) === "6 mph" && M.formatWind(10, false) === "10 km/h"]);
+
+// Forecast parsing (Open-Meteo response captured for Lisbon, tests/fixtures)
+const wxRaw = fs.readFileSync(path.join(here, "fixtures", "open-meteo-forecast.json"), "utf8");
+const wx = M.parseCurrentWeather(wxRaw);
+checks.push(["forecast: 24 hourly entries", wx && wx.forecast.hourly.length === 24]);
+checks.push(["forecast: 7 daily entries", wx && wx.forecast.daily.length === 7]);
+checks.push(["forecast: first day parsed", wx && wx.forecast.daily[0].y === 2026 && wx.forecast.daily[0].mo === 11 && wx.forecast.daily[0].d === 3
+  && wx.forecast.daily[0].maxC === 22.4 && wx.forecast.daily[0].minC === 10.1 && wx.forecast.daily[0].key === "overcast"]);
+checks.push(["forecast: thunderstorm day has its icon kind", wx && wx.forecast.daily[5].kind === "thunder" && wx.forecast.daily[5].pop === 85]);
+checks.push(["forecast: response well under the size cap", wxRaw.length < M.WEATHER_MAX_BYTES / 4]);
+const bad = JSON.parse(wxRaw);
+bad.daily.temperature_2m_max[1] = "<script>"; bad.daily.weather_code[2] = 1234; bad.daily.time[3] = "2026-13-40";
+bad.hourly.temperature_2m[0] = 900; bad.hourly.time[1] = "../../etc";
+const wxBad = M.parseCurrentWeather(JSON.stringify(bad));
+checks.push(["forecast: invalid entries are skipped, the rest kept", wxBad && wxBad.forecast.daily.length === 4 && wxBad.forecast.hourly.length === 22]);
+delete bad.hourly; delete bad.daily;
+const wxNone = M.parseCurrentWeather(JSON.stringify(bad));
+checks.push(["forecast: missing blocks give empty lists, current weather still parsed", wxNone && wxNone.tempC !== undefined && wxNone.forecast.hourly.length === 0 && wxNone.forecast.daily.length === 0]);
 
 for (const [label, ok] of checks) { if (!ok) { failed++; console.log("FAIL " + label); } else if (process.argv.includes("--verbose")) console.log("ok   " + label); }
 console.log(`Options: ${checks.filter(c => c[1]).length}/${checks.length} checks pass`);

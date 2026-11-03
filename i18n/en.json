@@ -92,5 +92,21 @@
   "settings.elevation": "Elevation",
   "settings.elevationHint": "Metres above sea level",
   "settings.reset": "Reset settings",
-  "settings.resetConfirm": "Reset all?"
+  "settings.resetConfirm": "Reset all?",
+  "section.forecast": "Forecast",
+  "forecast.range.today": "Today",
+  "forecast.range.3": "3 Days",
+  "forecast.range.7": "7 Days",
+  "forecast.next24": "Next 24 Hours",
+  "forecast.next3": "Next 3 Days",
+  "forecast.next7": "Next 7 Days",
+  "forecast.highLow": "High %1 · Low %2",
+  "forecast.now": "Now",
+  "forecast.tomorrow": "Tomorrow",
+  "forecast.rain": "Rain %1",
+  "forecast.wind": "Wind %1",
+  "forecast.loading": "Loading the forecast…",
+  "forecast.off": "Weather is off, so no forecast is fetched.",
+  "forecast.turnOn": "Turn on weather",
+  "forecast.source": "Open-Meteo · updated %1"
 }

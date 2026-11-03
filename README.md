@@ -53,6 +53,7 @@ With weather on, the capsule also shows the current conditions as a small themed
 - **The Sun:** sky phase (from astronomical night through blue hour, golden hour and solar noon), altitude and compass bearing, day length, and the day's timetable: blue hour, sunrise, golden hour, solar noon, sunset, blue hour.
 - **The Moon:** phase, illumination, waxing or waning, age, **moonrise and moonset**, altitude, distance, ecliptic sign, and countdowns to the next quarter, full and new Moon.
 - **7-day Moon forecast.**
+- **Weather forecast:** click the weather (on the bar or in the popup header) for **Today** (the next 24 hours, every three hours, with chance of rain), **3 Days** (a card per day: conditions, high and low, rain chance, wind) or **7 Days** (one row per day with the week's temperature range). Any card except the header can be hidden in settings.
 - **The Sun's yearly path:** the analemma, then the countdown to the next equinox or solstice with the current season's progress (*Autumn · day 41 of 90*). Hemisphere-aware: in Sydney, June brings the Winter Solstice.
 
 ### Time travel
@@ -122,15 +123,16 @@ omarchy plugin remove makehasteslowly.heliolune
 
 | | |
 |---|---|
-| **Left-click** | Open or close the popup |
+| **Left-click** | Open or close the popup; on the weather, open the forecast |
 | **Right-click** | Open settings |
 | **Middle-click** | Refresh location, weather and astronomy |
 | **← / →** | Previous / next day (Shift: a week) |
 | **T** | Back to today |
-| **S** / **R** | Settings / refresh |
+| **S** / **W** / **R** | Settings / weather forecast / refresh |
 | **↑ ↓ PgUp PgDn Home** | Scroll |
-| **Esc** | Close |
+| **Esc** | Close (from the forecast: back to the tracker) |
 | **1 / 2 / 3** (in settings) | Art Nouveau / Art Deco / Atomic |
+| **1 / 2 / 3** or **← / →** (in the forecast) | Today / 3 Days / 7 Days |
 
 From a script or keybinding:
 
@@ -138,6 +140,7 @@ From a script or keybinding:
 omarchy-shell makehasteslowly.heliolune toggle   # also: open, close, refresh
 omarchy-shell makehasteslowly.heliolune stepDays 7   # time travel: +/- n days
 omarchy-shell makehasteslowly.heliolune today
+omarchy-shell makehasteslowly.heliolune forecast   # open the weather forecast
 ```
 
 ---
@@ -154,6 +157,13 @@ Everything is in the right-click panel. The same keys can be set on the widget's
 | `timeFormat` | `auto` · `12` · `24` | `auto` |
 | `weather` | `auto` (°F for US locales, °C elsewhere) · `c` · `f` · `off` | `auto` |
 | `barWeather` | `on` · `off`: the themed weather icon and temperature on the bar | `on` |
+| `windUnit` | `auto` (mph with °F, km/h otherwise) · `kmh` · `mph` · `ms` | `auto` |
+| `weatherRefresh` | `15` · `30` · `60` minutes | `30` |
+| `cardSky`, `cardSun`, `cardMoon`, `cardForecast`, `cardYear` | `on` · `off`: show or hide each popup card | `on` |
+| `weekScheme` | `auto` (from locale) · `iso` · `us` | `auto` |
+| `seasons` | `astronomical` · `meteorological` | `astronomical` |
+| `lightPreset` | `standard` · `photographer` · `extended` golden/blue-hour windows | `standard` |
+| `elevation` | Your height above sea level in metres (0-9000) | `0` |
 | `latitude`, `longitude`, `locationName` | Manual location override | empty (automatic) |
 
 ```json
@@ -201,7 +211,7 @@ Heliolune makes at most two kinds of request, both over HTTPS, both size-capped 
 | What | Where | When | Turn it off |
 |---|---|---|---|
 | **Your approximate location**, only if Omarchy Weather has no location and you set none | `geo.omarchy.org`, Omarchy's own geolocation service | At startup, then every 3 hours; cached for offline use | Set a location in Omarchy Weather or in Heliolune's settings |
-| **Current weather** for your coordinates rounded to ~1 km | `api.open-meteo.com`, no account or key | At startup, every 30 minutes, and when your location changes | Set **Weather** to **Off** |
+| **Current weather and forecast** (one request) for your coordinates rounded to ~1 km | `api.open-meteo.com`, no account or key | At startup, every 30 minutes (15/30/60 in settings), and when your location changes | Set **Weather** to **Off** |
 
 With a location set and weather off, Heliolune makes no network requests at all. All astronomy is computed on your machine, and nothing else is sent anywhere.
 
