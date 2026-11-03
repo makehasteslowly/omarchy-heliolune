@@ -139,5 +139,7 @@
   "moon.range.cycle": "Cycle",
   "lapse.cycle": "Cycle",
   "lapse.dayOf": "Day %1 of %2",
-  "lapse.now": "Now"
+  "lapse.now": "Now",
+  "lapse.titleCycle": "This Cycle",
+  "lapse.titleSky": "Next 24 Hours"
 }

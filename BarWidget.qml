@@ -634,11 +634,16 @@ BarWidget {
   readonly property var lapseSunPos: root.lapseShown && root.lapseMode === "sky" ? Model.getSunPosition(root.lapseDate, root.activeLat, root.activeLon) : null
   readonly property var lapseSky: root.lapseShown && root.lapseMode === "sky"
     ? Model.moonVisibility(root.currentDate, root.activeLat, root.activeLon, 24, 15) : []
-  // The cycle's phases along the track: [{ key, pos 0..1 }]
+  // Ticks along the track: the cycle's phases, or every 6 hours of sky -> [{ label, pos }]
   readonly property var lapseMarks: {
-    if (!root.lunarCycle || root.lapseMode !== "cycle") return []
     var start = root.lapseStartMs, span = root.lapseSpanMs
-    return root.lunarCycle.events.map(function(e) { return { key: e.key, pos: (e.at.getTime() - start) / span } })
+    if (root.lapseMode === "sky") {
+      var out = []
+      for (var k = 0; k <= 4; k++) out.push({ label: k === 0 ? strings.t("lapse.now") : root.hourLabel(new Date(start + k * 6 * 3600000).getHours()), pos: k / 4 })
+      return out
+    }
+    if (!root.lunarCycle) return []
+    return root.lunarCycle.events.map(function(e) { return { label: strings.t("moon.event." + e.key), pos: (e.at.getTime() - start) / span } })
   }
   readonly property bool lapseAtNow: Math.abs(root.lapseT - root.lapseNowT) * root.lapseSpanMs < 3600000
   function lapseToNow() {
@@ -700,6 +705,7 @@ BarWidget {
       return
     }
     root.moonRange = "cycle"
+    root.lapseMode = "cycle"   // opens on the current cycle, paused on today
     if (!root.opened) root.open()
     if (root.viewOffsetDays !== 0) root.setViewOffset(0)
     root.moonOpen = true
@@ -3743,23 +3749,6 @@ Text {
             Layout.fillWidth: true
             spacing: Style.space(8)
 
-            RowLayout {
-              Layout.fillWidth: true
-              spacing: Style.space(4)
-              Repeater {
-                model: ["cycle", "sky"]
-                ChoiceButton {
-                  required property string modelData
-                  Layout.fillWidth: true
-                  Layout.preferredWidth: 1
-                  Layout.preferredHeight: Style.space(26)
-                  selected: root.lapseMode === modelData
-                  text: strings.t("lapse." + modelData)
-                  onClicked: root.setLapseMode(modelData)
-                }
-              }
-            }
-
             Rectangle {
               Layout.fillWidth: true
               implicitHeight: lapseCol.implicitHeight + Style.space(16) + root.cardFootPad
@@ -3775,6 +3764,28 @@ Text {
                 anchors.margins: Style.space(8)
                 anchors.bottomMargin: Style.space(8) + root.cardFootPad
                 spacing: Style.space(8)
+
+                // Header: title on the left, the Cycle / Sky switch on the right
+                RowLayout {
+                  Layout.fillWidth: true
+                  spacing: Style.space(4)
+                  CardTitle {
+                    text: (root.decoStyle ? "◆ " : (root.nouveauStyle ? "❦ " : (root.atomicStyle ? "✦ " : "")))
+                      + strings.t(root.lapseMode === "cycle" ? "lapse.titleCycle" : "lapse.titleSky")
+                  }
+                  Item { Layout.fillWidth: true }
+                  Repeater {
+                    model: ["cycle", "sky"]
+                    ChoiceButton {
+                      required property string modelData
+                      Layout.preferredWidth: Style.space(76)   // room for the themes' button ornaments
+                      Layout.preferredHeight: Style.space(28)
+                      selected: root.lapseMode === modelData
+                      text: strings.t("lapse." + modelData)
+                      onClicked: root.setLapseMode(modelData)
+                    }
+                  }
+                }
 
                 // Cycle: one big Moon, waxing and waning as it plays
                 ColumnLayout {
@@ -3952,15 +3963,16 @@ Text {
                   font.bold: true
                 }
 
-                // Controls: play / pause, a scrub bar (the cycle marks its phases and
-                // today) and Now
+                // Controls on one centre line: play / pause · track · Now. The
+                // track is as thick as every other bar; its labels sit under it.
                 RowLayout {
                   Layout.fillWidth: true
                   spacing: Style.space(8)
 
                   ChoiceButton {
-                    Layout.preferredWidth: Style.space(30)
-                    Layout.preferredHeight: Style.space(26)
+                    id: lapsePlayButton
+                    Layout.preferredWidth: Style.space(28)
+                    Layout.preferredHeight: Style.space(28)
                     selected: root.lapsePlaying
                     text: root.lapsePlaying ? "󰏤" : "󰐊"
                     onClicked: root.lapsePlaying = !root.lapsePlaying
@@ -3969,62 +3981,55 @@ Text {
                   Item {
                     id: lapseScrub
                     Layout.fillWidth: true
-                    Layout.preferredHeight: Style.space(30)
+                    Layout.preferredHeight: Style.space(28)
 
                     Rectangle {
                       id: lapseTrack
                       anchors.left: parent.left
                       anchors.right: parent.right
-                      y: Style.space(6)
-                      height: Style.space(4)
+                      anchors.verticalCenter: parent.verticalCenter
+                      height: Style.space(6)
                       radius: height / 2
-                      color: Qt.alpha(Color.foreground, root.isLightPopup ? 0.1 : 0.12)
+                      color: Qt.alpha(Color.foreground, root.isLightPopup ? 0.08 : 0.1)
                     }
                     Rectangle {
                       anchors.left: lapseTrack.left
-                      y: lapseTrack.y
+                      anchors.verticalCenter: lapseTrack.verticalCenter
                       height: lapseTrack.height
-                      width: lapseTrack.width * root.lapseT
+                      width: Math.max(height, lapseTrack.width * root.lapseT)
                       radius: height / 2
                       color: trackerPopup.popupLunarColor
                     }
+                    // Phase (or hour) ticks
                     Repeater {
                       model: root.lapseMarks
-                      Item {
+                      Rectangle {
                         required property var modelData
-                        x: lapseTrack.width * modelData.pos
-                        y: 0
-                        Rectangle {
-                          x: -1; y: Style.space(3)
-                          width: 2; height: Style.space(10)
-                          color: trackerPopup.popupLunarColor
-                          opacity: 0.8
-                        }
-                        Text {
-                          x: -implicitWidth / 2
-                          y: Style.space(15)
-                          textFormat: Text.PlainText
-                          text: strings.t("moon.event." + modelData.key)
-                          color: Color.foreground
-                          opacity: 0.7
-                          font.family: Style.font.family
-                          font.pixelSize: Style.font.caption
-                        }
+                        x: Math.max(0, Math.min(lapseTrack.width - width, lapseTrack.width * modelData.pos - width / 2))
+                        anchors.verticalCenter: lapseTrack.verticalCenter
+                        width: 2; height: Style.space(12)
+                        radius: 1
+                        color: trackerPopup.popupLunarColor
+                        opacity: 0.7
                       }
                     }
+                    // Today, in the Sun colour as everywhere else
                     Rectangle {
-                      x: lapseTrack.width * root.lapseNowT - 1
-                      y: lapseTrack.y - Style.space(3)
-                      width: 2; height: lapseTrack.height + Style.space(6)
+                      visible: root.lapseMode === "cycle"
+                      x: Math.max(0, Math.min(lapseTrack.width - width, lapseTrack.width * root.lapseNowT - width / 2))
+                      anchors.verticalCenter: lapseTrack.verticalCenter
+                      width: 2; height: Style.space(16)
+                      radius: 1
                       color: trackerPopup.popupSolarColor
                     }
+                    // Handle
                     Rectangle {
                       x: lapseTrack.width * root.lapseT - width / 2
-                      y: lapseTrack.y + lapseTrack.height / 2 - height / 2
-                      width: Style.space(12); height: Style.space(12)
+                      anchors.verticalCenter: lapseTrack.verticalCenter
+                      width: Style.space(14); height: Style.space(14)
                       radius: width / 2
                       color: trackerPopup.popupLunarLitColor
-                      border.width: 1
+                      border.width: 2
                       border.color: trackerPopup.popupLunarColor
                     }
                     MouseArea {
@@ -4037,11 +4042,36 @@ Text {
                   }
 
                   ChoiceButton {
-                    Layout.preferredHeight: Style.space(26)
+                    id: lapseNowButton
+                    Layout.preferredWidth: Style.space(52)
+                    Layout.preferredHeight: Style.space(28)
                     enabled: !root.lapseAtNow || root.lapsePlaying
                     opacity: enabled ? 1.0 : 0.45
                     text: strings.t("lapse.now")
                     onClicked: root.lapseToNow()
+                  }
+                }
+
+                // Tick labels, aligned under the track (kept inside its ends)
+                Item {
+                  Layout.fillWidth: true
+                  Layout.topMargin: -Style.space(6)
+                  Layout.leftMargin: lapsePlayButton.width + Style.space(8)
+                  Layout.rightMargin: lapseNowButton.width + Style.space(8)
+                  implicitHeight: Style.font.caption + 4
+
+                  Repeater {
+                    model: root.lapseMarks
+                    Text {
+                      required property var modelData
+                      x: Math.max(0, Math.min(parent.width - implicitWidth, parent.width * modelData.pos - implicitWidth / 2))
+                      textFormat: Text.PlainText
+                      text: modelData.label
+                      color: Color.foreground
+                      opacity: 0.7
+                      font.family: Style.font.family
+                      font.pixelSize: Style.font.caption
+                    }
                   }
                 }
               }
@@ -4062,7 +4092,7 @@ Text {
             ColumnLayout {
               id: lunarCardCol
               anchors.fill: parent
-              anchors.margins: Style.space(9)
+              anchors.margins: Style.space(8)
               anchors.bottomMargin: Style.space(9) + root.cardFootPad
               spacing: Style.space(6)
 
@@ -4508,9 +4538,9 @@ Text {
                     font.bold: moonRow.index === 0
                   }
                   MoonDisc {
-                    Layout.preferredWidth: 22
-                    Layout.preferredHeight: 22
-                    discSize: 20
+                    Layout.preferredWidth: Style.space(24)
+                    Layout.preferredHeight: Style.space(24)
+                    discSize: Style.space(22)
                     phase: moonRow.modelData.phase
                     litColor: trackerPopup.popupLunarLitColor
                     darkColor: root.ornatePalette ? root.ornMoonShadow(root.isLightPopup, 0.22) : (root.isLightPopup ? Qt.rgba(0.14, 0.19, 0.28, 0.22) : Qt.rgba(0.05, 0.08, 0.14, 0.82))
@@ -4530,7 +4560,7 @@ Text {
                   }
                   // Moonrise that day (or up / down all day)
                   Text {
-                    Layout.preferredWidth: Style.space(70)
+                    Layout.preferredWidth: Style.space(68)   // the forecast's rain + low columns
                     horizontalAlignment: Text.AlignRight
                     textFormat: Text.PlainText
                     text: moonRow.times.rise
@@ -4558,7 +4588,7 @@ Text {
                     }
                   }
                   Text {
-                    Layout.preferredWidth: Style.space(34)
+                    Layout.preferredWidth: Style.space(30)
                     textFormat: Text.PlainText
                     text: Commons.I18n.formatNumber(moonRow.modelData.illuminationPct) + "%"
                     color: trackerPopup.popupLunarColor
@@ -4874,7 +4904,7 @@ Text {
                     }
                     // Same low-high bar and scale as the 7-day view
                     Item {
-                      Layout.preferredWidth: Style.space(84)
+                      Layout.preferredWidth: Style.space(72)
                       Layout.preferredHeight: Style.space(6)
                       Rectangle {
                         anchors.fill: parent
@@ -5402,7 +5432,7 @@ Text {
               ColumnLayout {
                 id: solarCardCol
                 anchors.fill: parent
-                anchors.margins: Style.space(9)
+                anchors.margins: Style.space(8)
                 anchors.bottomMargin: Style.space(9) + root.cardFootPad
                 spacing: Style.space(6)
 
@@ -6149,13 +6179,13 @@ Text {
 
             ChoiceButton {
               visible: root.effectiveLocation.source === "manual"
-              Layout.preferredHeight: Style.space(24)
+              Layout.preferredHeight: Style.space(28)
               text: "Use Auto"
               onClicked: root.clearCustomCoords()
             }
 
             ChoiceButton {
-              Layout.preferredHeight: Style.space(24)
+              Layout.preferredHeight: Style.space(28)
               selected: root.editingCustomCoords
               text: root.editingCustomCoords ? "Cancel" : "Set Lat/Lon"
               onClicked: {
@@ -6201,7 +6231,7 @@ Text {
               }
 
               ChoiceButton {
-                Layout.preferredHeight: Style.space(30)
+                Layout.preferredHeight: Style.space(28)
                 selected: true
                 text: "Save"
                 onClicked: {
