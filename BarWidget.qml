@@ -509,8 +509,10 @@ BarWidget {
     var fs = root.mapFields
     if (fs.length === 0) return 0
     var h0 = Math.max(0, Math.min(23, Math.floor(root.mapT))), h1 = Math.min(23, h0 + 1), t = root.mapT - h0
-    var a = Model.gridSample(fs[h0][name], root.mapGrid, gx, gy)
-    return t <= 0 ? a : a + (Model.gridSample(fs[h1][name], root.mapGrid, gx, gy) - a) * t
+    // Rain and snow are sampled bicubically (soft blobs, not diamonds); wind stays bilinear
+    var sample = name === "p" || name === "s" ? Model.gridSampleSmooth : Model.gridSample
+    var a = sample(fs[h0][name], root.mapGrid, gx, gy)
+    return t <= 0 ? a : a + (sample(fs[h1][name], root.mapGrid, gx, gy) - a) * t
   }
 
   Process {
@@ -5639,7 +5641,7 @@ Text {
 
                 Canvas {
                   id: rainField
-                  readonly property int res: 40
+                  readonly property int res: 64
                   visible: root.mapLayer === "rain" && root.radarIndex < 0
                   width: res; height: res
                   transformOrigin: Item.TopLeft
@@ -5664,7 +5666,9 @@ Text {
                       var gy = (j + 0.5) / res * n - 0.5
                       for (var i = 0; i < res; i++) {
                         var gx = (i + 0.5) / res * n - 0.5
-                        var c = Model.radarColor(root.mapFieldAt("p", gx, gy), root.mapFieldAt("s", gx, gy))
+                        var mm = root.mapFieldAt("p", gx, gy)
+                        if (mm < 0.05) continue
+                        var c = Model.radarColor(mm, root.mapFieldAt("s", gx, gy))
                         if (c[3] <= 0) continue
                         ctx.fillStyle = "rgba(" + Math.round(c[0]) + "," + Math.round(c[1]) + "," + Math.round(c[2]) + "," + (c[3] / 255).toFixed(3) + ")"
                         ctx.fillRect(i, j, 1, 1)
@@ -5727,12 +5731,55 @@ Text {
                       var step = Math.min(4, 0.7 + 0.07 * kmh) * (width / 500)
                       var nx = p.x + u / kmh * step, ny = p.y + v / kmh * step
                       var k = Math.min(1, kmh / 40)
-                      var c = Qt.rgba(slow.r + (fast.r - slow.r) * k, slow.g + (fast.g - slow.g) * k, slow.b + (fast.b - slow.b) * k,
-                                      (strong ? 0.95 : 0.55) * Math.min(1, p.age / 8, (p.life - p.age) / 8))
+                      var alpha = (strong ? 0.95 : 0.55) * Math.min(1, p.age / 8, (p.life - p.age) / 8)
+                      // On the Wind layer the colour is the speed: green calm, red strong.
+                      // Over the rain it stays the theme's soft pair, clear of the radar colours.
+                      var wc = strong ? Model.windColor(kmh) : null
+                      var c = strong ? Qt.rgba(wc[0] / 255, wc[1] / 255, wc[2] / 255, alpha)
+                        : Qt.rgba(slow.r + (fast.r - slow.r) * k, slow.g + (fast.g - slow.g) * k, slow.b + (fast.b - slow.b) * k, alpha)
                       ctx.strokeStyle = c
                       ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(nx, ny); ctx.stroke()
                       p.x = nx; p.y = ny
                       if (nx < 0 || ny < 0 || nx > width || ny > height) spawn(p)
+                    }
+                  }
+                }
+
+                // Wind key, bottom-left: the stream colours, calm to strong
+                Rectangle {
+                  visible: root.mapLayer === "wind"
+                  anchors.left: parent.left
+                  anchors.bottom: parent.bottom
+                  width: windKey.implicitWidth + Style.space(8)
+                  height: windKey.implicitHeight + Style.space(4)
+                  color: Qt.alpha(trackerPopup.cardSurfaceColor, 0.8)
+                  Row {
+                    id: windKey
+                    anchors.centerIn: parent
+                    spacing: Style.space(3)
+                    Text {
+                      textFormat: Text.PlainText
+                      text: strings.t("map.calm")
+                      color: Color.foreground
+                      font.family: Style.font.family
+                      font.pixelSize: Style.font.caption - 1
+                    }
+                    Repeater {
+                      model: [3, 20, 35, 50, 70]
+                      Rectangle {
+                        required property real modelData
+                        readonly property var c: Model.windColor(modelData)
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: Style.space(10); height: Style.space(8)
+                        color: Qt.rgba(c[0] / 255, c[1] / 255, c[2] / 255, 1)
+                      }
+                    }
+                    Text {
+                      textFormat: Text.PlainText
+                      text: strings.t("map.strong")
+                      color: Color.foreground
+                      font.family: Style.font.family
+                      font.pixelSize: Style.font.caption - 1
                     }
                   }
                 }

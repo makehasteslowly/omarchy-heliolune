@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const src = fs.readFileSync(path.join(here, "..", "Model.js"), "utf8").replace(/^\.pragma library.*$/m, "");
-const M = new Function(src + "\nreturn { isoWeek, weekNumber, computeSeasonSummary, getSunTimesForDay, getMoonTimes, computeSolarSummary, formatWind, parseCurrentWeather, WEATHER_MAX_BYTES, computeWeatherAlert, lunarDays, moonVisibility, firstWindow, getMoonPosition, lunarCycle, areaPoints, areaUrl, parseAreaForecast, compassPoint, AREA_MAX_BYTES, mapTiles, tileKey, compassFromDegrees, gridSample, windVector, radarColor, parseRadarFrames, radarTileKey, RADAR_HOST };")();
+const M = new Function(src + "\nreturn { isoWeek, weekNumber, computeSeasonSummary, getSunTimesForDay, getMoonTimes, computeSolarSummary, formatWind, parseCurrentWeather, WEATHER_MAX_BYTES, computeWeatherAlert, lunarDays, moonVisibility, firstWindow, getMoonPosition, lunarCycle, areaPoints, areaUrl, parseAreaForecast, compassPoint, AREA_MAX_BYTES, mapTiles, tileKey, compassFromDegrees, gridSample, gridSampleSmooth, windVector, radarColor, windColor, parseRadarFrames, radarTileKey, RADAR_HOST };")();
 const cases = [
   ["2026-11-02", 45, 2026], ["2026-01-01", 1, 2026], ["2027-01-01", 53, 2026], ["2027-01-03", 53, 2026],
   ["2027-01-04", 1, 2027], ["2024-12-30", 1, 2025], ["2025-12-29", 1, 2026], ["2021-01-03", 53, 2020],
@@ -184,6 +184,15 @@ checks.push(["area: precipitation kept", area.cells[8][0].precipMm === 2 && area
 const g = [0, 10, 20, 30];   // 2 x 2
 checks.push(["gridSample: corners, centre, clamped", M.gridSample(g, 2, 0, 0) === 0 && M.gridSample(g, 2, 1, 1) === 30
   && M.gridSample(g, 2, 0.5, 0.5) === 15 && M.gridSample(g, 2, -3, 9) === 20 && M.gridSample([null, 4, 4, 4], 2, 0, 0) === 0]);
+const g3 = [0, 0, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];   // 5 x 5, one peak
+checks.push(["gridSampleSmooth: hits grid values, smooth between, never negative, clamped", M.gridSampleSmooth(g3, 5, 2, 1) === 9
+  && M.gridSampleSmooth(g3, 5, 0, 0) === 0 && M.gridSampleSmooth(g3, 5, -3, 9) === 0
+  && M.gridSampleSmooth(g, 2, 0.5, 0.5) === 15
+  && (function() { var min = 1e9; for (var i = 0; i <= 80; i++) for (var j = 0; j <= 80; j++) min = Math.min(min, M.gridSampleSmooth(g3, 5, i / 20, j / 20)); return min >= 0 })()]);
+checks.push(["windColor: calm is green, strong is red, in between is yellow, clamped", (function() {
+  var c = M.windColor(0), y = M.windColor(35), r = M.windColor(200), neg = M.windColor(-5), nan = M.windColor("x")
+  return c[1] > c[0] && c[1] > c[2] && y[0] > 200 && y[1] > 150 && r[0] > 200 && r[1] < 60 && neg[1] === c[1] && nan[1] === c[1]
+})()]);
 const wv = M.windVector(10, 270);   // from the west -> blows east
 const wn = M.windVector(10, 0);     // from the north -> blows south (screen down)
 checks.push(["windVector: west wind blows east, north wind blows down-screen", Math.abs(wv.x - 10) < 1e-9 && Math.abs(wv.y) < 1e-9 && Math.abs(wn.y - 10) < 1e-9]);

@@ -1598,6 +1598,28 @@ function gridSample(values, n, gx, gy) {
   return (v(x0, y0) * (1 - fx) + v(x0 + 1, y0) * fx) * (1 - fy) + (v(x0, y0 + 1) * (1 - fx) + v(x0 + 1, y0 + 1) * fx) * fy
 }
 
+// Bicubic (Catmull-Rom) sample of an n x n row-major grid at fractional grid
+// coordinates (0..n-1; clamped; edges repeat). Smoother than gridSample, with no
+// diamond-shaped cells; never below 0 (the cubic can undershoot next to a peak).
+function gridSampleSmooth(values, n, gx, gy) {
+  var x = Math.max(0, Math.min(n - 1, gx)), y = Math.max(0, Math.min(n - 1, gy))
+  var x0 = Math.min(n - 2, Math.floor(x)), y0 = Math.min(n - 2, Math.floor(y))
+  var fx = x - x0, fy = y - y0
+  function v(c, r) {
+    c = Math.max(0, Math.min(n - 1, c)); r = Math.max(0, Math.min(n - 1, r))
+    var a = values[r * n + c]
+    return (a === null || a === undefined || !isFinite(a)) ? 0 : a
+  }
+  function cubic(p0, p1, p2, p3, t) {
+    return p1 + 0.5 * t * (p2 - p0 + t * (2 * p0 - 5 * p1 + 4 * p2 - p3 + t * (3 * (p1 - p2) + p3 - p0)))
+  }
+  var rows = []
+  for (var j = -1; j <= 2; j++) {
+    rows.push(cubic(v(x0 - 1, y0 + j), v(x0, y0 + j), v(x0 + 1, y0 + j), v(x0 + 2, y0 + j), fx))
+  }
+  return Math.max(0, cubic(rows[0], rows[1], rows[2], rows[3], fy))
+}
+
 // Wind as a vector pointing where it blows, screen-oriented (x east, y down),
 // in km/h. dirFrom: degrees the wind comes FROM.
 function windVector(kmh, dirFrom) {
@@ -1605,6 +1627,22 @@ function windVector(kmh, dirFrom) {
   if (!isFinite(s) || !isFinite(d)) return { x: 0, y: 0 }
   var to = (d + 180) * Math.PI / 180
   return { x: s * Math.sin(to), y: -s * Math.cos(to) }
+}
+
+// Wind-stream colour for a speed (km/h): green when calm, through yellow and
+// orange, to red when strong. -> [r, g, b] in 0..255
+var WIND_STOPS = [[0, 60, 200, 90], [20, 170, 215, 60], [35, 250, 210, 40], [50, 255, 130, 30], [70, 230, 40, 40]]
+function windColor(kmh) {
+  var v = Number(kmh)
+  if (!isFinite(v) || v < 0) v = 0
+  for (var i = 1; i < WIND_STOPS.length; i++) {
+    if (v < WIND_STOPS[i][0]) {
+      var a = WIND_STOPS[i - 1], b = WIND_STOPS[i], t = (v - a[0]) / (b[0] - a[0])
+      return [a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t, a[3] + (b[3] - a[3]) * t]
+    }
+  }
+  var l = WIND_STOPS[WIND_STOPS.length - 1]
+  return [l[1], l[2], l[3]]
 }
 
 // Radar colour for a precipitation rate (mm/h): transparent below 0.05; pale

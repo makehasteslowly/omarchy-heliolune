@@ -111,6 +111,7 @@
   "map.layer.rain": "Rain",
   "map.layer.wind": "Wind",
   "map.calm": "Calm",
+  "map.strong": "Strong",
   "map.windFrom": "Wind %1 from %2",
   "map.light": "Light",
   "map.heavy": "Heavy",
