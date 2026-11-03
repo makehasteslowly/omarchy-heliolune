@@ -69,7 +69,7 @@ Look at any date up to ten years either way, and every card follows.
 
 ## Themes
 
-Right-click the widget and pick a **Moon Render**: the choice restyles the whole widget.
+Right-click the widget and pick a **Style**: the choice restyles the whole widget.
 
 
 | | Atomic (default) | Art Deco | Art Nouveau |

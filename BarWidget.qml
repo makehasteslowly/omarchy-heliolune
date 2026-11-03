@@ -337,7 +337,8 @@ BarWidget {
     }
   }
 
-  readonly property bool weatherHeroShown: root.weatherNow !== null && root.weatherEnabled && !root.browsing
+  // The weather hero is for the tracker view; settings use the compact title row
+  readonly property bool weatherHeroShown: root.weatherNow !== null && root.weatherEnabled && !root.browsing && !root.settingsOpen
   readonly property string weatherTempText: root.weatherNow ? Model.formatTemperature(root.weatherNow.tempC, root.weatherImperial) : ""
   readonly property string weatherConditionText: root.weatherNow ? strings.t("weather." + root.weatherNow.key) : ""
   // "Feels 50°  [wind] 6 mph  [humidity] 62%": only the values the response actually had
@@ -661,6 +662,8 @@ BarWidget {
     // (negative goes back), or return it to today.
     function stepDays(n: int): void { root.stepView(n) }
     function today(): void { root.setViewOffset(0) }
+    // Open the popup straight on its settings view (toggles like right-click)
+    function settings(): void { root.toggleSettings() }
   }
 
   // ============================================================================
@@ -3074,6 +3077,10 @@ BarWidget {
                   textFormat: Text.PlainText
                   readonly property bool deco: root.decoStyle
                   text: root.settingsOpen ? strings.t("section.settings") : strings.t("plugin.title")
+                  elide: Text.ElideRight
+                  Layout.maximumWidth: implicitWidth
+                  Layout.minimumWidth: Math.min(implicitWidth, Style.space(60))
+                  Layout.fillWidth: true
                   color: root.ornate ? root.ornMetal : Color.foreground
                   font.family: Style.font.family
                   font.pixelSize: Style.font.body
@@ -3102,6 +3109,10 @@ Text {
               textFormat: Text.PlainText
               readonly property bool deco: root.decoStyle
               text: root.settingsOpen ? strings.t("section.settings") : strings.t("plugin.title")
+              elide: Text.ElideRight
+              Layout.maximumWidth: implicitWidth
+              Layout.minimumWidth: Math.min(implicitWidth, Style.space(60))
+              Layout.fillWidth: true
               color: root.ornate ? root.ornMetal : Color.foreground
               font.family: Style.font.family
               font.pixelSize: Style.font.body
@@ -4410,17 +4421,18 @@ Text {
 
             Repeater {
               model: [
-                { key: "both",     label: "󰖙 󰽢 Both" },
-                { key: "compact",  label: "󰖙 󰽥 Icons" },
-                { key: "detailed", label: "󰖜 󰽢 Detailed" },
-                { key: "dynamic",  label: "󰖨 Dynamic" },
-                { key: "lunar",    label: "󰽢 Lunar" },
-                { key: "solar",    label: "󰖙 Solar" }
+                { key: "both",     label: "Both" },
+                { key: "compact",  label: "Icons" },
+                { key: "detailed", label: "Detailed" },
+                { key: "dynamic",  label: "Dynamic" },
+                { key: "lunar",    label: "Lunar" },
+                { key: "solar",    label: "Solar" }
               ]
 
               ChoiceButton {
                 required property var modelData
                 Layout.fillWidth: true
+                Layout.preferredWidth: 1   // equal widths within a row
                 Layout.preferredHeight: Style.space(28)
                 selected: root.displayMode === modelData.key
                 text: modelData.label
@@ -4448,6 +4460,7 @@ Text {
               ChoiceButton {
                 required property var modelData
                 Layout.fillWidth: true
+                Layout.preferredWidth: 1   // equal widths within a row
                 Layout.preferredHeight: Style.space(28)
                 selected: root.colorMode === modelData.key
                 text: modelData.label
@@ -4468,13 +4481,14 @@ Text {
             Repeater {
               model: [
                 { key: "atomic",  label: "Atomic" },
-                { key: "deco",    label: "Art Deco" },
-                { key: "nouveau", label: "Art Nouveau" }
+                { key: "deco",    label: "Deco" },
+                { key: "nouveau", label: "Nouveau" }
               ]
 
               ChoiceButton {
                 required property var modelData
                 Layout.fillWidth: true
+                Layout.preferredWidth: 1   // equal widths within a row
                 Layout.preferredHeight: Style.space(28)
                 selected: root.moonStyle === modelData.key
                 text: modelData.label
@@ -4502,6 +4516,7 @@ Text {
               ChoiceButton {
                 required property var modelData
                 Layout.fillWidth: true
+                Layout.preferredWidth: 1   // equal widths within a row
                 Layout.preferredHeight: Style.space(28)
                 selected: root.timeFormatMode === modelData.key
                 text: modelData.label
@@ -4530,6 +4545,7 @@ Text {
               ChoiceButton {
                 required property var modelData
                 Layout.fillWidth: true
+                Layout.preferredWidth: 1   // equal widths within a row
                 Layout.preferredHeight: Style.space(28)
                 selected: root.weatherMode === modelData.key
                 text: modelData.label
@@ -4556,6 +4572,7 @@ Text {
               ChoiceButton {
                 required property var modelData
                 Layout.fillWidth: true
+                Layout.preferredWidth: 1   // equal widths within a row
                 Layout.preferredHeight: Style.space(28)
                 selected: root.barWeatherMode === modelData.key
                 text: modelData.label
@@ -4579,11 +4596,12 @@ Text {
                   : (root.effectiveLocation.source === "geo" ? "Auto IP Geolocation"
                   : (root.effectiveLocation.source === "timezone" ? "System Timezone (" + root.systemTimezone + ")" : "UTC Offset Estimate"))))
               color: root.ornate ? root.ornMetal : Color.foreground
-              opacity: root.ornate ? 0.92 : 0.78
               font.family: Style.font.family
               font.pixelSize: Style.font.bodySmall
               font.bold: true
-              font.letterSpacing: root.ornate ? 0.8 : 0
+              font.italic: root.atomicStyle
+              font.capitalization: root.decoStyle ? Font.AllUppercase : Font.MixedCase
+              font.letterSpacing: root.decoStyle ? 1.0 : (root.nouveauStyle ? 0.5 : 0)
               elide: Text.ElideRight
               Layout.fillWidth: true
             }
