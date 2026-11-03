@@ -157,6 +157,7 @@ Everything is in the right-click panel. The same keys can be set on the widget's
 | `timeFormat` | `auto` · `12` · `24` | `auto` |
 | `weather` | `auto` (°F for US locales, °C elsewhere) · `c` · `f` · `off` | `auto` |
 | `barWeather` | `on` · `off`: the themed weather icon and temperature on the bar | `on` |
+| `barRotate` | `off` · `5` · `10` · `30`: every n seconds the bar's sun, moon and weather scroll across like a ticker (pauses on hover) | `off` |
 | `windUnit` | `auto` (mph with °F, km/h otherwise) · `kmh` · `mph` · `ms` | `auto` |
 | `weatherRefresh` | `15` · `30` · `60` minutes | `30` |
 | `cardSky`, `cardSun`, `cardMoon`, `cardForecast`, `cardYear` | `on` · `off`: show or hide each popup card | `on` |

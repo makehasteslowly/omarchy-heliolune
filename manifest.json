@@ -189,6 +189,31 @@
         ]
       },
       {
+        "key": "barRotate",
+        "type": "enum",
+        "label": "Scroll the Bar",
+        "description": "Every few seconds the bar's sun, moon and weather scroll across the widget like a ticker and settle back in place. It pauses while the pointer is on it or the popup is open.",
+        "defaultValue": "off",
+        "options": [
+          {
+            "value": "off",
+            "label": "Off"
+          },
+          {
+            "value": "5",
+            "label": "Every 5 seconds"
+          },
+          {
+            "value": "10",
+            "label": "Every 10 seconds"
+          },
+          {
+            "value": "30",
+            "label": "Every 30 seconds"
+          }
+        ]
+      },
+      {
         "key": "windUnit",
         "type": "enum",
         "label": "Wind Speed Unit",

@@ -104,6 +104,8 @@ BarWidget {
     if (dropped) root.localOpts = next
   }
 
+  // Bar ticker: the whole strip scrolls across the capsule every n seconds
+  readonly property string barRotateSetting: root.opt("barRotate", ["off", "5", "10", "30"], "off")
   readonly property string windSetting: root.opt("windUnit", ["auto", "kmh", "mph", "ms"], "auto")
   readonly property string windUnit: root.windSetting === "auto" ? (root.weatherImperial ? "mph" : "kmh") : root.windSetting
   readonly property string weatherRefreshSetting: root.opt("weatherRefresh", ["15", "30", "60"], "30")
@@ -716,7 +718,7 @@ BarWidget {
   function resetSettings() {
     var defaults = {
       displayMode: "both", colorMode: "celestial", moonStyle: "atomic", timeFormat: "auto",
-      weather: "auto", barWeather: "on", windUnit: "auto", weatherRefresh: "30",
+      weather: "auto", barWeather: "on", barRotate: "off", windUnit: "auto", weatherRefresh: "30",
       cardSky: "on", cardSun: "on", cardMoon: "on", cardForecast: "on", cardYear: "on",
       weekScheme: "auto", seasons: "astronomical", lightPreset: "standard", elevation: "0"
     }
@@ -2843,7 +2845,41 @@ BarWidget {
   readonly property real cardFootPad: root.atomicStyle ? Style.space(10) : 0
   readonly property bool barCapsuleOn: root.ornate && (root.showSolarOnBar || root.showLunarOnBar)
 
-  implicitWidth: root.vertical ? root.barSize : Math.max(Style.bar.iconSlot, barContentRow.implicitWidth + Style.space(root.barCapsuleOn ? 24 : 16))
+  // ---- Ticker: every n seconds the whole strip (sun · moon · weather) scrolls
+  // out to the left and back in from the right, clipped to the capsule.
+  // Opt-in, so it runs at a fixed speed even with Hyprland animations off.
+  readonly property bool barScrolling: root.barRotateSetting !== "off" && !root.vertical
+  readonly property real barRowWidth: barContentRow.implicitWidth
+  readonly property real barTickerSpeed: 120   // px per second: a pass takes about 4 s
+  onBarScrollingChanged: {
+    barTickerAnim.stop()
+    barTickerShift.x = 0
+  }
+
+  Timer {
+    interval: Math.max(5, parseInt(root.barRotateSetting) || 10) * 1000
+    // Counts the rest from the end of each pass (stopped while one runs), and
+    // holds still while the pointer is on it or the popup is open
+    running: root.barScrolling && !barTickerAnim.running && !barButton.tooltipHovered && !root.opened
+    repeat: true
+    onTriggered: barTickerAnim.restart()
+  }
+
+  SequentialAnimation {
+    id: barTickerAnim
+    NumberAnimation {
+      target: barTickerShift; property: "x"; from: 0; to: -barViewport.width
+      duration: barViewport.width / root.barTickerSpeed * 1000
+    }
+    PropertyAction { target: barTickerShift; property: "x"; value: barViewport.width }
+    NumberAnimation {
+      target: barTickerShift; property: "x"; to: 0
+      duration: barViewport.width / root.barTickerSpeed * 1000
+      easing.type: Easing.OutQuad
+    }
+  }
+
+  implicitWidth: root.vertical ? root.barSize : Math.max(Style.bar.iconSlot, root.barRowWidth + Style.space(root.barCapsuleOn ? 24 : 16))
   implicitHeight: root.vertical ? Math.max(Style.bar.iconSlot, barContentCol.implicitHeight + Style.space(root.barCapsuleOn ? 20 : 12)) : root.barSize
 
   WidgetButton {
@@ -2884,7 +2920,7 @@ BarWidget {
       anchors.centerIn: parent
       width: root.vertical
         ? Math.min(parent.width - Style.space(4), content.implicitWidth + Style.space(10))
-        : content.implicitWidth + Style.space(16)
+        : root.barRowWidth + Style.space(16)
       height: root.vertical
         ? content.implicitHeight + Style.space(12)
         : Math.min(parent.height - Style.space(6), Style.space(22))
@@ -2911,88 +2947,101 @@ BarWidget {
       }
     }
 
-    // Horizontal bar layout
-    Row {
-      id: barContentRow
+    // Horizontal bar layout, in a viewport that clips the scroll while rotating
+    Item {
+      id: barViewport
       visible: !root.vertical
       anchors.centerIn: parent
-      spacing: Style.space(6)
-      scale: barButton.pressScale
+      width: root.barRowWidth + Style.space(6)
+      height: parent.height
+      clip: root.barScrolling
 
-      // Solar group
       Row {
-        visible: root.showSolarOnBar
-        spacing: Style.space(4)
-        anchors.verticalCenter: parent.verticalCenter
+        id: barContentRow
+        visible: !root.vertical
+        anchors.centerIn: parent
+        spacing: Style.space(6)
+        scale: barButton.pressScale
+        transform: Translate { id: barTickerShift }
 
-        BarWeatherIcon {
+        // Solar group
+        Row {
+          id: barSolarGroup
+          visible: root.showSolarOnBar
+          spacing: Style.space(4)
           anchors.verticalCenter: parent.verticalCenter
-          kind: root.barSolarKind
+
+          BarWeatherIcon {
+            anchors.verticalCenter: parent.verticalCenter
+            kind: root.barSolarKind
+          }
+
+          Text {
+            visible: root.barSolarText !== ""
+            anchors.verticalCenter: parent.verticalCenter
+            textFormat: Text.PlainText
+            text: root.barSolarText
+            color: root.useThemeColors ? barButton.foreground : Color.foreground
+            font.family: root.bar ? root.bar.fontFamily : Style.font.family
+            font.pixelSize: Style.font.body
+          }
         }
 
-        Text {
-          visible: root.barSolarText !== ""
+        // Separator between sun and moon
+        BarMark {
+          visible: root.showSolarOnBar && root.showLunarOnBar
           anchors.verticalCenter: parent.verticalCenter
-          textFormat: Text.PlainText
-          text: root.barSolarText
-          color: root.useThemeColors ? barButton.foreground : Color.foreground
-          font.family: root.bar ? root.bar.fontFamily : Style.font.family
-          font.pixelSize: Style.font.body
-        }
-      }
-
-      // Separator between sun and moon
-      BarMark {
-        visible: root.showSolarOnBar && root.showLunarOnBar
-        anchors.verticalCenter: parent.verticalCenter
-      }
-
-      // Lunar group
-      Row {
-        visible: root.showLunarOnBar
-        spacing: Style.space(4)
-        anchors.verticalCenter: parent.verticalCenter
-
-        MoonDisc {
-          renderStyle: root.moonStyle
-          anchors.verticalCenter: parent.verticalCenter
-          discSize: 13
-          phase: root.lunarData.phase
-          litColor: root.barLunarLitColor
-          darkColor: root.ornatePalette ? root.ornMoonShadow(root.isLightBar, 0.22) : (root.isLightBar ? Qt.rgba(0.15, 0.2, 0.3, 0.22) : Qt.rgba(0.06, 0.09, 0.16, 0.72))
-          rimColor: Qt.alpha(root.barLunarColor, root.isLightBar ? 0.55 : 0.45)
         }
 
-        Text {
-          visible: root.barLunarText !== ""
+        // Lunar group
+        Row {
+          id: barLunarGroup
+          visible: root.showLunarOnBar
+          spacing: Style.space(4)
           anchors.verticalCenter: parent.verticalCenter
-          textFormat: Text.PlainText
-          text: root.barLunarText
-          color: root.useThemeColors ? barButton.foreground : Color.foreground
-          font.family: root.bar ? root.bar.fontFamily : Style.font.family
-          font.pixelSize: Style.font.body
+
+          MoonDisc {
+            renderStyle: root.moonStyle
+            anchors.verticalCenter: parent.verticalCenter
+            discSize: 13
+            phase: root.lunarData.phase
+            litColor: root.barLunarLitColor
+            darkColor: root.ornatePalette ? root.ornMoonShadow(root.isLightBar, 0.22) : (root.isLightBar ? Qt.rgba(0.15, 0.2, 0.3, 0.22) : Qt.rgba(0.06, 0.09, 0.16, 0.72))
+            rimColor: Qt.alpha(root.barLunarColor, root.isLightBar ? 0.55 : 0.45)
+          }
+
+          Text {
+            visible: root.barLunarText !== ""
+            anchors.verticalCenter: parent.verticalCenter
+            textFormat: Text.PlainText
+            text: root.barLunarText
+            color: root.useThemeColors ? barButton.foreground : Color.foreground
+            font.family: root.bar ? root.bar.fontFamily : Style.font.family
+            font.pixelSize: Style.font.body
+          }
         }
-      }
 
-      // Weather group: themed icon + temperature
-      BarMark {
-        visible: root.showWeatherOnBar && (root.showSolarOnBar || root.showLunarOnBar)
-        anchors.verticalCenter: parent.verticalCenter
-      }
-      Row {
-        visible: root.showWeatherOnBar
-        spacing: Style.space(3)
-        anchors.verticalCenter: parent.verticalCenter
-        HoverHandler { id: barWeatherHover }
-
-        BarWeatherIcon { anchors.verticalCenter: parent.verticalCenter }
-        Text {
+        // Weather group: themed icon + temperature
+        BarMark {
+          visible: root.showWeatherOnBar && (root.showSolarOnBar || root.showLunarOnBar)
           anchors.verticalCenter: parent.verticalCenter
-          textFormat: Text.PlainText
-          text: root.barTempText
-          color: root.useThemeColors ? barButton.foreground : Color.foreground
-          font.family: root.bar ? root.bar.fontFamily : Style.font.family
-          font.pixelSize: Style.font.body
+        }
+        Row {
+          id: barWeatherGroup
+          visible: root.showWeatherOnBar
+          spacing: Style.space(3)
+          anchors.verticalCenter: parent.verticalCenter
+          HoverHandler { id: barWeatherHover }
+
+          BarWeatherIcon { anchors.verticalCenter: parent.verticalCenter }
+          Text {
+            anchors.verticalCenter: parent.verticalCenter
+            textFormat: Text.PlainText
+            text: root.barTempText
+            color: root.useThemeColors ? barButton.foreground : Color.foreground
+            font.family: root.bar ? root.bar.fontFamily : Style.font.family
+            font.pixelSize: Style.font.body
+          }
         }
       }
     }
@@ -5172,6 +5221,18 @@ Text {
             ]
             current: root.barWeatherMode
             onPicked: key => root.selectBarWeather(key)
+          }
+
+          OptionRow {
+            label: strings.t("settings.barRotate")
+            choices: [
+              { key: "off", label: "Off" },
+              { key: "5",   label: "5 s" },
+              { key: "10",  label: "10 s" },
+              { key: "30",  label: "30 s" }
+            ]
+            current: root.barRotateSetting
+            onPicked: key => root.setOpt("barRotate", key)
           }
 
           // ---- Weather

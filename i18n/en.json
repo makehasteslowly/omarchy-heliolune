@@ -108,5 +108,6 @@
   "forecast.loading": "Loading the forecast…",
   "forecast.off": "Weather is off, so no forecast is fetched.",
   "forecast.turnOn": "Turn on weather",
-  "forecast.source": "Open-Meteo · updated %1"
+  "forecast.source": "Open-Meteo · updated %1",
+  "settings.barRotate": "Scroll"
 }
