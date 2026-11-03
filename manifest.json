@@ -402,7 +402,7 @@
         "key": "elevation",
         "type": "string",
         "label": "Observer Elevation",
-        "description": "Your height above sea level in metres (0-9000). Lowers the horizon so sunrise comes slightly earlier and sunset later. Leave at 0 for sea level.",
+        "description": "Your height above sea level in meters (0-9000). Lowers the horizon so sunrise comes slightly earlier and sunset later. Leave at 0 for sea level.",
         "defaultValue": "0"
       },
       {
@@ -425,17 +425,17 @@
       {
         "key": "notifyDesktop",
         "type": "enum",
-        "label": "Reminders on the Desktop",
+        "label": "Desktop Alerts",
         "description": "Also send each reminder once as a desktop notification (notify-send), besides scrolling it on the bar.",
         "defaultValue": "off",
         "options": [
           {
             "value": "on",
-            "label": "Bar + desktop"
+            "label": "On"
           },
           {
             "value": "off",
-            "label": "Bar only"
+            "label": "Off"
           }
         ]
       },
@@ -516,7 +516,7 @@
         "options": [
           {
             "value": "on",
-            "label": "Mornings too"
+            "label": "Mornings & evenings"
           },
           {
             "value": "off",

@@ -2086,6 +2086,8 @@ BarWidget {
       border.width: 1
       border.color: Qt.alpha(root.ornMetal, choice.selected || choice.hot ? root.ornA(0.75, 1.0) : root.ornA(0.4, 0.85))
       scale: ornMouse.pressed ? 0.97 : 1.0
+      // The selected marks only where they clear the label (long words in Deco caps)
+      readonly property bool marksFit: width >= Style.space(48) && width - ornLabel.implicitWidth >= Style.space(26)
 
       Behavior on color { ColorAnimation { duration: Style.duration(120); easing.type: Easing.OutCubic } }
       Behavior on scale { NumberAnimation { duration: Style.duration(120); easing.type: Easing.OutCubic } }
@@ -2105,7 +2107,7 @@ BarWidget {
 
       // Atomic selected marks: little four-point sparkles
       Repeater {
-        model: (choice.selected && ornPlaque.width >= Style.space(48) && root.atomicStyle) ? [0, 1] : []
+        model: (choice.selected && ornPlaque.marksFit && root.atomicStyle) ? [0, 1] : []
         Item {
           required property int modelData
           width: 7; height: 7
@@ -2118,7 +2120,7 @@ BarWidget {
 
       // Selected marks: diamonds (deco) or tilted leaves (nouveau)
       Repeater {
-        model: (choice.selected && ornPlaque.width >= Style.space(48) && !root.atomicStyle) ? [0, 1] : []
+        model: (choice.selected && ornPlaque.marksFit && !root.atomicStyle) ? [0, 1] : []
         Rectangle {
           required property int modelData
           width: root.nouveauStyle ? 7 : 5
@@ -7603,6 +7605,10 @@ BarWidget {
             Layout.fillWidth: true
             spacing: Style.space(4)
 
+            RowLabel {
+              text: strings.t("settings.cardsShow")
+            }
+
             Repeater {
               model: [
                 { key: "cardSky",      label: strings.t("settings.card.sky") },
@@ -7689,8 +7695,8 @@ BarWidget {
             visible: root.notifyOn
             label: strings.t("settings.notifyWhere")
             choices: [
-              { key: "off", label: "Bar only" },
-              { key: "on",  label: "+ Desktop" }
+              { key: "off", label: strings.t("settings.off") },
+              { key: "on",  label: strings.t("settings.on") }
             ]
             current: root.notifyDesktop ? "on" : "off"
             onPicked: key => root.setOpt("notifyDesktop", key)
@@ -7700,8 +7706,8 @@ BarWidget {
             visible: root.notifyOn
             label: strings.t("settings.notifyMornings")
             choices: [
-              { key: "off", label: "Evenings" },
-              { key: "on",  label: "Mornings too" }
+              { key: "off", label: strings.t("settings.notifyEvenings") },
+              { key: "on",  label: strings.t("settings.notifyBoth") }
             ]
             current: root.notifyMornings ? "on" : "off"
             onPicked: key => root.setOpt("notifyMornings", key)
@@ -7752,33 +7758,28 @@ BarWidget {
 
             Text {
               textFormat: Text.PlainText
-              text: strings.t("settings.locationSource") + ": "
-                + (root.effectiveLocation.source === "manual" ? "Manual Override"
-                  : (root.effectiveLocation.source === "weather" ? "Omarchy Weather Sync"
-                  : (root.effectiveLocation.source === "geo" ? "Auto IP Geolocation"
-                  : (root.effectiveLocation.source === "timezone" ? "System Timezone (" + root.systemTimezone + ")" : "UTC Offset Estimate"))))
-              color: root.ornate ? root.ornMetal : Color.foreground
+              text: root.effectiveLocation.source === "manual" ? strings.t("settings.loc.manual")
+                : (root.effectiveLocation.source === "weather" ? strings.t("settings.loc.weather")
+                : (root.effectiveLocation.source === "geo" ? strings.t("settings.loc.geo")
+                : (root.effectiveLocation.source === "timezone" ? strings.t("settings.loc.timezone").arg(root.systemTimezone) : strings.t("settings.loc.offset"))))
+              color: Qt.alpha(Color.foreground, 0.75)
               font.family: Style.font.family
-              font.pixelSize: Style.font.bodySmall
-              font.bold: true
-              font.italic: root.atomicStyle
-              font.capitalization: root.decoStyle ? Font.AllUppercase : Font.MixedCase
-              font.letterSpacing: root.decoStyle ? 1.0 : (root.nouveauStyle ? 0.5 : 0)
-              elide: Text.ElideRight
+              font.pixelSize: Style.font.caption
+              wrapMode: Text.Wrap
               Layout.fillWidth: true
             }
 
             ChoiceButton {
               visible: root.effectiveLocation.source === "manual"
               Layout.preferredHeight: Style.space(28)
-              text: "Use Auto"
+              text: strings.t("settings.useAuto")
               onClicked: root.clearCustomCoords()
             }
 
             ChoiceButton {
               Layout.preferredHeight: Style.space(28)
               selected: root.editingCustomCoords
-              text: root.editingCustomCoords ? "Cancel" : "Set Lat/Lon"
+              text: root.editingCustomCoords ? strings.t("settings.cancel") : strings.t("settings.enterCoords")
               onClicked: {
                 if (!root.editingCustomCoords) {
                   latField.text = String(setting("latitude", "")) || String(root.activeLat.toFixed(4))

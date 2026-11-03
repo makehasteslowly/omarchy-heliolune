@@ -17,7 +17,7 @@ omarchy plugin add https://github.com/makehasteslowly/omarchy-heliolune.git --en
 There are good moon widgets and good sunrise widgets for Omarchy. Heliolune is one instrument for both, plus the seasons that connect them.
 
 - **The Sun's yearly figure-8.** The *analemma*, computed for your latitude: today's Sun on the curve, the equinoxes and solstices, and the path to the next one. Drag along it to travel through the year.
-- **Three themes that restyle everything.** Not just colours: the Moon itself, the cards, buttons, dividers and sky chart change shape. Each has a Soft and a Bold intensity, and adapts its colours to stay readable on light Omarchy themes.
+- **Three themes that restyle everything.** Not just colors: the Moon itself, the cards, buttons, dividers and sky chart change shape. Each has a Soft and a Bold intensity, and adapts its colors to stay readable on light Omarchy themes.
 - **Measured accuracy.** Sunrise, sunset, moonrise and moonset agree with the US Naval Observatory to within a minute, from the equator to the Arctic. The test suite ships in the repo.
 - **Zero setup, no dependencies.** It finds your location from Omarchy Weather, your IP or your time zone. Pure QML and JavaScript: no Python, no API keys, no accounts.
 
@@ -57,7 +57,7 @@ Each item on the bar opens its own view; the header buttons and **W** / **M** sw
 - **Moon** (click the moon): opens on **Cycle**: the current lunation from the last new Moon to the next, with today's Moon large and marked on a track with the quarters and the full Moon. Press play for a **time lapse** through the cycle, or switch to **Sky** to watch the Moon (and the Sun) cross a compass horizon over the next 24 hours; scrub, pause, or jump back to **Now**. Below it, the Moon card: phase, illumination, age, moonrise and moonset, altitude, distance, ecliptic sign, the next quarter, full and new Moon. Then **Today** (when the Moon is up in a dark sky, hour by hour, with the weather's clouds taken into account), **7 Days** (a row per day: phase, moonrise, illumination) and **30 Days** (a month of Moons with the new, quarter and full Moons marked).
 - **Weather** (click the weather): **Today** (the next 24 hours, every three hours, with chance of rain), **3 Days** (conditions, high and low, rain chance, wind per day) **7 Days** (one row per day with the week's temperature range) or **Map** (a 5 × 5 grid of forecast points around you, out to 20, 60 or 100 miles (30, 100 or 160 km in metric), showing **Temp**, **Rain** (real radar for the past two hours from RainViewer, then the forecast as a radar-style picture, with bars on the timeline showing when rain comes) or **Wind** (streaks flowing the way the wind blows, brighter where it is stronger; they also drift faintly over the rain); drag the hour bar or press play to watch the next 24 hours move across the area, and hover a square for its distance, direction and conditions). The squares sit on an OpenStreetMap map of the area (towns, roads, rivers), muted to suit the theme; north is up and the middle square is your location.
 
-Any card can be hidden in settings, under **Popup Cards**.
+Any card can be hidden in settings, under **View Cards**.
 
 ### Time travel
 
@@ -86,14 +86,14 @@ Right-click the widget and pick a **Style**: the choice restyles the whole widge
 **Celestial Colors** sets the intensity:
 
 - **Soft:** muted, printed tones and a light hand with the ornament.
-- **Bold:** full-saturation colour, heavy rules and deep jewel-toned cards.
-- **Theme:** keeps the theme's shapes but takes its colours from your Omarchy theme.
+- **Bold:** full-saturation color, heavy rules and deep jewel-toned cards.
+- **Theme:** keeps the theme's shapes but takes its colors from your Omarchy theme.
 
 | Atomic: Soft / Bold | Art Deco: Soft / Bold | Art Nouveau: Soft / Bold |
 |---|---|---|
 | ![Atomic, Soft and Bold](docs/screenshots/theme-atomic.png) | ![Art Deco, Soft and Bold](docs/screenshots/theme-deco.png) | ![Art Nouveau, Soft and Bold](docs/screenshots/theme-nouveau.png) |
 
-On light themes, every colour is checked against the actual bar and popup background and darkened until it meets WCAG contrast (4.5:1 for text), so nothing washes out.
+On light themes, every color is checked against the actual bar and popup background and darkened until it meets WCAG contrast (4.5:1 for text), so nothing washes out.
 
 ---
 
@@ -171,28 +171,28 @@ Everything is in the right-click panel. The same keys can be set on the widget's
 | `weekScheme` | `auto` (from locale) · `iso` · `us` | `auto` |
 | `seasons` | `astronomical` · `meteorological` | `astronomical` |
 | `lightPreset` | `standard` · `photographer` · `extended` golden/blue-hour windows | `standard` |
-| `elevation` | Your height above sea level in metres (0-9000) | `0` |
+| `elevation` | Your height above sea level in meters (0-9000) | `0` |
 | `notify` | `on` · `off`: sky reminders scrolling on the bar (see below) | `on` |
 | `notifyDesktop` | `on` · `off`: also send each reminder as a desktop notification | `off` |
 | `notifyGolden`, `notifyBlue` | `on` · `off`: remind before golden hour / blue hour begins | `on`, `off` |
 | `notifyMoon`, `notifySeason` | `on` · `off`: remind of full and new moons / the next equinox, solstice or season start | `on` |
 | `notifyMornings` | `on` · `off`: morning golden and blue hours too, not only the evening ones | `off` |
 | `notifyLead` | `0` · `10` · `30` minutes before golden or blue hour begins | `10` |
-| `latitude`, `longitude`, `locationName` | Manual location override (set by **Search for a city** or **Set Lat/Lon**) | empty (automatic) |
+| `latitude`, `longitude`, `locationName` | Manual location override (set by **Search for a city** or **Enter coordinates**) | empty (automatic) |
 
 ```json
 { "id": "makehasteslowly.heliolune", "moonStyle": "deco", "colorMode": "bold", "barDetails": "icons" }
 ```
 
-**Location.** Heliolune follows Omarchy Weather's location, then your approximate location, then your time zone. To pick a place yourself, type its name under **Settings → Location → Search for a city**, press **Search** (or Enter) and click the right match; it is saved as `latitude`, `longitude` and `locationName`. **Set Lat/Lon** takes coordinates directly, and **Use Auto** goes back to the automatic location.
+**Location.** Heliolune follows Omarchy Weather's location, then your approximate location, then your time zone. To pick a place yourself, type its name under **Settings → Location → Search for a city**, press **Search** (or Enter) and click the right match; it is saved as `latitude`, `longitude` and `locationName`. **Enter coordinates** takes coordinates directly, and **Use automatic** goes back to the automatic location.
 
-**Sky reminders** scroll across the bar widget the same way weather alerts do (both switch on and off under **Settings → Bar → Scrolling**; the reminder options appear in **Sky Reminders** below while they are on), in the Sun's colour (weather alerts keep the urgent colour), and they also appear in the widget's tooltip:
+**Sky reminders** scroll across the bar widget the same way weather alerts do (both switch on and off under **Settings → Bar → Scrolling**; the reminder options appear in **Sky Reminders** below while they are on), in the Sun's color (weather alerts keep the urgent color), and they also appear in the widget's tooltip:
 
-- **Golden** and **Blue:** from shortly before the evening golden or blue hour begins until 15 minutes after (the morning ones too with **Mornings too**). **Lead time** sets how early: at start, 10 or 30 minutes.
+- **Golden** and **Blue:** from shortly before the evening golden or blue hour begins until 15 minutes after (the morning ones too with **Golden & blue → Mornings & evenings**). **Lead time** sets how early: at start, 10 or 30 minutes.
 - **Moon:** full moon and new moon, from 09:00 on the day, or from 18:00 the evening before when the moment falls in the morning.
 - **Season:** the next equinox or solstice (or 1 March, June, September or December with meteorological seasons), timed like the Moon.
 
-**Also on → + Desktop** also sends each reminder once as a desktop notification (through `notify-send`). Notifications missed while the computer was asleep are dropped, not sent late. **Test** scrolls a sample across the bar that names the next reminder.
+**Desktop alerts → On** also sends each reminder once as a desktop notification (through `notify-send`). Notifications missed while the computer was asleep are dropped, not sent late. **Test** scrolls a sample across the bar that names the next reminder.
 
 ---
 
@@ -238,7 +238,7 @@ Every request goes over HTTPS, is size-capped, and is validated before use:
 | **Current weather and forecast** (one request) for your coordinates rounded to ~1 km | `api.open-meteo.com`, no account or key | At startup, every 30 minutes (15/30/60 in settings), and when your location changes | Set **Weather** to **Off** |
 | **Area map forecast** (one request) for 25 points around your coordinates, out to the chosen radius, each rounded to ~1 km | `api.open-meteo.com`, no account or key | Only while the **Map** tab is open: once when you open it or change the radius, then at most once per refresh interval | Don't open the Map tab, or set **Weather** to **Off** |
 | **Map tiles** (OpenStreetMap's standard map, 4 to 16 images of 256 px) for the area shown | `tile.openstreetmap.org`, sent with Heliolune's own User-Agent as the [OSM tile policy](https://operations.osmfoundation.org/policies/tiles/) asks | Only while the **Map** tab is open, and only tiles not already cached; each is kept 7 days in `~/.cache/heliolune/osm-tiles` (deleted after 30) | Don't open the Map tab |
-| **City search**: the place name you typed (cleaned, at most 60 characters), nothing else | `geocoding-api.open-meteo.com`, no account or key | Only when you press **Search** in Settings → Location | Don't use the search; enter coordinates with **Set Lat/Lon** instead |
+| **City search**: the place name you typed (cleaned, at most 60 characters), nothing else | `geocoding-api.open-meteo.com`, no account or key | Only when you press **Search** in Settings → Location | Don't use the search; enter coordinates with **Enter coordinates** instead |
 | **Rain radar** (the list of the last ~2 hours of frames, then up to 4 radar images per frame for the area shown) | `api.rainviewer.com` and `tilecache.rainviewer.com`, no account or key (free for personal use), sent with Heliolune's User-Agent | Only while the Map tab shows **Rain**: the frame list at most every 5 minutes, and only images not already cached; kept 3 hours in `~/.cache/heliolune/radar` | Don't pick **Rain** on the Map tab |
 
 With a location set and weather off, Heliolune makes no network requests at all. All astronomy is computed on your machine, and nothing else is sent anywhere. Sky reminders are local too: they are computed on your machine, and the optional desktop notifications go through your own notification daemon.
