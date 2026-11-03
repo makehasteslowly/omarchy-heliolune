@@ -6,7 +6,7 @@
   "author": "makehasteslowly",
   "license": "MIT",
   "homepage": "https://github.com/makehasteslowly/omarchy-heliolune",
-  "description": "Sun, Moon & Seasons for the Omarchy bar: solar and lunar phases, sunrise/sunset with blue and golden hours, moonrise/moonset, a 24-hour sky path, 7-day moon forecast, and the Sun's yearly analemma with equinox and solstice countdowns. Drag the figure-8 to travel through the year. Offline astronomy validated against the US Naval Observatory; optional current weather. Three themes (Atomic, Art Deco, Art Nouveau) restyle the whole widget, light-theme aware.",
+  "description": "Sun, Moon & Seasons for the Omarchy bar: solar and lunar phases, sunrise/sunset with blue and golden hours, moonrise/moonset, a 24-hour sky path, 7-day moon forecast, and the Sun's yearly analemma with equinox and solstice countdowns. Drag the figure-8 to travel through the year. Offline astronomy validated against the US Naval Observatory; optional current weather. Three themes (Art Nouveau, Art Deco, Atomic) restyle the whole widget, light-theme aware.",
   "kinds": [
     "bar-widget"
   ],
@@ -107,21 +107,21 @@
       {
         "key": "moonStyle",
         "type": "enum",
-        "label": "Moon Phase Renderer & Theme",
-        "description": "Pick the moon renderer, which also themes the whole widget: Atomic (flat moon with orbiting electrons; Atomic Age palette of teal, atomic orange, mustard and cream), Art Deco (banded disc with stepped terminator; Emerald & Ruby palette), or Art Nouveau (shaded moon in a beaded halo with vines; Mucha Botanical palette).",
+        "label": "Style",
+        "description": "Pick the style, which themes the whole widget. In chronological order: Art Nouveau (shaded moon in a beaded halo with vines; Mucha Botanical palette), Art Deco (banded moon with a stepped terminator; Emerald & Ruby palette), or Atomic (flat moon with orbiting electrons; Atomic Age palette of teal, atomic orange, mustard and cream).",
         "defaultValue": "atomic",
         "options": [
           {
-            "value": "atomic",
-            "label": "Atomic (Orbits and starbursts, Atomic Age theme)"
+            "value": "nouveau",
+            "label": "Art Nouveau (Halo, vines and leaves, Mucha Botanical theme)"
           },
           {
             "value": "deco",
             "label": "Art Deco (Streamline bands, stepped terminator, Emerald & Ruby theme)"
           },
           {
-            "value": "nouveau",
-            "label": "Art Nouveau (Halo, vines and leaves, Mucha Botanical theme)"
+            "value": "atomic",
+            "label": "Atomic (Orbits and starbursts, Atomic Age theme)"
           }
         ]
       },

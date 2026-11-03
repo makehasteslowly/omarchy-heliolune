@@ -69,15 +69,15 @@ Look at any date up to ten years either way, and every card follows.
 
 ## Themes
 
-Right-click the widget and pick a **Style**: the choice restyles the whole widget.
+Right-click the widget and pick a **Style**: the choice restyles the whole widget. They are listed in the order of their eras: Art Nouveau (1890s–1910s), Art Deco (1920s–30s) and Atomic (1940s–50s).
 
 
-| | Atomic (default) | Art Deco | Art Nouveau |
+| | Art Nouveau | Art Deco | Atomic (default) |
 |---|---|---|---|
-| **The Moon** | Flat poster disc circled by orbiting electrons | Streamline bands with a stepped terminator, double rim and diamond studs | Softly shaded disc in a beaded halo, with a vine and leaves |
-| **Palette** | *Atomic Age:* teal, atomic orange, mustard, cream on walnut | *Emerald & Ruby:* emerald, ruby red, gold on onyx | *Mucha Botanical:* sage, amber, dusty rose, bronze, cream |
-| **Ornament** | Starbursts, boomerangs, atom dots, rounded tabs | Sunburst crest, gilded double frames, ziggurat steps, spaced capitals | Halo-and-blossom crest, vine dividers, curling corner tendrils, pill buttons |
-| **Weather icons** | Flat poster shapes: starburst sun, bold-outlined clouds, teardrop rain, sparkle snow | Stepped gilded geometry: sunburst-fan sun, ziggurat clouds, straight rain, diamond snow | Organic forms: flame-ray sun, scroll-curl clouds, teardrops, blossom snowflakes |
+| **The Moon** | Softly shaded disc in a beaded halo, with a vine and leaves | Streamline bands with a stepped terminator, double rim and diamond studs | Flat poster disc circled by orbiting electrons |
+| **Palette** | *Mucha Botanical:* sage, amber, dusty rose, bronze, cream | *Emerald & Ruby:* emerald, ruby red, gold on onyx | *Atomic Age:* teal, atomic orange, mustard, cream on walnut |
+| **Ornament** | Halo-and-blossom crest, vine dividers, curling corner tendrils, pill buttons | Sunburst crest, gilded double frames, ziggurat steps, spaced capitals | Starbursts, boomerangs, atom dots, rounded tabs |
+| **Weather icons** | Organic forms: flame-ray sun, scroll-curl clouds, teardrops, blossom snowflakes | Stepped gilded geometry: sunburst-fan sun, ziggurat clouds, straight rain, diamond snow | Flat poster shapes: starburst sun, bold-outlined clouds, teardrop rain, sparkle snow |
 
 **Celestial Colors** sets the intensity:
 
@@ -130,7 +130,7 @@ omarchy plugin remove makehasteslowly.heliolune
 | **S** / **R** | Settings / refresh |
 | **↑ ↓ PgUp PgDn Home** | Scroll |
 | **Esc** | Close |
-| **1 / 2 / 3** (in settings) | Atomic / Art Deco / Art Nouveau |
+| **1 / 2 / 3** (in settings) | Art Nouveau / Art Deco / Atomic |
 
 From a script or keybinding:
 
@@ -149,7 +149,7 @@ Everything is in the right-click panel. The same keys can be set on the widget's
 | Key | Values | Default |
 |---|---|---|
 | `displayMode` | `both` · `compact` · `detailed` · `dynamic` · `solar` · `lunar` | `both` |
-| `moonStyle` | `atomic` · `deco` · `nouveau` | `atomic` |
+| `moonStyle` | `nouveau` · `deco` · `atomic` | `atomic` |
 | `colorMode` | `celestial` (Soft) · `bold` · `theme` | `celestial` |
 | `timeFormat` | `auto` · `12` · `24` | `auto` |
 | `weather` | `auto` (°F for US locales, °C elsewhere) · `c` · `f` · `off` | `auto` |

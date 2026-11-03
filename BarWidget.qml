@@ -2968,7 +2968,7 @@ BarWidget {
         } else if (k === Qt.Key_Home) {
           contentY = 0
         } else if (root.settingsOpen && k >= Qt.Key_1 && k <= Qt.Key_3) {
-          root.selectMoonStyle(["atomic", "deco", "nouveau"][k - Qt.Key_1])
+          root.selectMoonStyle(["nouveau", "deco", "atomic"][k - Qt.Key_1])   // chronological, like the buttons
         } else {
           return
         }
@@ -4480,9 +4480,10 @@ Text {
 
             Repeater {
               model: [
-                { key: "atomic",  label: "Atomic" },
+                // chronological: Art Nouveau (1890s-1910s), Art Deco (1920s-30s), Atomic (1940s-50s)
+                { key: "nouveau", label: "Nouveau" },
                 { key: "deco",    label: "Deco" },
-                { key: "nouveau", label: "Nouveau" }
+                { key: "atomic",  label: "Atomic" }
               ]
 
               ChoiceButton {
