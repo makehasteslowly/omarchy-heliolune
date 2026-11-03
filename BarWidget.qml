@@ -361,7 +361,7 @@ BarWidget {
     if (url === "") return
     var fresh = root.weatherFetchedFor === root.weatherLocationKey && (Date.now() - root.weatherFetchedAt) < root.weatherRefreshMs
     if (!force && fresh) return
-    weatherProc.command = ["curl", "-fsS", "--max-time", "5", "--max-filesize", String(Model.WEATHER_MAX_BYTES), url]
+    weatherProc.command = ["curl", "-fsS", "--max-time", "10", "--max-filesize", String(Model.WEATHER_MAX_BYTES), url]
     weatherProc.requestedFor = root.weatherLocationKey
     weatherProc.running = true
   }
@@ -383,19 +383,40 @@ BarWidget {
     onTriggered: root.fetchWeather(false)
   }
 
+  // A failed fetch (offline, a timeout) is retried after 1 minute, then 2, 4 ...
+  // up to the normal refresh interval, instead of waiting a whole interval
+  property int weatherRetryMs: 60000
+  Timer {
+    id: weatherRetry
+    onTriggered: root.fetchWeather(true)
+  }
+  function weatherFailed() {
+    if (!root.weatherEnabled) return
+    weatherRetry.interval = root.weatherRetryMs   // set, not bound: the next step must not stretch this one
+    weatherRetry.restart()
+    root.weatherRetryMs = Math.min(root.weatherRefreshMs, root.weatherRetryMs * 2)
+  }
+
   Process {
     id: weatherProc
     property string requestedFor: ""
-    onExited: function(code) { if (code !== 0) console.warn("heliolune: weather fetch failed (curl exit " + code + ")") }
+    onExited: function(code) {
+      if (code !== 0) {
+        console.warn("heliolune: weather fetch failed (curl exit " + code + "), retrying in " + Math.round(root.weatherRetryMs / 60000) + " min")
+        root.weatherFailed()
+      }
+    }
     stdout: StdioCollector {
       onStreamFinished: {
         var w = Model.parseCurrentWeather(text)
-        if (!w) console.warn("heliolune: weather response rejected")
-        if (w && weatherProc.requestedFor === root.weatherLocationKey) {
+        if (!w) { console.warn("heliolune: weather response rejected"); return }
+        if (weatherProc.requestedFor === root.weatherLocationKey) {
           console.log("heliolune: weather updated")
           root.weatherNow = w
           root.weatherFetchedAt = Date.now()
           root.weatherFetchedFor = weatherProc.requestedFor
+          root.weatherRetryMs = 60000
+          weatherRetry.stop()
         }
       }
     }
