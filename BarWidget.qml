@@ -79,6 +79,59 @@ BarWidget {
     ? root.localTimeFormatOverride
     : root.configuredTimeFormat
 
+  // ---- Newer settings share one store: the shell.json value, with a local
+  // override for instant click feedback until the saved value comes back
+  property var localOpts: ({})
+  function opt(key, allowed, dflt) {
+    var o = root.localOpts[key]
+    var v = o !== undefined ? o : String(setting(key, dflt)).toLowerCase()
+    return allowed.indexOf(v) >= 0 ? v : dflt
+  }
+  function setOpt(key, value) {
+    var next = Object.assign({}, root.localOpts)
+    next[key] = String(value)
+    root.localOpts = next
+    root.saveBarSetting(key, String(value))
+  }
+  // Drop overrides once shell.json reports the same value
+  onSettingsChanged: {
+    var next = {}
+    var dropped = false
+    for (var k in root.localOpts) {
+      if (String(setting(k, "")).toLowerCase() === root.localOpts[k]) dropped = true
+      else next[k] = root.localOpts[k]
+    }
+    if (dropped) root.localOpts = next
+  }
+
+  readonly property string windSetting: root.opt("windUnit", ["auto", "kmh", "mph", "ms"], "auto")
+  readonly property string windUnit: root.windSetting === "auto" ? (root.weatherImperial ? "mph" : "kmh") : root.windSetting
+  readonly property string weatherRefreshSetting: root.opt("weatherRefresh", ["15", "30", "60"], "30")
+  readonly property string weekSetting: root.opt("weekScheme", ["auto", "iso", "us"], "auto")
+  readonly property string weekScheme: root.weekSetting === "auto"
+    ? (root.formatLocale.firstDayOfWeek === Locale.Sunday ? "us" : "iso")
+    : root.weekSetting
+  readonly property string seasonMode: root.opt("seasons", ["astronomical", "meteorological"], "astronomical")
+  readonly property string lightPreset: root.opt("lightPreset", ["standard", "photographer", "extended"], "standard")
+  // Observer elevation in metres (0-9000) for the horizon dip
+  readonly property int elevationM: {
+    var raw = root.localOpts["elevation"] !== undefined ? root.localOpts["elevation"] : setting("elevation", "0")
+    var n = Math.round(parseFloat(String(raw)))
+    return isFinite(n) ? Math.max(0, Math.min(9000, n)) : 0
+  }
+  readonly property var astroOpts: ({ elevation: root.elevationM, light: root.lightPreset })
+  onAstroOptsChanged: root.recalculate()
+  onSeasonModeChanged: root.recalculate()
+
+  // Popup cards that can be hidden
+  readonly property var cardKeys: ["cardSky", "cardSun", "cardMoon", "cardForecast", "cardYear"]
+  function cardOn(key) { return root.opt(key, ["on", "off"], "on") === "on" }
+  readonly property bool showSky: root.cardOn("cardSky")
+  readonly property bool showSun: root.cardOn("cardSun")
+  readonly property bool showMoon: root.cardOn("cardMoon")
+  readonly property bool showForecast: root.cardOn("cardForecast")
+  readonly property bool showYear: root.cardOn("cardYear")
+
   onConfiguredDisplayModeChanged: root.localDisplayModeOverride = ""
   onConfiguredColorModeChanged: root.localColorModeOverride = ""
   onConfiguredMoonStyleChanged: root.localMoonStyleOverride = ""
@@ -283,9 +336,9 @@ BarWidget {
     }
   }
 
-  // ---- Current weather from Open-Meteo: only while enabled, every 30 minutes and
+  // ---- Current weather from Open-Meteo: only while enabled, every 15/30/60 minutes and
   // when the location changes. Coordinates are validated and rounded in Model.js.
-  readonly property int weatherRefreshMs: 30 * 60000
+  readonly property int weatherRefreshMs: parseInt(root.weatherRefreshSetting) * 60000
   property var weatherNow: null
   property real weatherFetchedAt: 0
   property string weatherFetchedFor: ""
@@ -348,7 +401,7 @@ BarWidget {
     if (!w) return []
     var out = []
     if (w.feelsC !== null) out.push({ kind: "", text: strings.t("weather.feels").arg(Model.formatTemperature(w.feelsC, root.weatherImperial).replace(/°[CF]$/, "°")) })
-    if (w.windKmh !== null) out.push({ kind: "wind", text: Model.formatWind(w.windKmh, root.weatherImperial) })
+    if (w.windKmh !== null) out.push({ kind: "wind", text: Model.formatWind(w.windKmh, root.windUnit) })
     if (w.humidity !== null) out.push({ kind: "humidity", text: Math.round(w.humidity) + "%" })
     return out
   }
@@ -388,9 +441,9 @@ BarWidget {
 
   // ---- Astronomical state
   property date currentDate: new Date()
-  property var solarData: Model.computeSolarSummary(currentDate, activeLat, activeLon)
-  property var lunarData: Model.computeLunarSummary(currentDate, activeLat, activeLon)
-  property var seasonData: Model.computeSeasonSummary(currentDate, activeLat)
+  property var solarData: Model.computeSolarSummary(currentDate, activeLat, activeLon, astroOpts)
+  property var lunarData: Model.computeLunarSummary(currentDate, activeLat, activeLon, astroOpts)
+  property var seasonData: Model.computeSeasonSummary(currentDate, activeLat, seasonMode)
   property var skySamples: []
   property var analemmaData: null
   property string analemmaKey: ""
@@ -471,9 +524,9 @@ BarWidget {
   function recalculate() {
     var now = root.viewDateFor(new Date())
     root.currentDate = now
-    root.solarData = Model.computeSolarSummary(now, root.activeLat, root.activeLon)
-    root.lunarData = Model.computeLunarSummary(now, root.activeLat, root.activeLon)
-    root.seasonData = Model.computeSeasonSummary(now, root.activeLat)
+    root.solarData = Model.computeSolarSummary(now, root.activeLat, root.activeLon, root.astroOpts)
+    root.lunarData = Model.computeLunarSummary(now, root.activeLat, root.activeLon, root.astroOpts)
+    root.seasonData = Model.computeSeasonSummary(now, root.activeLat, root.seasonMode)
     if (root.opened) {
       root.rebuildSkySamples(now)
       root.rebuildAnalemma(now)
@@ -625,6 +678,40 @@ BarWidget {
     var f = (fmt === "12" || fmt === "24") ? fmt : "auto"
     root.localTimeFormatOverride = f
     root.saveBarSetting("timeFormat", f)
+  }
+
+  // Every display option back to its default in one shell command (so the
+  // writes run in order); location settings are kept.
+  property bool confirmingReset: false
+  function resetSettings() {
+    var defaults = {
+      displayMode: "both", colorMode: "celestial", moonStyle: "atomic", timeFormat: "auto",
+      weather: "auto", barWeather: "on", windUnit: "auto", weatherRefresh: "30",
+      cardSky: "on", cardSun: "on", cardMoon: "on", cardForecast: "on", cardYear: "on",
+      weekScheme: "auto", seasons: "astronomical", lightPreset: "standard", elevation: "0"
+    }
+    var cmds = []
+    var local = {}
+    for (var k in defaults) {
+      cmds.push("omarchy-bar set " + Util.shellQuote(root.pluginId) + " " + Util.shellQuote(k) + " " + Util.shellQuote(defaults[k]))
+      local[k] = defaults[k]
+    }
+    root.localDisplayModeOverride = "both"
+    root.localColorModeOverride = "celestial"
+    root.localMoonStyleOverride = "atomic"
+    root.localTimeFormatOverride = "auto"
+    root.localWeatherOverride = "auto"
+    root.localBarWeatherOverride = "on"
+    root.localOpts = local
+    root.confirmingReset = false
+    if (root.bar) root.bar.run(cmds.join(" ; "))
+  }
+
+  function applyElevation(text) {
+    var n = Math.round(parseFloat(String(text || "").trim()))
+    if (!isFinite(n) || n < 0 || n > 9000) return false
+    root.setOpt("elevation", String(n))
+    return true
   }
 
   function applyCustomCoords(latStr, lonStr, nameStr) {
@@ -1565,6 +1652,35 @@ BarWidget {
   }
 
   // Row label to the left of a choice group.
+  // Label plus one equal-width ChoiceButton per choice ({ key, label })
+  component OptionRow: RowLayout {
+    id: optionRow
+    property string label: ""
+    property var choices: []
+    property string current: ""
+    signal picked(string key)
+    Layout.fillWidth: true
+    spacing: Style.space(4)
+
+    RowLabel {
+      text: optionRow.label
+    }
+
+    Repeater {
+      model: optionRow.choices
+
+      ChoiceButton {
+        required property var modelData
+        Layout.fillWidth: true
+        Layout.preferredWidth: 1   // equal widths within a row
+        Layout.preferredHeight: Style.space(28)
+        selected: optionRow.current === modelData.key
+        text: modelData.label
+        onClicked: optionRow.picked(modelData.key)
+      }
+    }
+  }
+
   component RowLabel: Text {
     Layout.preferredWidth: root.ornate ? Style.space(124) : Style.space(98)
     textFormat: Text.PlainText
@@ -2877,7 +2993,10 @@ BarWidget {
   }
 
   // Popup always opens, and switches views, scrolled to the top
-  onSettingsOpenChanged: popupScroll.contentY = 0
+  onSettingsOpenChanged: {
+    popupScroll.contentY = 0
+    root.confirmingReset = false
+  }
   onOpenedChanged: {
     if (root.opened) {
       popupScroll.contentY = 0
@@ -3195,7 +3314,7 @@ Text {
               Layout.fillWidth: true
               textFormat: Text.PlainText
               text: root.currentDate.toLocaleDateString(root.formatLocale, "ddd, MMM d, yyyy")
-                + " · " + strings.t("header.week").arg(Model.isoWeek(root.currentDate).week)
+                + " · " + strings.t("header.week").arg(Model.weekNumber(root.currentDate, root.weekScheme).week)
               color: infoGrid.dateColor
               opacity: root.browsing ? 1.0 : 0.62
               font.family: Style.font.family
@@ -3266,6 +3385,7 @@ Text {
 
           // ---- 1. 24-Hour Sky & Horizon Path Card
           Rectangle {
+            visible: root.showSky
             Layout.fillWidth: true
             Layout.preferredHeight: Style.space(114)
             radius: trackerPopup.cardRadius
@@ -3574,11 +3694,13 @@ Text {
 
           // ---- 2. Solar & Lunar Side-by-Side Hero Cards
           RowLayout {
+            visible: root.showSun || root.showMoon
             Layout.fillWidth: true
             spacing: Style.space(8)
 
             // ================= SOLAR CARD =================
             Rectangle {
+              visible: root.showSun
               Layout.fillWidth: true
               Layout.preferredWidth: 1
               Layout.fillHeight: true
@@ -3765,6 +3887,7 @@ Text {
 
             // ================= LUNAR CARD =================
             Rectangle {
+              visible: root.showMoon
               Layout.fillWidth: true
               Layout.preferredWidth: 1
               Layout.fillHeight: true
@@ -3960,6 +4083,7 @@ Text {
 
           // ---- 3. 7-Day Lunar Phase Forecast Strip
           Rectangle {
+            visible: root.showForecast
             Layout.fillWidth: true
             implicitHeight: forecastCol.implicitHeight + Style.space(14)
             radius: trackerPopup.cardRadius
@@ -4059,6 +4183,7 @@ Text {
 
           // ---- 4. Sun's Yearly Path: analemma figure-8 + next equinox/solstice countdown
           Rectangle {
+            visible: root.showYear
             Layout.fillWidth: true
             implicitHeight: seasonCol.implicitHeight + Style.space(14)
             radius: trackerPopup.cardRadius
@@ -4408,9 +4533,48 @@ Text {
             visible: root.ornate
           }
 
-          // Bar Display Mode selector
+          // ---- Appearance
           SectionHeading {
-            text: strings.t("settings.barDisplay")
+            text: strings.t("settings.section.appearance")
+          }
+
+          OptionRow {
+            label: strings.t("settings.moonStyle")
+            // chronological: Art Nouveau (1890s-1910s), Art Deco (1920s-30s), Atomic (1940s-50s)
+            choices: [
+              { key: "nouveau", label: "Nouveau" },
+              { key: "deco",    label: "Deco" },
+              { key: "atomic",  label: "Atomic" }
+            ]
+            current: root.moonStyle
+            onPicked: key => root.selectMoonStyle(key)
+          }
+
+          OptionRow {
+            label: strings.t("settings.colorMode")
+            choices: [
+              { key: "celestial", label: "Soft" },
+              { key: "bold",      label: "Bold" },
+              { key: "theme",     label: "Theme" }
+            ]
+            current: root.colorMode
+            onPicked: key => root.selectColorMode(key)
+          }
+
+          OptionRow {
+            label: strings.t("settings.timeFormat")
+            choices: [
+              { key: "auto", label: "Auto" },
+              { key: "12",   label: "12-Hour" },
+              { key: "24",   label: "24-Hour" }
+            ]
+            current: root.timeFormatMode
+            onPicked: key => root.selectTimeFormat(key)
+          }
+
+          // ---- Bar
+          SectionHeading {
+            text: strings.t("settings.section.bar")
           }
 
           GridLayout {
@@ -4441,149 +4605,119 @@ Text {
             }
           }
 
-          // Color Mode selector
+          OptionRow {
+            label: strings.t("settings.barWeather")
+            choices: [
+              { key: "on",  label: "On" },
+              { key: "off", label: "Off" }
+            ]
+            current: root.barWeatherMode
+            onPicked: key => root.selectBarWeather(key)
+          }
+
+          // ---- Weather
+          SectionHeading {
+            text: strings.t("settings.section.weather")
+          }
+
+          OptionRow {
+            label: strings.t("settings.weather")
+            choices: [
+              { key: "auto", label: "Auto" },
+              { key: "c",    label: "°C" },
+              { key: "f",    label: "°F" },
+              { key: "off",  label: "Off" }
+            ]
+            current: root.weatherMode
+            onPicked: key => root.selectWeather(key)
+          }
+
+          OptionRow {
+            visible: root.weatherEnabled
+            label: strings.t("settings.wind")
+            choices: [
+              { key: "auto", label: "Auto" },
+              { key: "kmh",  label: "km/h" },
+              { key: "mph",  label: "mph" },
+              { key: "ms",   label: "m/s" }
+            ]
+            current: root.windSetting
+            onPicked: key => root.setOpt("windUnit", key)
+          }
+
+          OptionRow {
+            visible: root.weatherEnabled
+            label: strings.t("settings.refresh")
+            choices: [
+              { key: "15", label: "15 min" },
+              { key: "30", label: "30 min" },
+              { key: "60", label: "1 hour" }
+            ]
+            current: root.weatherRefreshSetting
+            onPicked: key => root.setOpt("weatherRefresh", key)
+          }
+
+          // ---- Popup cards (each button toggles one card)
+          SectionHeading {
+            text: strings.t("settings.section.popup")
+          }
+
           RowLayout {
             Layout.fillWidth: true
             spacing: Style.space(4)
 
-            RowLabel {
-              text: strings.t("settings.colorMode")
-            }
-
             Repeater {
               model: [
-                { key: "celestial", label: "Soft" },
-                { key: "bold",      label: "Bold" },
-                { key: "theme",     label: "Theme" }
+                { key: "cardSky",      label: strings.t("settings.card.sky") },
+                { key: "cardSun",      label: strings.t("settings.card.sun") },
+                { key: "cardMoon",     label: strings.t("settings.card.moon") },
+                { key: "cardForecast", label: strings.t("settings.card.forecast") },
+                { key: "cardYear",     label: strings.t("settings.card.year") }
               ]
 
               ChoiceButton {
                 required property var modelData
+                readonly property bool isOn: root.cardOn(modelData.key)
                 Layout.fillWidth: true
-                Layout.preferredWidth: 1   // equal widths within a row
+                Layout.preferredWidth: 1
                 Layout.preferredHeight: Style.space(28)
-                selected: root.colorMode === modelData.key
+                selected: isOn
                 text: modelData.label
-                onClicked: root.selectColorMode(modelData.key)
+                onClicked: root.setOpt(modelData.key, isOn ? "off" : "on")
               }
             }
           }
 
-          // Moon Renderer selector
-          RowLayout {
-            Layout.fillWidth: true
-            spacing: Style.space(4)
-
-            RowLabel {
-              text: strings.t("settings.moonStyle")
-            }
-
-            Repeater {
-              model: [
-                // chronological: Art Nouveau (1890s-1910s), Art Deco (1920s-30s), Atomic (1940s-50s)
-                { key: "nouveau", label: "Nouveau" },
-                { key: "deco",    label: "Deco" },
-                { key: "atomic",  label: "Atomic" }
-              ]
-
-              ChoiceButton {
-                required property var modelData
-                Layout.fillWidth: true
-                Layout.preferredWidth: 1   // equal widths within a row
-                Layout.preferredHeight: Style.space(28)
-                selected: root.moonStyle === modelData.key
-                text: modelData.label
-                onClicked: root.selectMoonStyle(modelData.key)
-              }
-            }
+          // ---- Calendar
+          SectionHeading {
+            text: strings.t("settings.section.calendar")
           }
 
-          // Time Format selector
-          RowLayout {
-            Layout.fillWidth: true
-            spacing: Style.space(4)
-
-            RowLabel {
-              text: strings.t("settings.timeFormat")
-            }
-
-            Repeater {
-              model: [
-                { key: "auto", label: "Auto" },
-                { key: "12",   label: "12-Hour" },
-                { key: "24",   label: "24-Hour" }
-              ]
-
-              ChoiceButton {
-                required property var modelData
-                Layout.fillWidth: true
-                Layout.preferredWidth: 1   // equal widths within a row
-                Layout.preferredHeight: Style.space(28)
-                selected: root.timeFormatMode === modelData.key
-                text: modelData.label
-                onClicked: root.selectTimeFormat(modelData.key)
-              }
-            }
+          OptionRow {
+            label: strings.t("settings.week")
+            choices: [
+              { key: "auto", label: "Auto" },
+              { key: "iso",  label: "ISO" },
+              { key: "us",   label: "US" }
+            ]
+            current: root.weekSetting
+            onPicked: key => root.setOpt("weekScheme", key)
           }
 
-          // Weather next to the city
-          RowLayout {
-            Layout.fillWidth: true
-            spacing: Style.space(4)
-
-            RowLabel {
-              text: strings.t("settings.weather")
-            }
-
-            Repeater {
-              model: [
-                { key: "auto", label: "Auto" },
-                { key: "c",    label: "°C" },
-                { key: "f",    label: "°F" },
-                { key: "off",  label: "Off" }
-              ]
-
-              ChoiceButton {
-                required property var modelData
-                Layout.fillWidth: true
-                Layout.preferredWidth: 1   // equal widths within a row
-                Layout.preferredHeight: Style.space(28)
-                selected: root.weatherMode === modelData.key
-                text: modelData.label
-                onClicked: root.selectWeather(modelData.key)
-              }
-            }
+          OptionRow {
+            label: strings.t("settings.seasons")
+            choices: [
+              { key: "astronomical",   label: "Astronomical" },
+              { key: "meteorological", label: "Meteorological" }
+            ]
+            current: root.seasonMode
+            onPicked: key => root.setOpt("seasons", key)
           }
 
-          // Weather segment on the bar capsule
-          RowLayout {
-            Layout.fillWidth: true
-            spacing: Style.space(4)
-
-            RowLabel {
-              text: strings.t("settings.barWeather")
-            }
-
-            Repeater {
-              model: [
-                { key: "on",  label: "On" },
-                { key: "off", label: "Off" }
-              ]
-
-              ChoiceButton {
-                required property var modelData
-                Layout.fillWidth: true
-                Layout.preferredWidth: 1   // equal widths within a row
-                Layout.preferredHeight: Style.space(28)
-                selected: root.barWeatherMode === modelData.key
-                text: modelData.label
-                onClicked: root.selectBarWeather(modelData.key)
-              }
-            }
+          // ---- Location source & override
+          SectionHeading {
+            text: strings.t("settings.section.location")
           }
-
-          // Location Source & Override section
-          OrnDivider {}
 
           RowLayout {
             Layout.fillWidth: true
@@ -4667,6 +4801,71 @@ Text {
                 onClicked: {
                   root.applyCustomCoords(latField.text, lonField.text, nameField.text)
                 }
+              }
+            }
+          }
+
+          // ---- Advanced
+          SectionHeading {
+            text: strings.t("settings.section.advanced")
+          }
+
+          OptionRow {
+            label: strings.t("settings.light")
+            choices: [
+              { key: "standard",     label: "Standard" },
+              { key: "photographer", label: "Photo" },
+              { key: "extended",     label: "Extended" }
+            ]
+            current: root.lightPreset
+            onPicked: key => root.setOpt("lightPreset", key)
+          }
+
+          RowLayout {
+            Layout.fillWidth: true
+            spacing: Style.space(4)
+
+            RowLabel {
+              text: strings.t("settings.elevation")
+            }
+
+            TextField {
+              id: elevationField
+              accent: root.ornate ? root.ornMetal : Color.accent
+              Layout.fillWidth: true
+              placeholderText: strings.t("settings.elevationHint")
+              text: root.elevationM > 0 ? String(root.elevationM) : ""
+              validator: IntValidator { bottom: 0; top: 9000 }
+              onAccepted: root.applyElevation(text === "" ? "0" : text)
+            }
+
+            ChoiceButton {
+              Layout.preferredHeight: Style.space(28)
+              text: "Save"
+              onClicked: root.applyElevation(elevationField.text === "" ? "0" : elevationField.text)
+            }
+          }
+
+          RowLayout {
+            Layout.fillWidth: true
+            spacing: Style.space(4)
+
+            Item { Layout.fillWidth: true }
+
+            ChoiceButton {
+              visible: root.confirmingReset
+              Layout.preferredHeight: Style.space(28)
+              text: "Cancel"
+              onClicked: root.confirmingReset = false
+            }
+
+            ChoiceButton {
+              Layout.preferredHeight: Style.space(28)
+              selected: root.confirmingReset
+              text: root.confirmingReset ? strings.t("settings.resetConfirm") : strings.t("settings.reset")
+              onClicked: {
+                if (root.confirmingReset) root.resetSettings()
+                else root.confirmingReset = true
               }
             }
           }

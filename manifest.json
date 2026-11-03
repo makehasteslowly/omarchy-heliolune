@@ -189,6 +189,203 @@
         ]
       },
       {
+        "key": "windUnit",
+        "type": "enum",
+        "label": "Wind Speed Unit",
+        "description": "Unit for the wind speed in the weather details. Auto follows the temperature unit (mph with °F, km/h otherwise).",
+        "defaultValue": "auto",
+        "options": [
+          {
+            "value": "auto",
+            "label": "Auto"
+          },
+          {
+            "value": "kmh",
+            "label": "km/h"
+          },
+          {
+            "value": "mph",
+            "label": "mph"
+          },
+          {
+            "value": "ms",
+            "label": "m/s"
+          }
+        ]
+      },
+      {
+        "key": "weatherRefresh",
+        "type": "enum",
+        "label": "Weather Refresh",
+        "description": "How often the current weather is fetched while weather is on.",
+        "defaultValue": "30",
+        "options": [
+          {
+            "value": "15",
+            "label": "Every 15 minutes"
+          },
+          {
+            "value": "30",
+            "label": "Every 30 minutes"
+          },
+          {
+            "value": "60",
+            "label": "Every hour"
+          }
+        ]
+      },
+      {
+        "key": "cardSky",
+        "type": "enum",
+        "label": "Sky Card",
+        "description": "Show the 24-hour sky path card in the popup.",
+        "defaultValue": "on",
+        "options": [
+          {
+            "value": "on",
+            "label": "Shown"
+          },
+          {
+            "value": "off",
+            "label": "Hidden"
+          }
+        ]
+      },
+      {
+        "key": "cardSun",
+        "type": "enum",
+        "label": "Sun Card",
+        "description": "Show the sun card in the popup.",
+        "defaultValue": "on",
+        "options": [
+          {
+            "value": "on",
+            "label": "Shown"
+          },
+          {
+            "value": "off",
+            "label": "Hidden"
+          }
+        ]
+      },
+      {
+        "key": "cardMoon",
+        "type": "enum",
+        "label": "Moon Card",
+        "description": "Show the moon card in the popup.",
+        "defaultValue": "on",
+        "options": [
+          {
+            "value": "on",
+            "label": "Shown"
+          },
+          {
+            "value": "off",
+            "label": "Hidden"
+          }
+        ]
+      },
+      {
+        "key": "cardForecast",
+        "type": "enum",
+        "label": "7-Day Moon Card",
+        "description": "Show the 7-day lunar phase strip in the popup.",
+        "defaultValue": "on",
+        "options": [
+          {
+            "value": "on",
+            "label": "Shown"
+          },
+          {
+            "value": "off",
+            "label": "Hidden"
+          }
+        ]
+      },
+      {
+        "key": "cardYear",
+        "type": "enum",
+        "label": "Year Card",
+        "description": "Show the sun's yearly path and the next equinox/solstice countdown in the popup.",
+        "defaultValue": "on",
+        "options": [
+          {
+            "value": "on",
+            "label": "Shown"
+          },
+          {
+            "value": "off",
+            "label": "Hidden"
+          }
+        ]
+      },
+      {
+        "key": "weekScheme",
+        "type": "enum",
+        "label": "Week Numbering",
+        "description": "Week number shown beside the date. Auto uses US numbering when the locale starts weeks on Sunday, ISO 8601 otherwise.",
+        "defaultValue": "auto",
+        "options": [
+          {
+            "value": "auto",
+            "label": "Auto (from locale)"
+          },
+          {
+            "value": "iso",
+            "label": "ISO 8601 (Monday start)"
+          },
+          {
+            "value": "us",
+            "label": "US (Sunday start, week 1 holds Jan 1)"
+          }
+        ]
+      },
+      {
+        "key": "seasons",
+        "type": "enum",
+        "label": "Seasons",
+        "description": "Astronomical seasons start at the equinoxes and solstices; meteorological seasons start on the first of March, June, September and December.",
+        "defaultValue": "astronomical",
+        "options": [
+          {
+            "value": "astronomical",
+            "label": "Astronomical"
+          },
+          {
+            "value": "meteorological",
+            "label": "Meteorological"
+          }
+        ]
+      },
+      {
+        "key": "lightPreset",
+        "type": "enum",
+        "label": "Golden & Blue Hour",
+        "description": "Sun-altitude windows for golden and blue hour. Standard: golden from sunrise to 6°, blue -6° to -4°. Photographer: golden -4° to 6°. Extended: golden -4° to 10°, blue -8° to -4°.",
+        "defaultValue": "standard",
+        "options": [
+          {
+            "value": "standard",
+            "label": "Standard"
+          },
+          {
+            "value": "photographer",
+            "label": "Photographer"
+          },
+          {
+            "value": "extended",
+            "label": "Extended"
+          }
+        ]
+      },
+      {
+        "key": "elevation",
+        "type": "string",
+        "label": "Observer Elevation",
+        "description": "Your height above sea level in metres (0-9000). Lowers the horizon so sunrise comes slightly earlier and sunset later. Leave at 0 for sea level.",
+        "defaultValue": "0"
+      },
+      {
         "key": "latitude",
         "type": "string",
         "label": "Manual Latitude Override",
