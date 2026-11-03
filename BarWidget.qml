@@ -1832,13 +1832,14 @@ BarWidget {
       model: root.decoStyle ? [[0, 0], [1, 0], [0, 1], [1, 1]] : []
       Item {
         required property var modelData
-        width: 10; height: 10
+        // 7 px from the card edge at most, inside the 8 px content padding
+        width: 7; height: 7
         x: modelData[0] ? parent.width - width - 1 : 1
         y: modelData[1] ? parent.height - height - 1 : 1
-        Rectangle { width: 10; height: 2; color: root.ornMetal; y: modelData[1] ? 8 : 0 }
-        Rectangle { width: 2; height: 10; color: root.ornMetal; x: modelData[0] ? 8 : 0 }
-        Rectangle { width: 5; height: 1; color: root.ornatePalette ? root.ornPrimary : Qt.alpha(root.ornMetal, 0.7); y: modelData[1] ? 5 : 4; x: modelData[0] ? 2 : 3 }
-        Rectangle { width: 1; height: 5; color: root.ornatePalette ? root.ornPrimary : Qt.alpha(root.ornMetal, 0.7); x: modelData[0] ? 5 : 4; y: modelData[1] ? 2 : 3 }
+        Rectangle { width: 7; height: 2; color: root.ornMetal; y: modelData[1] ? 5 : 0 }
+        Rectangle { width: 2; height: 7; color: root.ornMetal; x: modelData[0] ? 5 : 0 }
+        Rectangle { width: 3; height: 1; color: root.ornatePalette ? root.ornPrimary : Qt.alpha(root.ornMetal, 0.7); y: modelData[1] ? 3 : 3; x: modelData[0] ? 1 : 3 }
+        Rectangle { width: 1; height: 3; color: root.ornatePalette ? root.ornPrimary : Qt.alpha(root.ornMetal, 0.7); x: modelData[0] ? 3 : 3; y: modelData[1] ? 1 : 3 }
       }
     }
 
@@ -1866,15 +1867,16 @@ BarWidget {
           ctx.strokeStyle = String(stem)
           ctx.lineWidth = 1.2
           ctx.beginPath()
-          ctx.moveTo(ox + sx * 2, oy + sy * 22)
-          ctx.bezierCurveTo(ox + sx * 3, oy + sy * 8, ox + sx * 8, oy + sy * 3, ox + sx * 24, oy + sy * 2)
+          // Kept within ~7 px of both edges so it never reaches the content
+          ctx.moveTo(ox + sx * 2.5, oy + sy * 22)
+          ctx.bezierCurveTo(ox + sx * 2.5, oy + sy * 6, ox + sx * 6, oy + sy * 2.5, ox + sx * 22, oy + sy * 2.5)
           ctx.stroke()
-          root.ornCurl(ctx, ox + sx * 24, oy + sy * 2, 3.2, sx > 0 ? Math.PI * 1.5 : Math.PI * 0.5, 0.8, sx < 0)
+          root.ornCurl(ctx, ox + sx * 22, oy + sy * 2.5, 2.2, sx > 0 ? Math.PI * 1.5 : Math.PI * 0.5, 0.8, sx < 0)
           ctx.fillStyle = String(leaf)
-          root.ornLeaf(ctx, ox + sx * 5, oy + sy * 7, Math.atan2(sy, sx) + (sx > 0 ? 0.15 : 0.15), 7, 2.6)
+          root.ornLeaf(ctx, ox + sx * 2.5, oy + sy * 2.5, Math.atan2(sy, sx), 5, 1.8)
           ctx.fillStyle = String(bud)
           ctx.beginPath()
-          ctx.arc(ox + sx * 2, oy + sy * 24, 1.8, 0, Math.PI * 2.0)
+          ctx.arc(ox + sx * 2.5, oy + sy * 23.5, 1.5, 0, Math.PI * 2.0)
           ctx.fill()
         }
       }
@@ -1897,8 +1899,9 @@ BarWidget {
         ctx.reset()
         var w = width, h = height
         if (w < 40 || h < 30) return
-        // Centred on the bottom border, inside the card padding
-        var cx = w / 2.0, y = h - 3.0
+        // Inside the card, clear of the bottom border (the motif reaches 5.5 px
+        // above and below y), in the padding reserved by root.cardFootPad
+        var cx = w / 2.0, y = h - 10.0
         ctx.fillStyle = String(boom)
         root.ornBoomerang(ctx, cx - 9, y, 10, 0)
         root.ornBoomerang(ctx, cx + 9, y, 10, Math.PI)
@@ -2830,6 +2833,8 @@ BarWidget {
   // Bar-surface ornament tones (checked against the bar background, not the popup's)
   readonly property color barMetal: root.useThemeColors ? Color.accent : root.ornPick("metal", root.isLightBar, root.effectiveBarBg)
   readonly property color barPrimary: root.useThemeColors ? Color.accent : root.ornPick("primary", root.isLightBar, root.effectiveBarBg)
+  // Extra bottom padding on cards for the Atomic frame's centre motif
+  readonly property real cardFootPad: root.atomicStyle ? Style.space(10) : 0
   readonly property bool barCapsuleOn: root.ornate && (root.showSolarOnBar || root.showLunarOnBar)
 
   implicitWidth: root.vertical ? root.barSize : Math.max(Style.bar.iconSlot, barContentRow.implicitWidth + Style.space(root.barCapsuleOn ? 24 : 16))
@@ -3259,32 +3264,32 @@ BarWidget {
               Layout.alignment: Qt.AlignTop
               spacing: Style.space(6)
 
+              // Title on its own row so the wide Deco/Nouveau lettering never elides
+              Text {
+                Layout.alignment: Qt.AlignRight
+                textFormat: Text.PlainText
+                readonly property bool deco: root.decoStyle
+                text: root.settingsOpen ? strings.t("section.settings") : (root.weatherOpen ? strings.t("section.forecast") : strings.t("plugin.title"))
+                color: root.ornate ? root.ornMetal : Color.foreground
+                font.family: Style.font.family
+                font.pixelSize: Style.font.body
+                font.bold: true
+                font.capitalization: deco ? Font.AllUppercase : Font.MixedCase
+                font.letterSpacing: deco ? 3.0 : (root.nouveauStyle ? 1.2 : (root.atomicStyle ? 0.8 : 0))
+                font.italic: root.atomicStyle
+              }
+
               RowLayout {
                 Layout.alignment: Qt.AlignRight
                 spacing: Style.space(6)
-    Text {
-                  textFormat: Text.PlainText
-                  readonly property bool deco: root.decoStyle
-                  text: root.settingsOpen ? strings.t("section.settings") : (root.weatherOpen ? strings.t("section.forecast") : strings.t("plugin.title"))
-                  elide: Text.ElideRight
-                  Layout.maximumWidth: implicitWidth
-                  Layout.minimumWidth: Math.min(implicitWidth, Style.space(60))
-                  Layout.fillWidth: true
-                  color: root.ornate ? root.ornMetal : Color.foreground
-                  font.family: Style.font.family
-                  font.pixelSize: Style.font.body
-                  font.bold: true
-                  font.capitalization: deco ? Font.AllUppercase : Font.MixedCase
-                  font.letterSpacing: deco ? 3.0 : (root.nouveauStyle ? 1.2 : (root.atomicStyle ? 0.8 : 0))
-                  font.italic: root.atomicStyle
+                Item {
+                  Layout.alignment: Qt.AlignVCenter
+                  visible: !root.settingsOpen && !root.weatherOpen   // same rule as DaylightBadge
+                  implicitWidth: heroBadge.implicitWidth
+                  implicitHeight: heroBadge.implicitHeight
+                  DaylightBadge { id: heroBadge }
                 }
                 HeaderButtons {}
-              }
-              Item {
-                Layout.alignment: Qt.AlignRight
-                implicitWidth: heroBadge.implicitWidth
-                implicitHeight: heroBadge.implicitHeight
-                DaylightBadge { id: heroBadge }
               }
             }
           }
@@ -3506,7 +3511,7 @@ Text {
           Rectangle {
             visible: root.forecastReady && root.forecastRange === "today"
             Layout.fillWidth: true
-            implicitHeight: todayCol.implicitHeight + Style.space(root.ornate ? 26 : 16)   // room for the frame's bottom ornament
+            implicitHeight: todayCol.implicitHeight + Style.space(16) + root.cardFootPad
             radius: trackerPopup.cardRadius
             color: trackerPopup.cardSurfaceColor
             border.width: 1
@@ -3517,6 +3522,7 @@ Text {
               id: todayCol
               anchors.fill: parent
               anchors.margins: Style.space(8)
+              anchors.bottomMargin: Style.space(8) + root.cardFootPad
               spacing: Style.space(4)
 
               RowLayout {
@@ -3643,7 +3649,7 @@ Text {
           Rectangle {
             visible: root.forecastReady && root.forecastRange === "3"
             Layout.fillWidth: true
-            implicitHeight: threeCol.implicitHeight + Style.space(root.ornate ? 26 : 16)   // room for the frame's bottom ornament
+            implicitHeight: threeCol.implicitHeight + Style.space(16) + root.cardFootPad
             radius: trackerPopup.cardRadius
             color: trackerPopup.cardSurfaceColor
             border.width: 1
@@ -3654,6 +3660,7 @@ Text {
               id: threeCol
               anchors.fill: parent
               anchors.margins: Style.space(8)
+              anchors.bottomMargin: Style.space(8) + root.cardFootPad
               spacing: Style.space(6)
 
               CardTitle {
@@ -3786,7 +3793,7 @@ Text {
           Rectangle {
             visible: root.forecastReady && root.forecastRange === "7"
             Layout.fillWidth: true
-            implicitHeight: weekCol.implicitHeight + Style.space(16)
+            implicitHeight: weekCol.implicitHeight + Style.space(16) + root.cardFootPad
             radius: trackerPopup.cardRadius
             color: trackerPopup.cardSurfaceColor
             border.width: 1
@@ -3797,6 +3804,7 @@ Text {
               id: weekCol
               anchors.fill: parent
               anchors.margins: Style.space(8)
+              anchors.bottomMargin: Style.space(8) + root.cardFootPad
               spacing: Style.space(4)
 
               CardTitle {
@@ -3918,7 +3926,7 @@ Text {
           Rectangle {
             visible: root.showSky
             Layout.fillWidth: true
-            Layout.preferredHeight: Style.space(114)
+            Layout.preferredHeight: Style.space(114) + root.cardFootPad
             radius: trackerPopup.cardRadius
             color: trackerPopup.cardSurfaceColor
             border.width: 1
@@ -3929,6 +3937,7 @@ Text {
             ColumnLayout {
               anchors.fill: parent
               anchors.margins: Style.space(8)
+              anchors.bottomMargin: Style.space(8) + root.cardFootPad
               spacing: Style.space(4)
 
               RowLayout {
@@ -4235,7 +4244,7 @@ Text {
               Layout.fillWidth: true
               Layout.preferredWidth: 1
               Layout.fillHeight: true
-              implicitHeight: solarCardCol.implicitHeight + Style.space(16)
+              implicitHeight: solarCardCol.implicitHeight + Style.space(16) + root.cardFootPad
               radius: trackerPopup.cardRadius
               color: trackerPopup.cardSurfaceColor
               border.width: 1
@@ -4246,6 +4255,7 @@ Text {
                 id: solarCardCol
                 anchors.fill: parent
                 anchors.margins: Style.space(9)
+                anchors.bottomMargin: Style.space(9) + root.cardFootPad
                 spacing: Style.space(6)
 
                 // Solar Header
@@ -4422,7 +4432,7 @@ Text {
               Layout.fillWidth: true
               Layout.preferredWidth: 1
               Layout.fillHeight: true
-              implicitHeight: lunarCardCol.implicitHeight + Style.space(16)
+              implicitHeight: lunarCardCol.implicitHeight + Style.space(16) + root.cardFootPad
               radius: trackerPopup.cardRadius
               color: trackerPopup.cardSurfaceColor
               border.width: 1
@@ -4433,6 +4443,7 @@ Text {
                 id: lunarCardCol
                 anchors.fill: parent
                 anchors.margins: Style.space(9)
+                anchors.bottomMargin: Style.space(9) + root.cardFootPad
                 spacing: Style.space(6)
 
                 // Lunar Hero Header with 40x40 Realistic Vector Moon Disc
@@ -4616,7 +4627,7 @@ Text {
           Rectangle {
             visible: root.showForecast
             Layout.fillWidth: true
-            implicitHeight: forecastCol.implicitHeight + Style.space(14)
+            implicitHeight: forecastCol.implicitHeight + Style.space(14) + root.cardFootPad
             radius: trackerPopup.cardRadius
             color: trackerPopup.cardSurfaceColor
             border.width: 1
@@ -4627,6 +4638,7 @@ Text {
               id: forecastCol
               anchors.fill: parent
               anchors.margins: Style.space(8)
+              anchors.bottomMargin: Style.space(8) + root.cardFootPad
               spacing: Style.space(6)
 
               RowLayout {
@@ -4716,7 +4728,7 @@ Text {
           Rectangle {
             visible: root.showYear
             Layout.fillWidth: true
-            implicitHeight: seasonCol.implicitHeight + Style.space(14)
+            implicitHeight: seasonCol.implicitHeight + Style.space(14) + root.cardFootPad
             radius: trackerPopup.cardRadius
             color: trackerPopup.cardSurfaceColor
             border.width: 1
@@ -4727,6 +4739,7 @@ Text {
               id: seasonCol
               anchors.fill: parent
               anchors.margins: Style.space(8)
+              anchors.bottomMargin: Style.space(8) + root.cardFootPad
               spacing: Style.space(6)
 
               RowLayout {
