@@ -409,8 +409,8 @@
         "key": "notify",
         "type": "enum",
         "label": "Sky Reminders",
-        "description": "Golden and blue hour, full and new moon, and season changes scroll across the bar like weather alerts. Off by default; computed locally, nothing is sent over the network.",
-        "defaultValue": "off",
+        "description": "Golden and blue hour, full and new moon, and season changes scroll across the bar like weather alerts. Computed locally; nothing is sent over the network.",
+        "defaultValue": "on",
         "options": [
           {
             "value": "on",

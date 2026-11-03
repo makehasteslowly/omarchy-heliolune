@@ -1130,7 +1130,7 @@ BarWidget {
       weather: "auto", barWeather: "on", weatherAlerts: "on", windUnit: "auto", weatherRefresh: "30",
       cardSky: "on", cardSun: "on", cardMoon: "on", cardYear: "on",
       weekScheme: "auto", seasons: "astronomical", lightPreset: "standard", elevation: "0",
-      notify: "off", notifyDesktop: "off", notifyGolden: "on", notifyBlue: "off", notifyMoon: "on", notifySeason: "on", notifyMornings: "off", notifyLead: "10"
+      notify: "on", notifyDesktop: "off", notifyGolden: "on", notifyBlue: "off", notifyMoon: "on", notifySeason: "on", notifyMornings: "off", notifyLead: "10"
     }
     var cmds = []
     var local = {}
@@ -1205,10 +1205,10 @@ BarWidget {
     }
   }
 
-  // ---- Sky reminders (opt-in, off by default): golden / blue hour, full / new moon,
+  // ---- Sky reminders (on by default, like weather alerts): golden / blue hour, full / new moon,
   // season change. They scroll across the bar like weather alerts; a desktop
   // notification (notify-send, argv) is optional on top. Nothing leaves the machine.
-  readonly property bool notifyOn: root.opt("notify", ["on", "off"], "off") === "on"
+  readonly property bool notifyOn: root.opt("notify", ["on", "off"], "on") === "on"
   readonly property bool notifyDesktop: root.opt("notifyDesktop", ["on", "off"], "off") === "on"
   readonly property bool notifyGolden: root.opt("notifyGolden", ["on", "off"], "on") === "on"
   readonly property bool notifyBlue: root.opt("notifyBlue", ["on", "off"], "off") === "on"
@@ -1255,11 +1255,25 @@ BarWidget {
 
   // What scrolls on the bar: "✦ Golden hour at 4:42 PM", "✦ Golden hour now",
   // "☾ Full Moon tomorrow at 9:53 AM", "☾ Full Moon today"
-  readonly property string reminderText: {
-    var _tick = root.currentDate
-    if (!root.notifyOn) return ""
+  // The plan is computed on its own tick (and when a setting or the location
+  // changes) and stored, so the texts below never re-enter recalculate().
+  property var reminderPlan: []
+  property var reminderNow: new Date()
+  function refreshReminders() {
     var now = new Date()
-    var act = Model.activeReminders(root.notifyPlan(now), now)
+    root.reminderPlan = root.notifyOn ? root.notifyPlan(now) : []
+    root.reminderNow = now
+    if (root.notifyOn && root.notifyDesktop) root.checkNotifications()
+  }
+  readonly property string reminderConfigKey: [root.notifyOn, root.notifyDesktop, root.notifyGolden, root.notifyBlue, root.notifyMoon,
+    root.notifySeason, root.notifyMornings, root.notifyLead, root.activeLat.toFixed(3), root.activeLon.toFixed(3),
+    root.seasonMode, root.lightPreset, root.elevationM].join("|")
+  onReminderConfigKeyChanged: Qt.callLater(root.refreshReminders)
+
+  readonly property string reminderText: {
+    if (!root.notifyOn) return ""
+    var now = root.reminderNow
+    var act = Model.activeReminders(root.reminderPlan, now)
     var parts = []
     for (var i = 0; i < act.length; i++) {
       var e = act[i]
@@ -1298,8 +1312,8 @@ BarWidget {
   // Desktop notifications (only with "Bar + desktop"): each reminder once, at fireAt
   function checkNotifications() {
     if (!root.notifyOn || !root.notifyDesktop) return
-    var now = new Date()
-    var plan = root.notifyPlan(now)
+    var now = root.reminderNow
+    var plan = root.reminderPlan
     var due = Model.dueNotifications(plan, now, root.notifySent)
     // Keep only ids still in the plan, so the record cannot grow without bound
     var keep = {}
@@ -1314,10 +1328,9 @@ BarWidget {
 
   // The next reminder, for the settings line and the Test button
   readonly property string notifyNextText: {
-    var _tick = root.currentDate
     if (!root.notifyOn) return ""
-    var now = new Date()
-    var plan = root.notifyPlan(now)
+    var now = root.reminderNow
+    var plan = root.reminderPlan
     for (var i = 0; i < plan.length; i++) {
       var f = plan[i].fireAt
       if (f.getTime() > now.getTime()) {
@@ -1347,10 +1360,10 @@ BarWidget {
 
   Timer {
     interval: 30000
-    running: root.notifyOn && root.notifyDesktop
+    running: root.notifyOn
     repeat: true
     triggeredOnStart: true
-    onTriggered: root.checkNotifications()
+    onTriggered: root.refreshReminders()
   }
 
   Process {
@@ -7394,6 +7407,33 @@ Text {
             onPicked: key => root.setOpt("barDetails", key)
           }
 
+          // Scrolling: what may scroll across the bar (each toggles on or off)
+          RowLayout {
+            Layout.fillWidth: true
+            spacing: Style.space(4)
+
+            RowLabel {
+              text: strings.t("settings.barScrolling")
+            }
+
+            Repeater {
+              model: [
+                { key: "weatherAlerts", label: strings.t("settings.scroll.weather"), on: root.alertsOn },
+                { key: "notify",        label: strings.t("settings.scroll.sky"),     on: root.notifyOn }
+              ]
+
+              ChoiceButton {
+                required property var modelData
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                Layout.preferredHeight: Style.space(28)
+                selected: modelData.on
+                text: modelData.label
+                onClicked: root.setOpt(modelData.key, modelData.on ? "off" : "on")
+              }
+            }
+          }
+
           // ---- Weather
           SectionHeading {
             text: strings.t("settings.section.weather")
@@ -7434,17 +7474,6 @@ Text {
             ]
             current: root.weatherRefreshSetting
             onPicked: key => root.setOpt("weatherRefresh", key)
-          }
-
-          OptionRow {
-            visible: root.weatherEnabled
-            label: strings.t("settings.alerts")
-            choices: [
-              { key: "on",  label: "On" },
-              { key: "off", label: "Off" }
-            ]
-            current: root.alertsOn ? "on" : "off"
-            onPicked: key => root.setOpt("weatherAlerts", key)
           }
 
           // ---- Popup cards (each button toggles one card)
@@ -7503,19 +7532,10 @@ Text {
             onPicked: key => root.setOpt("seasons", key)
           }
 
-          // ---- Notifications (opt-in)
+          // ---- Sky reminders (switched on under Bar > Scrolling)
           SectionHeading {
+            visible: root.notifyOn
             text: strings.t("settings.section.notifications")
-          }
-
-          OptionRow {
-            label: strings.t("settings.notify")
-            choices: [
-              { key: "off", label: "Off" },
-              { key: "on",  label: "On" }
-            ]
-            current: root.notifyOn ? "on" : "off"
-            onPicked: key => root.setOpt("notify", key)
           }
 
           RowLayout {
@@ -7551,8 +7571,8 @@ Text {
             visible: root.notifyOn
             label: strings.t("settings.notifyWhere")
             choices: [
-              { key: "off", label: "Bar" },
-              { key: "on",  label: "Bar + desktop" }
+              { key: "off", label: "Bar only" },
+              { key: "on",  label: "+ Desktop" }
             ]
             current: root.notifyDesktop ? "on" : "off"
             onPicked: key => root.setOpt("notifyDesktop", key)
@@ -7582,13 +7602,14 @@ Text {
           }
 
           RowLayout {
+            visible: root.notifyOn
             Layout.fillWidth: true
             spacing: Style.space(6)
 
             Text {
               Layout.fillWidth: true
               textFormat: Text.PlainText
-              text: root.notifyOn ? root.notifyNextText : strings.t("settings.notifyOffNote")
+              text: root.notifyNextText
               color: Qt.alpha(Color.foreground, 0.7)
               font.family: Style.font.family
               font.pixelSize: Style.font.caption

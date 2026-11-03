@@ -167,7 +167,7 @@ Everything is in the right-click panel. The same keys can be set on the widget's
 | `seasons` | `astronomical` · `meteorological` | `astronomical` |
 | `lightPreset` | `standard` · `photographer` · `extended` golden/blue-hour windows | `standard` |
 | `elevation` | Your height above sea level in metres (0-9000) | `0` |
-| `notify` | `on` · `off`: sky reminders scrolling on the bar (see below) | `off` |
+| `notify` | `on` · `off`: sky reminders scrolling on the bar (see below) | `on` |
 | `notifyDesktop` | `on` · `off`: also send each reminder as a desktop notification | `off` |
 | `notifyGolden`, `notifyBlue` | `on` · `off`: remind before golden hour / blue hour begins | `on`, `off` |
 | `notifyMoon`, `notifySeason` | `on` · `off`: remind of full and new moons / the next equinox, solstice or season start | `on` |
@@ -181,13 +181,13 @@ Everything is in the right-click panel. The same keys can be set on the widget's
 
 **Location.** Heliolune follows Omarchy Weather's location, then your approximate location, then your time zone. To pick a place yourself, type its name under **Settings → Location → Search for a city**, press **Search** (or Enter) and click the right match; it is saved as `latitude`, `longitude` and `locationName`. **Set Lat/Lon** takes coordinates directly, and **Use Auto** goes back to the automatic location.
 
-**Sky reminders** are off until you turn them on under **Settings → Sky Reminders**. Then they scroll across the bar widget the same way weather alerts do, in the Sun's colour (weather alerts keep the urgent colour), and they also appear in the widget's tooltip:
+**Sky reminders** scroll across the bar widget the same way weather alerts do (both switch on and off under **Settings → Bar → Scrolling**; the reminder options appear in **Sky Reminders** below while they are on), in the Sun's colour (weather alerts keep the urgent colour), and they also appear in the widget's tooltip:
 
 - **Golden** and **Blue:** from shortly before the evening golden or blue hour begins until 15 minutes after (the morning ones too with **Mornings too**). **Lead time** sets how early: at start, 10 or 30 minutes.
 - **Moon:** full moon and new moon, from 09:00 on the day, or from 18:00 the evening before when the moment falls in the morning.
 - **Season:** the next equinox or solstice (or 1 March, June, September or December with meteorological seasons), timed like the Moon.
 
-**Show on → Bar + desktop** also sends each reminder once as a desktop notification (through `notify-send`). Notifications missed while the computer was asleep are dropped, not sent late. **Test** scrolls a sample across the bar that names the next reminder.
+**Also on → + Desktop** also sends each reminder once as a desktop notification (through `notify-send`). Notifications missed while the computer was asleep are dropped, not sent late. **Test** scrolls a sample across the bar that names the next reminder.
 
 ---
 
