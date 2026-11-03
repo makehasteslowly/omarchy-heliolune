@@ -50,7 +50,7 @@ Each item on the bar opens its own view; the header buttons and **W** / **M** sw
   - **The Sun:** sky phase (from astronomical night through blue hour, golden hour and solar noon), altitude and compass bearing, day length, and the day's timetable: blue hour, sunrise, golden hour, solar noon, sunset, blue hour.
   - **The Sun's yearly path:** the analemma, then the countdown to the next equinox or solstice with the current season's progress (*Autumn · day 41 of 90*). Hemisphere-aware: in Sydney, June brings the Winter Solstice.
 - **Moon** (click the moon): opens on **Cycle**: the current lunation from the last new Moon to the next, with today's Moon large and marked on a track with the quarters and the full Moon. Press play for a **time lapse** through the cycle, or switch to **Sky** to watch the Moon (and the Sun) cross a compass horizon over the next 24 hours; scrub, pause, or jump back to **Now**. Below it, the Moon card: phase, illumination, age, moonrise and moonset, altitude, distance, ecliptic sign, the next quarter, full and new Moon. Then **Today** (when the Moon is up in a dark sky, hour by hour, with the weather's clouds taken into account), **7 Days** (a row per day: phase, moonrise, illumination) and **30 Days** (a month of Moons with the new, quarter and full Moons marked).
-- **Weather** (click the weather): **Today** (the next 24 hours, every three hours, with chance of rain), **3 Days** (conditions, high and low, rain chance, wind per day) or **7 Days** (one row per day with the week's temperature range).
+- **Weather** (click the weather): **Today** (the next 24 hours, every three hours, with chance of rain), **3 Days** (conditions, high and low, rain chance, wind per day) **7 Days** (one row per day with the week's temperature range) or **Map** (a 5 × 5 grid of forecast points around you, out to 20, 60 or 100 miles (30, 100 or 160 km in metric), showing **Temp**, **Rain** (real radar for the past two hours from RainViewer, then the forecast as a radar-style picture, with bars on the timeline showing when rain comes) or **Wind** (streaks flowing the way the wind blows, brighter where it is stronger; they also drift faintly over the rain); drag the hour bar or press play to watch the next 24 hours move across the area, and hover a square for its distance, direction and conditions). The squares sit on an OpenStreetMap map of the area (towns, roads, rivers), muted to suit the theme; north is up and the middle square is your location.
 
 Any card can be hidden in settings, under **Popup Cards**.
 
@@ -130,7 +130,7 @@ omarchy plugin remove makehasteslowly.heliolune
 | **↑ ↓ PgUp PgDn Home** | Scroll |
 | **Esc** | Close (from the forecast: back to the tracker) |
 | **1 / 2 / 3** (in settings) | Art Nouveau / Art Deco / Atomic |
-| **1 / 2 / 3** or **← / →** (in the forecast) | Today / 3 Days / 7 Days |
+| **1 / 2 / 3 / 4** or **← / →** (in the forecast) | Today / 3 Days / 7 Days / Map |
 | **1 / 2 / 3 / 4** or **← / →** (in the Moon view) | Cycle / Today / 7 Days / 30 Days |
 | **Space** (on Cycle) | Play / pause the time lapse |
 
@@ -215,6 +215,9 @@ Heliolune makes at most two kinds of request, both over HTTPS, both size-capped 
 |---|---|---|---|
 | **Your approximate location**, only if Omarchy Weather has no location and you set none | `geo.omarchy.org`, Omarchy's own geolocation service | At startup, then every 3 hours; cached for offline use | Set a location in Omarchy Weather or in Heliolune's settings |
 | **Current weather and forecast** (one request) for your coordinates rounded to ~1 km | `api.open-meteo.com`, no account or key | At startup, every 30 minutes (15/30/60 in settings), and when your location changes | Set **Weather** to **Off** |
+| **Area map forecast** (one request) for 25 points around your coordinates, out to the chosen radius, each rounded to ~1 km | `api.open-meteo.com`, no account or key | Only while the **Map** tab is open: once when you open it or change the radius, then at most once per refresh interval | Don't open the Map tab, or set **Weather** to **Off** |
+| **Map tiles** (OpenStreetMap's standard map, 4 to 16 images of 256 px) for the area shown | `tile.openstreetmap.org`, sent with Heliolune's own User-Agent as the [OSM tile policy](https://operations.osmfoundation.org/policies/tiles/) asks | Only while the **Map** tab is open, and only tiles not already cached; each is kept 7 days in `~/.cache/heliolune/osm-tiles` (deleted after 30) | Don't open the Map tab |
+| **Rain radar** (the list of the last ~2 hours of frames, then up to 4 radar images per frame for the area shown) | `api.rainviewer.com` and `tilecache.rainviewer.com`, no account or key (free for personal use), sent with Heliolune's User-Agent | Only while the Map tab shows **Rain**: the frame list at most every 5 minutes, and only images not already cached; kept 3 hours in `~/.cache/heliolune/radar` | Don't pick **Rain** on the Map tab |
 
 With a location set and weather off, Heliolune makes no network requests at all. All astronomy is computed on your machine, and nothing else is sent anywhere.
 
@@ -236,6 +239,8 @@ Other sky widgets for Omarchy, each good at its own thing:
 - Astronomy after Jean Meeus, *Astronomical Algorithms* (2nd ed.).
 - Reference data from the [US Naval Observatory Astronomical Applications API](https://aa.usno.navy.mil/data/api).
 - Weather by [Open-Meteo](https://open-meteo.com/).
+- Map data © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright), tiles from the OpenStreetMap Foundation.
+- Rain radar by [RainViewer](https://www.rainviewer.com/).
 - Built for [Omarchy](https://omarchy.org/).
 
 ## License

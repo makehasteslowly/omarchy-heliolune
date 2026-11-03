@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const src = fs.readFileSync(path.join(here, "..", "Model.js"), "utf8").replace(/^\.pragma library.*$/m, "");
-const M = new Function(src + "\nreturn { isoWeek, weekNumber, computeSeasonSummary, getSunTimesForDay, getMoonTimes, computeSolarSummary, formatWind, parseCurrentWeather, WEATHER_MAX_BYTES, computeWeatherAlert, lunarDays, moonVisibility, firstWindow, getMoonPosition, lunarCycle };")();
+const M = new Function(src + "\nreturn { isoWeek, weekNumber, computeSeasonSummary, getSunTimesForDay, getMoonTimes, computeSolarSummary, formatWind, parseCurrentWeather, WEATHER_MAX_BYTES, computeWeatherAlert, lunarDays, moonVisibility, firstWindow, getMoonPosition, lunarCycle, areaPoints, areaUrl, parseAreaForecast, compassPoint, AREA_MAX_BYTES, mapTiles, tileKey, compassFromDegrees, gridSample, windVector, radarColor, parseRadarFrames, radarTileKey, RADAR_HOST };")();
 const cases = [
   ["2026-11-02", 45, 2026], ["2026-01-01", 1, 2026], ["2027-01-01", 53, 2026], ["2027-01-03", 53, 2026],
   ["2027-01-04", 1, 2027], ["2024-12-30", 1, 2025], ["2025-12-29", 1, 2026], ["2021-01-03", 53, 2020],
@@ -135,6 +135,72 @@ const md = d => [d.getMonth() + 1, d.getDate()].join("/");
 checks.push(["cycle: Oct 10 -> Nov 9, now inside", md(cyc.start) === "10/10" && md(cyc.end) === "11/9" && cyc.start < new Date(2026, 10, 3) && cyc.end > new Date(2026, 10, 3)]);
 checks.push(["cycle: first quarter, full, last quarter in order inside it", cyc.events.length === 5 && cyc.events.every((e, i) => i === 0 || e.at > cyc.events[i - 1].at) && cyc.events[2].key === "full"]);
 checks.push(["cycle: about 29.5 days long", Math.abs((cyc.end - cyc.start) / 86400000 - 29.53) < 0.5]);
+
+// Area map: 5 x 5 grid, centre is the location, edges at the radius, one URL, aligned parse
+const pts = M.areaPoints(40.71, -74.0, 96.56, 5);
+const kmLon = 111.32 * Math.cos(40.71 * Math.PI / 180);
+checks.push(["area: 25 points, centre is the location", pts.length === 25 && pts[12].lat === 40.71 && pts[12].lon === -74.0]);
+checks.push(["area: north-west corner first, edges 60 mi out", pts[0].dyKm > 0 && pts[0].dxKm < 0
+  && Math.abs((pts[0].lat - 40.71) * 110.574 - 96.56) < 0.01 && Math.abs((-74.0 - pts[0].lon) * kmLon - 96.56) < 0.01]);
+checks.push(["area: bad input -> no points", M.areaPoints(91, 0, 50, 5).length === 0 && M.areaPoints(0, 0, 50, 4).length === 0 && M.areaPoints(0, 0, -5, 5).length === 0]);
+checks.push(["area: longitude wraps at the antimeridian", M.areaPoints(0, 179.9, 100, 3)[2].lon < -179]);
+const aUrl = M.areaUrl(pts);
+checks.push(["area: one open-meteo URL with 25 rounded coordinates", aUrl.startsWith("https://api.open-meteo.com/v1/forecast?latitude=")
+  && aUrl.split("&")[0].split("=")[1].split(",").length === 25 && !/[^0-9a-z:\/.?=&,_-]/i.test(aUrl)]);
+checks.push(["area: bad point -> no URL", M.areaUrl([{ lat: "1;rm", lon: 0 }]) === "" && M.areaUrl([]) === ""]);
+const blk = (t, code) => ({ hourly: { time: Array.from({ length: 24 }, (_, i) => `2026-11-03T${String(i).padStart(2, "0")}:00`),
+  temperature_2m: Array(24).fill(t), weather_code: Array(24).fill(code), precipitation_probability: Array(24).fill(40), is_day: Array(24).fill(1),
+  precipitation: Array(24).fill(t / 4), wind_speed_10m: Array(24).fill(t * 3), wind_direction_10m: Array(24).fill(i => i).map((_, h) => h === 2 ? 999 : 315) } });
+const area = M.parseAreaForecast(JSON.stringify(Array.from({ length: 9 }, (_, i) => i === 3 ? { hourly: { time: [] } } : blk(i, 61))), 9);
+checks.push(["area: parse keeps hours aligned, bad point is null", area && area.hours.length === 24 && area.cells.length === 9
+  && area.cells[3][0] === null && area.cells[8][5].tempC === 8 && area.cells[4][0].key === "lightRain" && area.cells[4][0].pop === 40]);
+checks.push(["area: wrong count / not JSON / too big rejected", M.parseAreaForecast(JSON.stringify([blk(1, 0)]), 9) === null
+  && M.parseAreaForecast("nope", 9) === null && M.parseAreaForecast("[" + " ".repeat(M.AREA_MAX_BYTES) + "]", 1) === null]);
+checks.push(["area: compass points", M.compassPoint(0, 1) === "N" && M.compassPoint(1, 1) === "NE" && M.compassPoint(-1, 0) === "W" && M.compassPoint(0.2, -1) === "SSE"]);
+
+// Basemap tiles: cover the whole box, drawn near their own size, location tile under the centre
+for (const [r, box] of [[20, 500], [60, 500], [100, 500], [160, 320]]) {
+  const mt = M.mapTiles(38.72, -9.14, 2.5 * r * 1.609, box);
+  const covers = mt && Math.min(...mt.tiles.map(t => t.left)) <= 0 && Math.min(...mt.tiles.map(t => t.top)) <= 0
+    && Math.max(...mt.tiles.map(t => t.left + t.size)) >= box && Math.max(...mt.tiles.map(t => t.top + t.size)) >= box;
+  checks.push([`tiles ${r} mi in ${box}px: cover the box, 70-142 % scale, at most 16`, covers
+    && mt.tiles.every(t => t.size > 0.7 * 256 && t.size < 1.42 * 256) && mt.tiles.length <= 16]);
+}
+const mt60 = M.mapTiles(38.72, -9.14, 241, 500);
+// Lisbon at zoom 8 is tile x 121, y 98 (slippy-map formula); it sits under the box centre
+const c60 = mt60.tiles.find(t => t.left <= 250 && t.left + t.size > 250 && t.top <= 250 && t.top + t.size > 250);
+checks.push(["tiles: zoom 8 for 60 mi, centre tile 8/121/98", mt60.zoom === 8 && c60 && M.tileKey(c60) === "8/121/98"]);
+checks.push(["tiles: bad input -> null", M.mapTiles(89, 0, 100, 500) === null && M.mapTiles(0, 0, 0, 500) === null]);
+checks.push(["tileKey: rejects out-of-range and non-integers", M.tileKey({ z: 8, x: 256, y: 0 }) === "" && M.tileKey({ z: 8, x: "1;rm", y: 0 }) === ""
+  && M.tileKey({ z: 2.5, x: 0, y: 0 }) === "" && M.tileKey({ z: 3, x: 7, y: 7 }) === "3/7/7"]);
+checks.push(["tiles: wrap across the antimeridian", M.mapTiles(0, 179.99, 300, 500).tiles.some(t => t.x === 0)]);
+
+checks.push(["area: wind speed and direction kept, bad direction dropped", area.cells[8][0].windKmh === 24 && area.cells[8][0].windDir === 315
+  && area.cells[8][2].windDir === null && area.cells[8][2].windKmh === 24]);
+checks.push(["area: URL asks for wind in km/h", aUrl.includes("wind_speed_10m,wind_direction_10m") && aUrl.includes("wind_speed_unit=kmh")]);
+checks.push(["compass from degrees", M.compassFromDegrees(0) === "N" && M.compassFromDegrees(315) === "NW" && M.compassFromDegrees(200) === "SSW" && M.compassFromDegrees(360) === "N"]);
+
+checks.push(["area: precipitation kept", area.cells[8][0].precipMm === 2 && area.cells[0][0].precipMm === 0 && area.cells[8][0].snow === false]);
+const g = [0, 10, 20, 30];   // 2 x 2
+checks.push(["gridSample: corners, centre, clamped", M.gridSample(g, 2, 0, 0) === 0 && M.gridSample(g, 2, 1, 1) === 30
+  && M.gridSample(g, 2, 0.5, 0.5) === 15 && M.gridSample(g, 2, -3, 9) === 20 && M.gridSample([null, 4, 4, 4], 2, 0, 0) === 0]);
+const wv = M.windVector(10, 270);   // from the west -> blows east
+const wn = M.windVector(10, 0);     // from the north -> blows south (screen down)
+checks.push(["windVector: west wind blows east, north wind blows down-screen", Math.abs(wv.x - 10) < 1e-9 && Math.abs(wv.y) < 1e-9 && Math.abs(wn.y - 10) < 1e-9]);
+checks.push(["radarColor: dry clear, pale blue, heavy red, snow violet", M.radarColor(0, 0)[3] === 0 && M.radarColor(0.1, 0)[2] === 240
+  && M.radarColor(40, 0)[0] === 220 && M.radarColor(1, 1)[2] === 245 && M.radarColor(2, 0)[3] > M.radarColor(1, 0)[3]]);
+const rvIdx = { version: "2.0", host: M.RADAR_HOST, radar: { past: [
+  { time: 1793690400, path: "/v2/radar/56c434a943f6" }, { time: 1793683800, path: "/v2/radar/24c494bda066" },
+  { time: 1793691000, path: "/v2/radar/../../etc" }, { time: "x", path: "/v2/radar/abcdef" }], nowcast: [] } };
+const rv = M.parseRadarFrames(JSON.stringify(rvIdx));
+checks.push(["radar index: valid frames only, oldest first, ms", rv && rv.length === 2 && rv[0].id === "24c494bda066" && rv[1].time === 1793690400000]);
+checks.push(["radar index: wrong host / junk rejected", M.parseRadarFrames(JSON.stringify(Object.assign({}, rvIdx, { host: "https://evil.example" }))) === null
+  && M.parseRadarFrames("{") === null]);
+const rt = M.mapTiles(38.72, -9.14, 241, 500, 512, 7);
+checks.push(["radar tiles: zoom 7, 512 px, cover the box", rt.zoom === 7 && rt.tiles.every(t => t.z === 7)
+  && Math.min(...rt.tiles.map(t => t.left)) <= 0 && Math.max(...rt.tiles.map(t => t.left + t.size)) >= 500]);
+checks.push(["radarTileKey: id and zoom checked", M.radarTileKey("56c434a943f6", { z: 7, x: 60, y: 49 }) === "56c434a943f6/7/60/49"
+  && M.radarTileKey("../x", { z: 7, x: 1, y: 1 }) === "" && M.radarTileKey("abcdef", { z: 8, x: 1, y: 1 }) === ""]);
 
 for (const [label, ok] of checks) { if (!ok) { failed++; console.log("FAIL " + label); } else if (process.argv.includes("--verbose")) console.log("ok   " + label); }
 console.log(`Options: ${checks.filter(c => c[1]).length}/${checks.length} checks pass`);

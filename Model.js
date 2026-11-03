@@ -1444,6 +1444,247 @@ function parseCurrentWeather(raw) {
   }
 }
 
+// ============================================================================
+// Area map: an n x n grid of forecast points centred on the location, one
+// multi-location Open-Meteo request (the same keyless endpoint as above)
+// ============================================================================
+
+var AREA_MAX_BYTES = 262144
+var AREA_HOURS = 24
+
+// Grid points spanning +-radiusKm east-west and north-south, row by row from
+// the north-west corner. -> [{lat, lon, col, row, dxKm, dyKm}] (dy north
+// positive), or [] for bad input. n must be odd so the centre is the location.
+function areaPoints(lat, lon, radiusKm, n) {
+  var la = Number(lat), lo = Number(lon), r = Number(radiusKm), size = Number(n)
+  if (!isFinite(la) || !isFinite(lo) || la < -90 || la > 90 || lo < -180 || lo > 180) return []
+  if (!isFinite(r) || r <= 0 || r > 500 || !isFinite(size) || size < 3 || size > 9 || size % 2 !== 1) return []
+  var half = (size - 1) / 2
+  var kmPerDegLat = 110.574
+  var kmPerDegLon = 111.320 * Math.max(0.05, Math.cos(la * Math.PI / 180))
+  var out = []
+  for (var row = 0; row < size; row++) {
+    for (var col = 0; col < size; col++) {
+      var dx = (col - half) / half * r
+      var dy = (half - row) / half * r
+      var pla = Math.max(-89.99, Math.min(89.99, la + dy / kmPerDegLat))
+      var plo = lo + dx / kmPerDegLon
+      plo = ((plo + 540) % 360) - 180
+      out.push({ lat: pla, lon: plo, col: col, row: row, dxKm: dx, dyKm: dy })
+    }
+  }
+  return out
+}
+
+// Fixed HTTPS endpoint; only the validated, rounded grid coordinates are interpolated.
+function areaUrl(points) {
+  if (!Array.isArray(points) || points.length === 0 || points.length > 81) return ""
+  var las = [], los = []
+  for (var i = 0; i < points.length; i++) {
+    var la = Number(points[i].lat), lo = Number(points[i].lon)
+    if (!isFinite(la) || !isFinite(lo) || la < -90 || la > 90 || lo < -180 || lo > 180) return ""
+    las.push(la.toFixed(2)); los.push(lo.toFixed(2))
+  }
+  return "https://api.open-meteo.com/v1/forecast?latitude=" + las.join(",") + "&longitude=" + los.join(",")
+    + "&hourly=temperature_2m,weather_code,precipitation_probability,precipitation,is_day,wind_speed_10m,wind_direction_10m"
+    + "&forecast_hours=" + AREA_HOURS + "&wind_speed_unit=kmh&timezone=auto"
+}
+
+// Untrusted multi-location response -> { hours: [{y, mo, d, h}], cells: [[{tempC, pop, windKmh, windDir, code, key, kind} | null]] }
+// (windDir: where the wind blows FROM, degrees clockwise from north, as reported)
+// (cells[point][hour]; a bad hour is null, so hours stay aligned) or null when
+// the response is not one block per point or no hour of the centre is usable.
+function parseAreaForecast(raw, count, centre) {
+  var text = String(raw || "")
+  if (text.length === 0 || text.length > AREA_MAX_BYTES) return null
+  var data
+  try { data = JSON.parse(text) } catch (e) { return null }
+  if (count === 1 && data && !Array.isArray(data)) data = [data]
+  if (!Array.isArray(data) || data.length !== count) return null
+  var c = centre === undefined ? Math.floor(count / 2) : centre
+  var hours = []
+  var cells = []
+  for (var p = 0; p < count; p++) {
+    var hr = data[p] && data[p].hourly
+    var row = []
+    for (var i = 0; i < AREA_HOURS; i++) {
+      var cell = null
+      if (hr && typeof hr === "object" && Array.isArray(hr.time) && i < hr.time.length) {
+        var t = plausible(hr.temperature_2m && hr.temperature_2m[i], -95, 65)
+        var code = hr.weather_code && hr.weather_code[i]
+        if (t !== null && validCode(code)) {
+          cell = conditionFor(Number(code), !(hr.is_day && Number(hr.is_day[i]) === 0))
+          cell.tempC = t
+          cell.pop = plausible(hr.precipitation_probability && hr.precipitation_probability[i], 0, 100)
+          cell.precipMm = plausible(hr.precipitation && hr.precipitation[i], 0, 500)
+          cell.snow = cell.key === "lightSnow" || cell.key === "snow" || cell.key === "heavySnow" || cell.key === "snowShowers"
+          cell.windKmh = plausible(hr.wind_speed_10m && hr.wind_speed_10m[i], 0, 400)
+          cell.windDir = plausible(hr.wind_direction_10m && hr.wind_direction_10m[i], 0, 360)
+          if (cell.windKmh === null) cell.windDir = null
+        }
+        if (p === c) hours.push(parseLocalStamp(hr.time[i]))
+      }
+      row.push(cell)
+    }
+    cells.push(row)
+  }
+  var usable = 0
+  for (var k = 0; k < hours.length; k++) if (hours[k] && cells[c][k]) usable++
+  if (usable === 0) return null
+  return { hours: hours, cells: cells }
+}
+
+// (tilePx / maxZoom default to OSM's 256 px / 17; the radar uses 512 px, zoom <= 7,
+// and is then simply drawn larger.)
+// Basemap tiles under the area map: OpenStreetMap's standard tiles (256 px,
+// Web Mercator), at the zoom that draws them nearest their own size (70-140 %).
+// The widget downloads them with curl under its own User-Agent and keeps them
+// 7 days, as the OSM tile policy asks. spanKm: ground width of the box; boxPx:
+// its width in pixels. -> { zoom, tiles: [{z, x, y, left, top, size}] } (left/top
+// relative to the box), or null for bad input.
+var TILE_PX = 256
+var TILE_MAX_BYTES = 1048576
+var TILE_USER_AGENT = "Heliolune/2 (Omarchy plugin; +https://github.com/makehasteslowly/omarchy-heliolune)"
+function mapTiles(lat, lon, spanKm, boxPx, tilePx, maxZoom) {
+  var TILE_PX = tilePx === undefined ? 256 : tilePx
+  var zmax = maxZoom === undefined ? 17 : maxZoom
+  var la = Number(lat), lo = Number(lon), span = Number(spanKm), box = Number(boxPx)
+  if (!isFinite(la) || !isFinite(lo) || la < -85 || la > 85 || lo < -180 || lo > 180) return null
+  if (!isFinite(span) || span <= 0 || !isFinite(box) || box < 16 || box > 4096) return null
+  var cosLat = Math.cos(la * Math.PI / 180)
+  var mppWanted = span * 1000 / box                          // metres per box pixel
+  var mppZ0 = 2 * Math.PI * 6378137 * cosLat / TILE_PX       // metres per tile pixel at zoom 0
+  var zoom = Math.max(2, Math.min(zmax, Math.round(Math.log(mppZ0 / mppWanted) / Math.LN2)))
+  var k = (mppZ0 / Math.pow(2, zoom)) / mppWanted           // box px per tile px
+  var n = Math.pow(2, zoom)
+  var wx = (lo + 180) / 360 * n * TILE_PX
+  var sinLat = Math.sin(la * Math.PI / 180)
+  var wy = (0.5 - Math.log((1 + sinLat) / (1 - sinLat)) / (4 * Math.PI)) * n * TILE_PX
+  var half = box / 2 / k
+  var tiles = []
+  for (var ty = Math.floor((wy - half) / TILE_PX); ty <= Math.floor((wy + half) / TILE_PX); ty++) {
+    if (ty < 0 || ty >= n) continue
+    for (var tx = Math.floor((wx - half) / TILE_PX); tx <= Math.floor((wx + half) / TILE_PX); tx++) {
+      tiles.push({
+        z: zoom, x: ((tx % n) + n) % n, y: ty,
+        left: box / 2 + (tx * TILE_PX - wx) * k,
+        top: box / 2 + (ty * TILE_PX - wy) * k,
+        size: TILE_PX * k
+      })
+    }
+  }
+  return { zoom: zoom, tiles: tiles }
+}
+
+// "z/x/y" for a tile, or "" unless all three are in range (the only part of a
+// tile URL or cache path that varies)
+function tileKey(t) {
+  if (!t) return ""
+  var z = Number(t.z), x = Number(t.x), y = Number(t.y)
+  var ok = function(v, max) { return isFinite(v) && Math.floor(v) === v && v >= 0 && v < max }
+  if (!ok(z, 20) || !ok(x, Math.pow(2, z)) || !ok(y, Math.pow(2, z))) return ""
+  return z + "/" + x + "/" + y
+}
+
+// ---- Smooth fields over the area grid (radar-style rain, wind streams)
+
+// Bilinear sample of an n x n row-major grid at fractional grid coordinates
+// (0..n-1; clamped). Missing values count as 0.
+function gridSample(values, n, gx, gy) {
+  var x = Math.max(0, Math.min(n - 1, gx)), y = Math.max(0, Math.min(n - 1, gy))
+  var x0 = Math.min(n - 2, Math.floor(x)), y0 = Math.min(n - 2, Math.floor(y))
+  var fx = x - x0, fy = y - y0
+  function v(c, r) { var a = values[r * n + c]; return (a === null || a === undefined || !isFinite(a)) ? 0 : a }
+  return (v(x0, y0) * (1 - fx) + v(x0 + 1, y0) * fx) * (1 - fy) + (v(x0, y0 + 1) * (1 - fx) + v(x0 + 1, y0 + 1) * fx) * fy
+}
+
+// Wind as a vector pointing where it blows, screen-oriented (x east, y down),
+// in km/h. dirFrom: degrees the wind comes FROM.
+function windVector(kmh, dirFrom) {
+  var s = Number(kmh), d = Number(dirFrom)
+  if (!isFinite(s) || !isFinite(d)) return { x: 0, y: 0 }
+  var to = (d + 180) * Math.PI / 180
+  return { x: s * Math.sin(to), y: -s * Math.cos(to) }
+}
+
+// Radar colour for a precipitation rate (mm/h): transparent below 0.05; pale
+// blue -> blue -> deep blue -> yellow -> orange -> red (snow: pale to deep violet).
+// -> [r, g, b, a] in 0..255
+// The rain stops follow RainViewer's "Universal Blue" radar scheme (the only one its
+// free tiles come in), so the past radar and the forecast read as one picture.
+var RAIN_STOPS = [[0.1, 150, 222, 240, 120], [1, 54, 186, 229, 170], [3, 0, 112, 163, 195], [8, 255, 205, 0, 205], [16, 255, 110, 0, 215], [32, 220, 20, 40, 225]]
+var SNOW_STOPS = [[0.1, 225, 220, 250, 110], [1, 190, 170, 245, 160], [3, 150, 120, 235, 190], [8, 120, 80, 215, 210], [16, 100, 50, 190, 220]]
+function radarColor(mm, snowiness) {
+  var v = Number(mm)
+  if (!isFinite(v) || v < 0.05) return [0, 0, 0, 0]
+  function along(stops) {
+    if (v <= stops[0][0]) { var f0 = (v - 0.05) / (stops[0][0] - 0.05); return [stops[0][1], stops[0][2], stops[0][3], stops[0][4] * f0] }
+    for (var i = 1; i < stops.length; i++) {
+      // Stepped colours, as radar palettes are (blending blue into yellow
+      // would pass through olive); only the opacity ramps between steps
+      if (v < stops[i][0]) {
+        var a = stops[i - 1], b = stops[i]
+        var t = Math.log(v / a[0]) / Math.log(b[0] / a[0])
+        return [a[1], a[2], a[3], a[4] + (b[4] - a[4]) * t]
+      }
+    }
+    var l = stops[stops.length - 1]
+    return [l[1], l[2], l[3], l[4]]
+  }
+  var r = along(RAIN_STOPS)
+  var k = Math.max(0, Math.min(1, Number(snowiness) || 0))
+  if (k === 0) return r
+  var s = along(SNOW_STOPS)
+  return [r[0] + (s[0] - r[0]) * k, r[1] + (s[1] - r[1]) * k, r[2] + (s[2] - r[2]) * k, r[3] + (s[3] - r[3]) * k]
+}
+
+// ---- Past radar (RainViewer, keyless; personal use, credit requested): the last
+// ~2 hours in 10-minute frames. Tiles stop at zoom 7.
+var RADAR_INDEX_URL = "https://api.rainviewer.com/public/weather-maps.json"
+var RADAR_HOST = "https://tilecache.rainviewer.com"
+var RADAR_INDEX_MAX_BYTES = 32768
+
+// Untrusted index -> [{time (ms), id}] oldest first (at most 13), or null. Only
+// the expected host and "/v2/radar/<hex id>" paths are accepted.
+function parseRadarFrames(raw) {
+  var text = String(raw || "")
+  if (text.length === 0 || text.length > RADAR_INDEX_MAX_BYTES) return null
+  var data
+  try { data = JSON.parse(text) } catch (e) { return null }
+  if (!data || data.host !== RADAR_HOST || !data.radar || !Array.isArray(data.radar.past)) return null
+  var out = []
+  for (var i = 0; i < data.radar.past.length; i++) {
+    var f = data.radar.past[i]
+    var m = f && /^\/v2\/radar\/([0-9a-f]{6,40})$/.exec(String(f.path))
+    var t = f && Number(f.time)
+    if (!m || !isFinite(t) || t < 1.5e9 || t > 4e9) continue
+    out.push({ time: t * 1000, id: m[1] })
+  }
+  out.sort(function(a, b) { return a.time - b.time })
+  out = out.slice(-13)
+  return out.length ? out : null
+}
+
+// "<id>/z/x/y" for a radar tile, or "" when anything is out of range
+function radarTileKey(id, t) {
+  var k = tileKey(t)
+  if (!/^[0-9a-f]{6,40}$/.test(String(id)) || k === "" || t.z > 7) return ""
+  return id + "/" + k
+}
+
+// Compass point (16-wind) for a bearing in degrees clockwise from north
+function compassFromDegrees(deg) {
+  var r = Number(deg) * Math.PI / 180
+  return compassPoint(Math.sin(r), Math.cos(r))
+}
+
+// Compass point (16-wind) for an offset with north positive
+function compassPoint(dx, dy) {
+  var names = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"]
+  var deg = (Math.atan2(dx, dy) * 180 / Math.PI + 360) % 360
+  return names[Math.round(deg / 22.5) % 16]
+}
+
 // Conditions that raise a weather alert on the bar, by WMO code (only the heavy
 // or dangerous ones: light rain or ordinary snow do not)
 var SEVERE_CODES = {

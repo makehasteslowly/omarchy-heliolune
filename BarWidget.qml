@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
+import QtQuick.Effects
 import Quickshell
 import Quickshell.Io
 import qs.Commons
@@ -392,6 +393,311 @@ BarWidget {
         }
       }
     }
+  }
+
+  // ---- Area map (Weather view, Map tab): a 5 x 5 grid of forecast points around the
+  // location, fetched only while the tab is open, at most once per refresh interval
+  // per location and radius. Same Open-Meteo endpoint; coordinates built in Model.js.
+  readonly property int mapGrid: 5
+  property string mapRadius: "m"        // "s" | "m" | "l": 20/60/100 mi, or 30/100/160 km
+  property string mapLayer: "temp"      // "temp" | "rain" | "wind"
+  property real mapT: 0                 // 0 = this hour ... 23, fractional while playing
+  readonly property int mapHour: Math.max(0, Math.min(23, Math.round(root.mapT)))
+  property bool mapPlaying: false
+  property int mapSel: 12               // selected cell (12 = the location)
+  property var areaData: null
+  property real areaFetchedAt: 0
+  property string areaFetchedFor: ""
+  property bool areaFailed: false
+  readonly property var mapRadiusSteps: root.weatherImperial ? [20, 60, 100] : [30, 100, 160]
+  readonly property real mapRadiusValue: root.mapRadiusSteps[["s", "m", "l"].indexOf(root.mapRadius)]
+  readonly property real mapRadiusKm: root.weatherImperial ? root.mapRadiusValue * 1.609344 : root.mapRadiusValue
+  readonly property string mapDistUnit: root.weatherImperial ? "mi" : "km"
+  readonly property var mapPoints: Model.areaPoints(root.activeLat, root.activeLon, root.mapRadiusKm, root.mapGrid)
+  readonly property string areaKey: root.weatherLocationKey + "@" + root.mapRadiusKm.toFixed(1)
+  readonly property bool mapActive: root.opened && root.weatherOpen && !root.settingsOpen && root.forecastRange === "map" && root.weatherEnabled
+  readonly property bool areaReady: root.areaData !== null && root.areaFetchedFor === root.areaKey
+  // This hour's cells, and their temperature span for the colour scale
+  readonly property var mapCells: root.areaReady ? root.areaData.cells.map(function(row) { return row[root.mapHour] || null }) : []
+  readonly property real mapTempMin: Math.min.apply(null, root.mapCells.filter(function(c) { return c }).map(function(c) { return c.tempC }).concat([99]))
+  readonly property real mapTempMax: Math.max.apply(null, root.mapCells.filter(function(c) { return c }).map(function(c) { return c.tempC }).concat([-99]))
+
+  function fetchArea(force) {
+    if (!root.mapActive || areaProc.running) return
+    var url = Model.areaUrl(root.mapPoints)
+    if (url === "") return
+    var fresh = root.areaFetchedFor === root.areaKey && (Date.now() - root.areaFetchedAt) < root.weatherRefreshMs
+    if (!force && fresh) return
+    root.areaFailed = false
+    areaProc.command = ["curl", "-fsS", "--max-time", "8", "--max-filesize", String(Model.AREA_MAX_BYTES), url]
+    areaProc.requestedFor = root.areaKey
+    areaProc.count = root.mapPoints.length
+    areaProc.running = true
+  }
+
+  // Map colour: the coolest point in the Moon colour, the warmest in the Sun colour
+  function mapMix(a, b, t) {
+    var k = Math.max(0, Math.min(1, t))
+    return Qt.rgba(a.r + (b.r - a.r) * k, a.g + (b.g - a.g) * k, a.b + (b.b - a.b) * k, 1)
+  }
+  function mapDistanceText(i) {
+    var p = root.mapPoints[i]
+    if (!p) return ""
+    var km = Math.sqrt(p.dxKm * p.dxKm + p.dyKm * p.dyKm)
+    if (km < 0.5) return strings.t("map.here")
+    var d = root.weatherImperial ? km / 1.609344 : km
+    return Math.round(d) + " " + root.mapDistUnit + " " + Model.compassPoint(p.dxKm, p.dyKm)
+  }
+  function mapHourText(i) {
+    if (root.radarIndex >= 0) {
+      var rt = new Date(root.radarFrames[root.radarIndex].time)
+      return strings.t("map.radarAt").arg(Model.formatTime(rt, root.timeFormatMode, root.formatLocale))
+    }
+    if (i === 0) return strings.t("forecast.now")
+    var st = root.areaReady ? root.areaData.hours[i] : null
+    if (!st) return "+" + i + "h"
+    var nowSt = root.areaData.hours[0]
+    var label = root.hourLabel(st.h)
+    return nowSt && st.d !== nowSt.d ? strings.t("forecast.tomorrow") + " " + label : label
+  }
+
+  onMapActiveChanged: {
+    if (root.mapActive) { root.fetchArea(false); tileDebounce.restart() }
+    else root.mapPlaying = false
+  }
+  onAreaKeyChanged: if (root.mapActive) areaDebounce.restart()
+
+  Timer {
+    id: areaDebounce
+    interval: 600
+    onTriggered: root.fetchArea(false)
+  }
+
+  // Play: glide through the next 24 hours, about 1 s an hour, looping
+  Timer {
+    interval: 40
+    running: root.mapPlaying && root.mapActive && root.areaReady
+    repeat: true
+    onTriggered: {
+      var step = root.mapT < 0 ? 0.016 : 0.04       // the radar's 10-minute frames get time to show
+      root.mapT = root.mapT + step > 23 ? root.mapLo : root.mapT + step
+    }
+  }
+
+  // Per hour, the grids the smooth layers sample: precipitation (mm), snow (0/1),
+  // wind as a screen vector (km/h, x east, y down)
+  readonly property var mapFields: {
+    if (!root.areaReady) return []
+    var out = []
+    for (var h = 0; h < 24; h++) {
+      var f = { p: [], s: [], u: [], v: [], k: [] }
+      for (var i = 0; i < root.areaData.cells.length; i++) {
+        var c = root.areaData.cells[i][h]
+        var w = c && c.windKmh !== null && c.windDir !== null ? Model.windVector(c.windKmh, c.windDir) : { x: 0, y: 0 }
+        f.p.push(c && c.precipMm !== null ? c.precipMm : 0)
+        f.s.push(c && c.snow ? 1 : 0)
+        f.u.push(w.x); f.v.push(w.y)
+      }
+      out.push(f)
+    }
+    return out
+  }
+  // The heaviest precipitation anywhere on the map, per hour (the timeline bars)
+  readonly property var mapPrecipByHour: root.mapFields.map(function(f) { return Math.max.apply(null, f.p) })
+  // A field's value at fractional grid (gx, gy) and the current fractional hour
+  function mapFieldAt(name, gx, gy) {
+    var fs = root.mapFields
+    if (fs.length === 0) return 0
+    var h0 = Math.max(0, Math.min(23, Math.floor(root.mapT))), h1 = Math.min(23, h0 + 1), t = root.mapT - h0
+    var a = Model.gridSample(fs[h0][name], root.mapGrid, gx, gy)
+    return t <= 0 ? a : a + (Model.gridSample(fs[h1][name], root.mapGrid, gx, gy) - a) * t
+  }
+
+  Process {
+    id: areaProc
+    property string requestedFor: ""
+    property int count: 0
+    onExited: function(code) {
+      if (code !== 0) {
+        console.warn("heliolune: area forecast fetch failed (curl exit " + code + ")")
+        if (areaProc.requestedFor === root.areaKey) root.areaFailed = true
+      }
+    }
+    stdout: StdioCollector {
+      onStreamFinished: {
+        var a = Model.parseAreaForecast(text, areaProc.count)
+        if (!a) {
+          console.warn("heliolune: area forecast response rejected")
+          if (areaProc.requestedFor === root.areaKey) root.areaFailed = true
+          return
+        }
+        if (areaProc.requestedFor === root.areaKey) {
+          root.areaData = a
+          root.areaFetchedAt = Date.now()
+          root.areaFetchedFor = areaProc.requestedFor
+          root.areaFailed = false
+        }
+      }
+    }
+  }
+
+  // ---- Basemap for the area map: OpenStreetMap tiles, fetched by curl under the
+  // widget's own User-Agent into a cache kept 7 days (the OSM tile policy), only
+  // the tiles in view and only while the Map tab is open. Pruned after 30 days.
+  readonly property string tileCacheDir: (Quickshell.env("XDG_CACHE_HOME") || (Quickshell.env("HOME") + "/.cache")) + "/heliolune/osm-tiles"
+  property int mapBoxPx: 0
+  readonly property var basemap: root.mapBoxPx > 0
+    ? Model.mapTiles(root.activeLat, root.activeLon, root.mapRadiusKm * 2 * root.mapGrid / (root.mapGrid - 1), root.mapBoxPx)
+    : null
+  property var tileReady: ({})          // "z/x/y" -> true once the file is on disk
+  property var tilePending: []
+
+  function fetchTiles() {
+    if (!root.mapActive || !root.basemap) return
+    var keys = []
+    for (var i = 0; i < root.basemap.tiles.length; i++) {
+      var key = Model.tileKey(root.basemap.tiles[i])
+      if (key !== "" && !root.tileReady[key]) keys.push(key)
+    }
+    if (keys.length === 0) return
+    if (tileProc.running) { root.tilePending = keys; return }
+    tileProc.command = ["sh", "-c",
+      "dir=$1; ua=$2; max=$3; shift 3; mkdir -p \"$dir\" || exit 1; "
+      + "find \"$dir\" -type f -name '*.png' -mtime +30 -delete 2>/dev/null; "
+      + "for k in \"$@\"; do "
+      + "case $k in *[!0-9/]*|*//*|/*|*/) continue;; esac; "
+      + "f=\"$dir/$k.png\"; "
+      + "if [ -s \"$f\" ] && [ -n \"$(find \"$f\" -mmin -10080 2>/dev/null)\" ]; then echo \"$k\"; continue; fi; "
+      + "mkdir -p \"${f%/*}\" && curl -fsS --max-time 8 --max-filesize \"$max\" -A \"$ua\" -o \"$f.tmp\" \"https://tile.openstreetmap.org/$k.png\" "
+      + "&& mv -f \"$f.tmp\" \"$f\"; rm -f \"$f.tmp\"; "
+      + "[ -s \"$f\" ] && echo \"$k\"; done",
+      "heliolune-tiles", root.tileCacheDir, Model.TILE_USER_AGENT, String(Model.TILE_MAX_BYTES)].concat(keys)
+    tileProc.running = true
+  }
+
+  onBasemapChanged: if (root.mapActive) tileDebounce.restart()
+
+  Timer {
+    id: tileDebounce
+    interval: 300
+    onTriggered: root.fetchTiles()
+  }
+
+  Process {
+    id: tileProc
+    stdout: SplitParser {
+      onRead: function(line) {
+        var key = String(line).trim()
+        if (!/^\d{1,2}\/\d{1,6}\/\d{1,6}$/.test(key)) return
+        var next = Object.assign({}, root.tileReady)
+        next[key] = true
+        root.tileReady = next
+      }
+    }
+    onExited: {
+      if (root.tilePending.length > 0) { root.tilePending = []; root.fetchTiles() }
+    }
+  }
+
+  // ---- Past radar on the Rain layer (RainViewer): the last ~2 hours in 10-minute
+  // frames, before the forecast on the same timeline. Only while the Map tab shows
+  // Rain; the frame list is re-read every 5 minutes, tiles kept 3 hours.
+  readonly property string radarCacheDir: (Quickshell.env("XDG_CACHE_HOME") || (Quickshell.env("HOME") + "/.cache")) + "/heliolune/radar"
+  property var radarFrames: []          // [{time (ms), id}] oldest first
+  property real radarFetchedAt: 0
+  property real radarNow: Date.now()
+  property var radarReady: ({})         // "<id>/z/x/y" -> true once on disk
+  property var radarPending: []
+  readonly property bool radarWanted: root.mapActive && root.mapLayer === "rain"
+  readonly property var radarTiles: root.mapBoxPx > 0
+    ? Model.mapTiles(root.activeLat, root.activeLon, root.mapRadiusKm * 2 * root.mapGrid / (root.mapGrid - 1), root.mapBoxPx, 512, 7)
+    : null
+  // The timeline starts at the oldest radar frame (about -2 h) on the Rain layer
+  readonly property real mapLo: root.mapLayer === "rain" && root.radarFrames.length > 0
+    ? Math.min(0, (root.radarFrames[0].time - root.radarNow) / 3600000) : 0
+  function mapPos(h) { return (h - root.mapLo) / (23 - root.mapLo) }
+  // The radar frame shown: the one nearest the chosen time, for times up to now
+  readonly property int radarIndex: {
+    if (root.mapLayer !== "rain" || root.radarFrames.length === 0 || root.mapT > 0) return -1
+    var target = root.radarNow + root.mapT * 3600000, best = 0
+    for (var i = 1; i < root.radarFrames.length; i++)
+      if (Math.abs(root.radarFrames[i].time - target) < Math.abs(root.radarFrames[best].time - target)) best = i
+    return best
+  }
+  onMapLoChanged: if (root.mapT < root.mapLo) root.mapT = root.mapLo
+
+  function fetchRadarIndex(force) {
+    if (!root.radarWanted || radarIndexProc.running) return
+    if (!force && Date.now() - root.radarFetchedAt < 300000) { root.fetchRadarTiles(); return }
+    radarIndexProc.running = true
+  }
+
+  function fetchRadarTiles() {
+    if (!root.radarWanted || !root.radarTiles || root.radarFrames.length === 0) return
+    var keys = []
+    for (var f = root.radarFrames.length - 1; f >= 0; f--) {          // newest first: Now shows soonest
+      for (var i = 0; i < root.radarTiles.tiles.length; i++) {
+        var key = Model.radarTileKey(root.radarFrames[f].id, root.radarTiles.tiles[i])
+        if (key !== "" && !root.radarReady[key]) keys.push(key)
+      }
+    }
+    if (keys.length === 0) return
+    if (radarTileProc.running) { root.radarPending = keys; return }
+    radarTileProc.command = ["sh", "-c",
+      "dir=$1; ua=$2; host=$3; shift 3; mkdir -p \"$dir\" || exit 1; "
+      + "find \"$dir\" -type f -name '*.png' -mmin +180 -delete 2>/dev/null; find \"$dir\" -mindepth 1 -type d -empty -delete 2>/dev/null; "
+      + "for k in \"$@\"; do "
+      + "case $k in *[!0-9a-f/]*|*//*|/*|*/) continue;; esac; "
+      + "f=\"$dir/$k.png\"; id=${k%%/*}; zxy=${k#*/}; "
+      + "if [ ! -s \"$f\" ]; then mkdir -p \"${f%/*}\" && curl -fsS --max-time 8 --max-filesize 1048576 -A \"$ua\" -o \"$f.tmp\" "
+      + "\"$host/v2/radar/$id/512/$zxy/2/1_1.png\" && mv -f \"$f.tmp\" \"$f\"; rm -f \"$f.tmp\"; fi; "
+      + "[ -s \"$f\" ] && echo \"$k\"; done",
+      "heliolune-radar", root.radarCacheDir, Model.TILE_USER_AGENT, Model.RADAR_HOST].concat(keys)
+    radarTileProc.running = true
+  }
+
+  onRadarWantedChanged: if (root.radarWanted) root.fetchRadarIndex(false)
+  onRadarTilesChanged: if (root.radarWanted) radarTileDebounce.restart()
+
+  Timer {
+    id: radarTileDebounce
+    interval: 300
+    onTriggered: root.fetchRadarTiles()
+  }
+  Timer {
+    interval: 300000
+    repeat: true
+    running: root.radarWanted
+    onTriggered: root.fetchRadarIndex(false)
+  }
+
+  Process {
+    id: radarIndexProc
+    command: ["curl", "-fsS", "--max-time", "6", "--max-filesize", String(Model.RADAR_INDEX_MAX_BYTES), "-A", Model.TILE_USER_AGENT, Model.RADAR_INDEX_URL]
+    stdout: StdioCollector {
+      onStreamFinished: {
+        var frames = Model.parseRadarFrames(text)
+        if (!frames) { console.warn("heliolune: radar index rejected"); return }
+        root.radarFrames = frames
+        root.radarFetchedAt = Date.now()
+        root.radarNow = Date.now()
+        root.fetchRadarTiles()
+      }
+    }
+  }
+
+  Process {
+    id: radarTileProc
+    stdout: SplitParser {
+      onRead: function(line) {
+        var key = String(line).trim()
+        if (!/^[0-9a-f]{6,40}\/\d{1,2}\/\d{1,6}\/\d{1,6}$/.test(key)) return
+        var next = Object.assign({}, root.radarReady)
+        next[key] = true
+        root.radarReady = next
+      }
+    }
+    onExited: if (root.radarPending.length > 0) { root.radarPending = []; root.fetchRadarTiles() }
   }
 
   // The weather hero is for the tracker view; settings use the compact title row
@@ -3434,11 +3740,11 @@ BarWidget {
 
       // Keyboard: ←/→ day (Shift: week), T today, S settings, W forecast, R refresh,
       // ↑/↓ PgUp/PgDn Home scroll, Esc close; in settings 1/2/3 pick the theme;
-      // in the forecast ←/→ or 1/2/3 pick Today / 3 Days / 7 Days; M the 7-day Moon.
+      // in the forecast ←/→ or 1-4 pick Today / 3 Days / 7 Days / Map; M the 7-day Moon.
       Keys.onPressed: function(event) {
         var shift = (event.modifiers & Qt.ShiftModifier) !== 0
         var k = event.key
-        var ranges = ["today", "3", "7"]
+        var ranges = ["today", "3", "7", "map"]
         if (k === Qt.Key_Escape) {
           if (root.editingCustomCoords) root.editingCustomCoords = false
           else if (root.weatherOpen) root.weatherOpen = false
@@ -3447,7 +3753,7 @@ BarWidget {
         } else if (root.weatherOpen && (k === Qt.Key_Left || k === Qt.Key_Right)) {
           var ri = ranges.indexOf(root.forecastRange) + (k === Qt.Key_Right ? 1 : -1)
           root.forecastRange = ranges[(ri + ranges.length) % ranges.length]
-        } else if (root.weatherOpen && k >= Qt.Key_1 && k <= Qt.Key_3) {
+        } else if (root.weatherOpen && k >= Qt.Key_1 && k <= Qt.Key_4) {
           root.forecastRange = ranges[k - Qt.Key_1]
         } else if (k === Qt.Key_W && root.weatherEnabled) {
           root.weatherOpen = !root.weatherOpen
@@ -4727,7 +5033,7 @@ Text {
             spacing: Style.space(4)
 
             Repeater {
-              model: ["today", "3", "7"]
+              model: ["today", "3", "7", "map"]
 
               ChoiceButton {
                 required property string modelData
@@ -5164,8 +5470,699 @@ Text {
             }
           }
 
+          // ---- Map: a 5 x 5 grid of forecast points around the location, out to
+          // the chosen radius; Temperature or Rain, any hour of the next 24
+          Rectangle {
+            visible: root.weatherEnabled && root.forecastRange === "map"
+            Layout.fillWidth: true
+            implicitHeight: mapCol.implicitHeight + Style.space(16) + root.cardFootPad
+            radius: trackerPopup.cardRadius
+            color: trackerPopup.cardSurfaceColor
+            border.width: 1
+            border.color: trackerPopup.cardBorderColor
+            OrnCardFrame {}
+
+            ColumnLayout {
+              id: mapCol
+              anchors.fill: parent
+              anchors.margins: Style.space(8)
+              anchors.bottomMargin: Style.space(8) + root.cardFootPad
+              spacing: Style.space(6)
+
+              RowLayout {
+                Layout.fillWidth: true
+                CardTitle {
+                  text: (root.decoStyle ? "◆ " : (root.nouveauStyle ? "❦ " : (root.atomicStyle ? "✦ " : ""))) + strings.t("map.title")
+                }
+                Item { Layout.fillWidth: true }
+                Text {
+                  textFormat: Text.PlainText
+                  text: root.mapHourText(root.mapHour)
+                  color: trackerPopup.popupSolarColor
+                  font.family: Style.font.family
+                  font.pixelSize: Style.font.bodySmall
+                  font.bold: true
+                }
+              }
+
+              // Radius and layer
+              RowLayout {
+                Layout.fillWidth: true
+                spacing: Style.space(4)
+
+                Repeater {
+                  model: ["s", "m", "l"]
+                  ChoiceButton {
+                    required property string modelData
+                    required property int index
+                    Layout.fillWidth: true
+                    Layout.preferredWidth: implicitWidth   // share by label length: nothing elides
+                    Layout.preferredHeight: Style.space(28)
+                    selected: root.mapRadius === modelData
+                    text: root.mapRadiusSteps[index] + " " + root.mapDistUnit
+                    onClicked: root.mapRadius = modelData
+                  }
+                }
+                Item { Layout.preferredWidth: Style.space(2) }
+                Repeater {
+                  model: ["temp", "rain", "wind"]
+                  ChoiceButton {
+                    required property string modelData
+                    Layout.fillWidth: true
+                    Layout.preferredWidth: implicitWidth
+                    Layout.preferredHeight: Style.space(28)
+                    selected: root.mapLayer === modelData
+                    text: strings.t("map.layer." + modelData)
+                    onClicked: root.mapLayer = modelData
+                  }
+                }
+              }
+
+              // Loading / failed
+              Text {
+                visible: !root.areaReady
+                Layout.fillWidth: true
+                Layout.topMargin: Style.space(6)
+                Layout.bottomMargin: Style.space(6)
+                horizontalAlignment: Text.AlignHCenter
+                textFormat: Text.PlainText
+                wrapMode: Text.WordWrap
+                text: root.areaFailed ? strings.t("map.failed") : strings.t("map.loading")
+                color: Color.foreground
+                opacity: 0.72
+                font.family: Style.font.family
+                font.pixelSize: Style.font.body
+                MouseArea {
+                  anchors.fill: parent
+                  enabled: root.areaFailed
+                  cursorShape: root.areaFailed ? Qt.PointingHandCursor : Qt.ArrowCursor
+                  onClicked: root.fetchArea(true)
+                }
+              }
+
+              // The map: north up, the location in the middle, rings at half and full radius
+              Item {
+                id: mapBox
+                visible: root.areaReady
+                Layout.fillWidth: true
+                Layout.preferredHeight: width
+                readonly property real cell: width / root.mapGrid
+                // Only a laid-out, visible box sets the tile zoom (no stray fetches mid-layout)
+                function reportWidth() { if (visible && width >= 200) root.mapBoxPx = Math.round(width) }
+                onWidthChanged: reportWidth()
+                onVisibleChanged: reportWidth()
+                Component.onCompleted: reportWidth()
+                clip: true
+
+                // The area itself: OpenStreetMap tiles, north up, muted to sit
+                // under the forecast (darker in dark themes)
+                Rectangle {
+                  anchors.fill: parent
+                  color: Qt.alpha(Color.foreground, 0.06)
+                }
+                Item {
+                  anchors.fill: parent
+                  layer.enabled: true
+                  layer.effect: MultiEffect {
+                    saturation: root.isLightPopup ? -0.35 : -0.55
+                    brightness: root.isLightPopup ? 0.0 : -0.42
+                    contrast: root.isLightPopup ? 0.0 : 0.1
+                  }
+                  Repeater {
+                    model: root.basemap ? root.basemap.tiles : []
+                    Image {
+                      required property var modelData
+                      readonly property string key: Model.tileKey(modelData)
+                      x: modelData.left
+                      y: modelData.top
+                      width: modelData.size
+                      height: modelData.size
+                      source: key !== "" && root.tileReady[key] ? "file://" + root.tileCacheDir + "/" + key + ".png" : ""
+                      asynchronous: true
+                      smooth: true
+                      mipmap: true
+                      opacity: status === Image.Ready ? 1 : 0
+                      Behavior on opacity { NumberAnimation { duration: Style.duration(200) } }
+                    }
+                  }
+                }
+
+                // Rain: a radar-style precipitation field, sampled on a small grid
+                // and scaled up with smoothing; it blends between hours as it plays
+                // Past radar: every frame's tiles load at once (so playback is smooth);
+                // only the frame nearest the chosen time shows
+                Repeater {
+                  model: root.mapLayer === "rain" ? root.radarFrames : []
+                  Item {
+                    id: radarFrame
+                    required property var modelData
+                    required property int index
+                    anchors.fill: parent
+                    visible: root.radarIndex === index
+                    Repeater {
+                      model: root.radarTiles ? root.radarTiles.tiles : []
+                      Image {
+                        required property var modelData
+                        readonly property string key: Model.radarTileKey(radarFrame.modelData.id, modelData)
+                        x: modelData.left
+                        y: modelData.top
+                        width: modelData.size
+                        height: modelData.size
+                        source: key !== "" && root.radarReady[key] ? "file://" + root.radarCacheDir + "/" + key + ".png" : ""
+                        asynchronous: true
+                        smooth: true
+                        opacity: 0.85
+                      }
+                    }
+                  }
+                }
+
+                Canvas {
+                  id: rainField
+                  readonly property int res: 40
+                  visible: root.mapLayer === "rain" && root.radarIndex < 0
+                  width: res; height: res
+                  transformOrigin: Item.TopLeft
+                  scale: mapBox.width / res
+                  smooth: true
+                  opacity: 0.85
+                  // Scale the small picture up through a smoothed layer: soft edges like radar
+                  layer.enabled: true
+                  layer.smooth: true
+                  readonly property real t: root.mapT
+                  readonly property var fields: root.mapFields
+                  onTChanged: if (visible) requestPaint()
+                  onFieldsChanged: requestPaint()
+                  onVisibleChanged: if (visible) requestPaint()
+                  onPaint: {
+                    var ctx = getContext("2d")
+                    ctx.clearRect(0, 0, res, res)
+                    if (fields.length === 0) return
+                    // (plain fills: Qt's putImageData does not reach the canvas here)
+                    var n = root.mapGrid
+                    for (var j = 0; j < res; j++) {
+                      var gy = (j + 0.5) / res * n - 0.5
+                      for (var i = 0; i < res; i++) {
+                        var gx = (i + 0.5) / res * n - 0.5
+                        var c = Model.radarColor(root.mapFieldAt("p", gx, gy), root.mapFieldAt("s", gx, gy))
+                        if (c[3] <= 0) continue
+                        ctx.fillStyle = "rgba(" + Math.round(c[0]) + "," + Math.round(c[1]) + "," + Math.round(c[2]) + "," + (c[3] / 255).toFixed(3) + ")"
+                        ctx.fillRect(i, j, 1, 1)
+                      }
+                    }
+                  }
+                }
+
+                // Wind streams: light streaks drifting along the wind, with fading
+                // trails; full strength on Wind, faint over the rain
+                Canvas {
+                  id: streams
+                  anchors.fill: parent
+                  visible: root.mapLayer === "wind" || root.mapLayer === "rain"
+                  readonly property bool running: visible && root.mapActive && root.areaReady
+                  readonly property int count: root.mapLayer === "wind" ? 340 : 150
+                  property var parts: []
+                  property bool wipe: true
+                  readonly property color slow: Color.foreground
+                  readonly property color fast: trackerPopup.popupSolarColor
+                  onCountChanged: { parts = []; wipe = true }
+                  onWidthChanged: { parts = []; wipe = true }
+                  onVisibleChanged: { parts = []; wipe = true }
+
+                  function spawn(p) {
+                    p.x = Math.random() * width
+                    p.y = Math.random() * height
+                    p.age = 0
+                    p.life = 50 + Math.random() * 70
+                    return p
+                  }
+
+                  Timer {
+                    interval: 33
+                    repeat: true
+                    running: streams.running
+                    onTriggered: streams.requestPaint()
+                  }
+
+                  onPaint: {
+                    var ctx = getContext("2d")
+                    if (wipe) { ctx.reset(); wipe = false }
+                    // Fade what was drawn, so each streak leaves a short trail
+                    ctx.globalCompositeOperation = "destination-out"
+                    ctx.fillStyle = "rgba(0, 0, 0, 0.065)"
+                    ctx.fillRect(0, 0, width, height)
+                    ctx.globalCompositeOperation = "source-over"
+                    while (parts.length < count) parts.push(spawn({}))
+                    var n = root.mapGrid, cell = width / n
+                    var strong = root.mapLayer === "wind"
+                    ctx.lineWidth = strong ? 2.2 : 1.4
+                    ctx.lineCap = "round"
+                    for (var i = 0; i < parts.length; i++) {
+                      var p = parts[i]
+                      var gx = p.x / cell - 0.5, gy = p.y / cell - 0.5
+                      var u = root.mapFieldAt("u", gx, gy), v = root.mapFieldAt("v", gx, gy)
+                      var kmh = Math.sqrt(u * u + v * v)
+                      p.age++
+                      if (kmh < 1 || p.age > p.life) { spawn(p); continue }
+                      var step = Math.min(4, 0.7 + 0.07 * kmh) * (width / 500)
+                      var nx = p.x + u / kmh * step, ny = p.y + v / kmh * step
+                      var k = Math.min(1, kmh / 40)
+                      var c = Qt.rgba(slow.r + (fast.r - slow.r) * k, slow.g + (fast.g - slow.g) * k, slow.b + (fast.b - slow.b) * k,
+                                      (strong ? 0.95 : 0.55) * Math.min(1, p.age / 8, (p.life - p.age) / 8))
+                      ctx.strokeStyle = c
+                      ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(nx, ny); ctx.stroke()
+                      p.x = nx; p.y = ny
+                      if (nx < 0 || ny < 0 || nx > width || ny > height) spawn(p)
+                    }
+                  }
+                }
+
+                // Rain key, bottom-left
+                Rectangle {
+                  visible: root.mapLayer === "rain"
+                  anchors.left: parent.left
+                  anchors.bottom: parent.bottom
+                  width: rainKey.implicitWidth + Style.space(8)
+                  height: rainKey.implicitHeight + Style.space(4)
+                  color: Qt.alpha(trackerPopup.cardSurfaceColor, 0.8)
+                  Row {
+                    id: rainKey
+                    anchors.centerIn: parent
+                    spacing: Style.space(3)
+                    Text {
+                      textFormat: Text.PlainText
+                      text: strings.t("map.light")
+                      color: Color.foreground
+                      font.family: Style.font.family
+                      font.pixelSize: Style.font.caption - 1
+                    }
+                    Repeater {
+                      model: [0.15, 1, 3, 8, 16]
+                      Rectangle {
+                        required property real modelData
+                        readonly property var c: Model.radarColor(modelData, 0)
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: Style.space(10); height: Style.space(8)
+                        color: Qt.rgba(c[0] / 255, c[1] / 255, c[2] / 255, 1)
+                      }
+                    }
+                    Text {
+                      textFormat: Text.PlainText
+                      text: strings.t("map.heavy")
+                      color: Color.foreground
+                      font.family: Style.font.family
+                      font.pixelSize: Style.font.caption - 1
+                    }
+                    Rectangle {
+                      readonly property var c: Model.radarColor(1, 1)
+                      anchors.verticalCenter: parent.verticalCenter
+                      width: Style.space(10); height: Style.space(8)
+                      color: Qt.rgba(c[0] / 255, c[1] / 255, c[2] / 255, 1)
+                    }
+                    Text {
+                      textFormat: Text.PlainText
+                      text: strings.t("map.snow")
+                      color: Color.foreground
+                      font.family: Style.font.family
+                      font.pixelSize: Style.font.caption - 1
+                    }
+                  }
+                }
+
+                // Fills
+                Repeater {
+                  model: root.mapCells
+                  Rectangle {
+                    required property var modelData
+                    required property int index
+                    x: (index % root.mapGrid) * mapBox.cell
+                    y: Math.floor(index / root.mapGrid) * mapBox.cell
+                    width: mapBox.cell
+                    height: mapBox.cell
+                    visible: root.mapLayer === "temp"
+                    color: !modelData ? "transparent"
+                      : (root.mapLayer === "wind"
+                        ? Qt.alpha(trackerPopup.popupLunarColor, 0.5 * Math.min(1, (modelData.windKmh || 0) / 50))
+                      : root.mapLayer === "rain"
+                        ? Qt.alpha(trackerPopup.popupBlueHourColor, 0.55 * (modelData.pop === null ? 0 : modelData.pop / 100))
+                        : Qt.alpha(root.mapMix(trackerPopup.popupLunarColor, trackerPopup.popupSolarColor,
+                            (modelData.tempC - root.mapTempMin) / Math.max(1, root.mapTempMax - root.mapTempMin)), 0.22))
+                    Behavior on color { ColorAnimation { duration: Style.duration(160) } }
+                  }
+                }
+
+                // Range rings and north
+                Canvas {
+                  id: mapRings
+                  anchors.fill: parent
+                  readonly property color ink: Color.foreground
+                  readonly property string ringLabel: root.mapRadiusValue + " " + root.mapDistUnit
+                  onInkChanged: requestPaint()
+                  onRingLabelChanged: requestPaint()
+                  onWidthChanged: requestPaint()
+                  onPaint: {
+                    var ctx = getContext("2d")
+                    ctx.reset()
+                    var c = width / 2
+                    var r = (width - mapBox.cell) / 2   // centre to the outer points
+                    ctx.strokeStyle = Qt.alpha(ink, 0.35)
+                    ctx.lineWidth = 1
+                    ctx.setLineDash([3, 4])
+                    for (var k = 1; k <= 2; k++) {
+                      ctx.beginPath(); ctx.arc(c, c, r * k / 2, 0, Math.PI * 2); ctx.stroke()
+                    }
+                    ctx.setLineDash([])
+                    ctx.font = root.canvasFont(Style.font.caption)
+                    ctx.fillStyle = ink
+                    ctx.textAlign = "left"
+                    ctx.textBaseline = "bottom"
+                    ctx.fillText(ringLabel, c + r * 0.72 + 3, c - r * 0.72)
+                    // North
+                    ctx.textAlign = "center"
+                    ctx.textBaseline = "top"
+                    ctx.font = root.canvasFont(Style.font.caption + 1)
+                    ctx.fillStyle = ink
+                    ctx.fillText("N", c, 2)
+                  }
+                }
+
+                // Icons, values; the location outlined, the selected point in bold
+                Repeater {
+                  model: root.mapCells
+                  Item {
+                    id: mapCell
+                    required property var modelData
+                    required property int index
+                    readonly property bool centre: index === Math.floor(root.mapGrid * root.mapGrid / 2)
+                    x: (index % root.mapGrid) * mapBox.cell
+                    y: Math.floor(index / root.mapGrid) * mapBox.cell
+                    width: mapBox.cell
+                    height: mapBox.cell
+
+                    Rectangle {
+                      anchors.fill: parent
+                      anchors.margins: 1
+                      color: "transparent"
+                      radius: Style.space(4)
+                      border.width: root.mapSel === mapCell.index ? 2 : (mapCell.centre ? 1 : 0)
+                      border.color: Qt.alpha(trackerPopup.popupSolarColor, root.mapSel === mapCell.index ? 1.0 : 0.6)
+                    }
+                    SkyIcon {
+                      visible: mapCell.modelData !== null && root.mapLayer === "temp"
+                      anchors.horizontalCenter: parent.horizontalCenter
+                      y: mapCell.height * 0.16
+                      width: Math.round(mapCell.width * 0.32)
+                      height: width
+                      kind: mapCell.modelData ? mapCell.modelData.kind : "clear"
+                    }
+                    Text {
+                      visible: root.mapLayer === "temp"
+                      anchors.horizontalCenter: parent.horizontalCenter
+                      anchors.bottom: parent.bottom
+                      anchors.bottomMargin: mapCell.height * (mapCell.centre ? 0.06 : 0.1)
+                      textFormat: Text.PlainText
+                      text: !mapCell.modelData ? "–"
+                        : root.mapLayer === "wind"
+                          ? (mapCell.modelData.windKmh === null ? "–"
+                            : (mapCell.modelData.windKmh < 2 ? strings.t("map.calm") : Model.formatWind(mapCell.modelData.windKmh, root.windUnit)))
+                        : (root.mapLayer === "rain"
+                          ? (mapCell.modelData.pop === null ? "–" : Math.round(mapCell.modelData.pop) + "%")
+                          : root.tempShort(mapCell.modelData.tempC))
+                      color: Color.foreground
+                      style: Text.Outline
+                      styleColor: Qt.alpha(trackerPopup.cardSurfaceColor, 0.9)
+                      font.family: Style.font.family
+                      font.pixelSize: Style.font.bodySmall
+                      font.bold: true
+                    }
+                    MouseArea {
+                      anchors.fill: parent
+                      hoverEnabled: true
+                      cursorShape: Qt.PointingHandCursor
+                      onEntered: root.mapSel = mapCell.index
+                      onClicked: root.mapSel = mapCell.index
+                    }
+                  }
+                }
+
+                // RainViewer credit while its radar is on screen
+                Rectangle {
+                  visible: root.radarIndex >= 0
+                  anchors.right: parent.right
+                  anchors.bottom: osmBadge.top
+                  width: rvCredit.implicitWidth + Style.space(8)
+                  height: rvCredit.implicitHeight + Style.space(2)
+                  color: Qt.alpha(trackerPopup.cardSurfaceColor, 0.8)
+                  Text {
+                    id: rvCredit
+                    anchors.centerIn: parent
+                    textFormat: Text.PlainText
+                    text: "Radar: RainViewer"
+                    color: Color.foreground
+                    opacity: 0.85
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.caption - 1
+                  }
+                  MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: Qt.openUrlExternally("https://www.rainviewer.com/")
+                  }
+                }
+
+                // OpenStreetMap attribution, on the map as its tile policy asks
+                Rectangle {
+                  id: osmBadge
+                  anchors.right: parent.right
+                  anchors.bottom: parent.bottom
+                  width: osmCredit.implicitWidth + Style.space(8)
+                  height: osmCredit.implicitHeight + Style.space(2)
+                  color: Qt.alpha(trackerPopup.cardSurfaceColor, 0.8)
+                  Text {
+                    id: osmCredit
+                    anchors.centerIn: parent
+                    textFormat: Text.PlainText
+                    text: "© OpenStreetMap"
+                    color: Color.foreground
+                    opacity: 0.85
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.caption - 1
+                  }
+                  MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: Qt.openUrlExternally("https://www.openstreetmap.org/copyright")
+                  }
+                }
+              }
+
+              // The selected point
+              RowLayout {
+                visible: root.areaReady
+                Layout.fillWidth: true
+                spacing: Style.space(6)
+                readonly property var sel: root.mapCells[root.mapSel] || null
+
+                Text {
+                  textFormat: Text.PlainText
+                  text: root.mapDistanceText(root.mapSel)
+                  color: trackerPopup.popupSolarColor
+                  font.family: Style.font.family
+                  font.pixelSize: Style.font.bodySmall
+                  font.bold: true
+                }
+                Text {
+                  Layout.fillWidth: true
+                  textFormat: Text.PlainText
+                  elide: Text.ElideRight
+                  text: parent.sel ? strings.t("weather." + parent.sel.key) : ""
+                  color: Color.foreground
+                  opacity: 0.8
+                  font.family: Style.font.family
+                  font.pixelSize: Style.font.bodySmall
+                }
+                Text {
+                  textFormat: Text.PlainText
+                  text: !parent.sel || parent.sel.windKmh === null ? ""
+                    : (parent.sel.windKmh < 2 || parent.sel.windDir === null ? strings.t("map.calm")
+                      : strings.t("map.windFrom").arg(Model.formatWind(parent.sel.windKmh, root.windUnit)).arg(Model.compassFromDegrees(parent.sel.windDir)))
+                  color: Color.foreground
+                  opacity: 0.8
+                  font.family: Style.font.family
+                  font.pixelSize: Style.font.caption
+                }
+                Text {
+                  textFormat: Text.PlainText
+                  text: parent.sel && parent.sel.precipMm !== null && parent.sel.precipMm >= 0.1
+                    ? strings.t("map.rainAmount").arg(parent.sel.precipMm < 1 ? parent.sel.precipMm.toFixed(1) : Math.round(parent.sel.precipMm))
+                      + (parent.sel.pop !== null ? " · " + Math.round(parent.sel.pop) + "%" : "")
+                    : parent.sel && parent.sel.pop !== null ? strings.t("forecast.rain").arg(Math.round(parent.sel.pop) + "%") : ""
+                  color: trackerPopup.popupBlueHourColor
+                  font.family: Style.font.family
+                  font.pixelSize: Style.font.caption
+                }
+                Text {
+                  textFormat: Text.PlainText
+                  text: parent.sel ? root.tempShort(parent.sel.tempC) : ""
+                  color: Color.foreground
+                  font.family: Style.font.family
+                  font.pixelSize: Style.font.bodySmall
+                  font.bold: true
+                }
+              }
+
+              // Hour scrubber: play, drag, Now
+              RowLayout {
+                visible: root.areaReady
+                Layout.fillWidth: true
+                spacing: Style.space(8)
+
+                ChoiceButton {
+                  id: mapPlayButton
+                  Layout.preferredWidth: Style.space(28)
+                  Layout.preferredHeight: Style.space(28)
+                  selected: root.mapPlaying
+                  text: root.mapPlaying ? "󰏤" : "󰐊"
+                  onClicked: root.mapPlaying = !root.mapPlaying
+                }
+
+                Item {
+                  id: mapScrub
+                  Layout.fillWidth: true
+                  Layout.preferredHeight: Style.space(28)
+                  readonly property real t: root.mapPos(root.mapT)
+
+                  // When rain comes: the heaviest precipitation on the map, hour by hour
+                  Repeater {
+                    model: root.mapPrecipByHour
+                    Rectangle {
+                      required property real modelData
+                      required property int index
+                      visible: modelData >= 0.05
+                      readonly property var c: Model.radarColor(Math.max(0.15, modelData), 0)
+                      x: mapTrack.width * root.mapPos(index) - width / 2
+                      anchors.bottom: mapTrack.top
+                      anchors.bottomMargin: 1
+                      width: Math.max(2, mapTrack.width / 24 - 2)
+                      height: Math.max(2, Math.min(1, Math.log(1 + modelData) / Math.log(17)) * Style.space(10))
+                      radius: 1
+                      color: Qt.rgba(c[0] / 255, c[1] / 255, c[2] / 255, 1)
+                    }
+                  }
+
+                  Rectangle {
+                    id: mapTrack
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    height: Style.space(6)
+                    radius: height / 2
+                    color: Qt.alpha(Color.foreground, root.isLightPopup ? 0.08 : 0.1)
+                  }
+                  // The radar stretch (before Now), in the radar's blue
+                  Rectangle {
+                    visible: root.mapLo < 0
+                    anchors.left: mapTrack.left
+                    anchors.verticalCenter: mapTrack.verticalCenter
+                    height: mapTrack.height + 4
+                    width: mapTrack.width * root.mapPos(0)
+                    radius: height / 2
+                    color: Qt.rgba(54 / 255, 186 / 255, 229 / 255, 0.45)
+                  }
+                  Rectangle {
+                    anchors.left: mapTrack.left
+                    anchors.verticalCenter: mapTrack.verticalCenter
+                    height: mapTrack.height
+                    width: Math.max(height, mapTrack.width * mapScrub.t)
+                    radius: height / 2
+                    color: trackerPopup.popupLunarColor
+                  }
+                  Repeater {
+                    model: root.mapLo < 0 ? [root.mapLo, 0, 6, 12, 18, 23] : [0, 6, 12, 18, 23]
+                    Rectangle {
+                      required property real modelData
+                      x: Math.max(0, Math.min(mapTrack.width - width, mapTrack.width * root.mapPos(modelData) - width / 2))
+                      anchors.verticalCenter: mapTrack.verticalCenter
+                      width: 2; height: Style.space(12)
+                      radius: 1
+                      color: trackerPopup.popupLunarColor
+                      opacity: 0.7
+                    }
+                  }
+                  Rectangle {
+                    x: mapTrack.width * mapScrub.t - width / 2
+                    anchors.verticalCenter: mapTrack.verticalCenter
+                    width: Style.space(14); height: Style.space(14)
+                    radius: width / 2
+                    color: trackerPopup.popupLunarLitColor
+                    border.width: 2
+                    border.color: trackerPopup.popupLunarColor
+                  }
+                  MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    function seek(mx) { root.mapT = Math.max(root.mapLo, Math.min(23, root.mapLo + mx / width * (23 - root.mapLo))) }
+                    onPressed: function(mouse) { root.mapPlaying = false; seek(mouse.x) }
+                    onPositionChanged: function(mouse) { if (pressed) seek(mouse.x) }
+                    onWheel: function(wheel) {
+                      root.mapPlaying = false
+                      root.mapT = Math.max(root.mapLo, Math.min(23, (root.mapT < 0 ? root.mapT : root.mapHour) + (wheel.angleDelta.y < 0 ? 1 : -1) * (root.mapT < 0 || (root.mapT === 0 && wheel.angleDelta.y > 0) ? 1 / 6 : 1)))
+                    }
+                  }
+                }
+
+                ChoiceButton {
+                  id: mapNowButton
+                  Layout.preferredWidth: Style.space(52)
+                  Layout.preferredHeight: Style.space(28)
+                  enabled: root.mapT !== 0 || root.mapPlaying
+                  opacity: enabled ? 1.0 : 0.45
+                  text: strings.t("lapse.now")
+                  onClicked: { root.mapPlaying = false; root.mapT = 0 }
+                }
+              }
+
+              // Tick labels under the track
+              Item {
+                visible: root.areaReady
+                Layout.fillWidth: true
+                Layout.topMargin: -Style.space(6)
+                Layout.leftMargin: mapPlayButton.width + Style.space(8)
+                Layout.rightMargin: mapNowButton.width + Style.space(8)
+                implicitHeight: Style.font.caption + 4
+
+                Repeater {
+                  model: [0, 6, 12, 18, 23]
+                  Text {
+                    required property real modelData
+                    x: Math.max(0, Math.min(parent.width - implicitWidth, parent.width * root.mapPos(modelData) - implicitWidth / 2))
+                    textFormat: Text.PlainText
+                    text: modelData === 0 ? strings.t("forecast.now") : (modelData < 0 ? "−" + Math.round(-modelData) + "h" : "+" + modelData + "h")
+                    color: Color.foreground
+                    opacity: 0.7
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.caption
+                  }
+                }
+              }
+            }
+          }
+
           Text {
-            visible: root.forecastReady
+            visible: root.areaReady && root.forecastRange === "map"
+            Layout.alignment: Qt.AlignHCenter
+            textFormat: Text.PlainText
+            horizontalAlignment: Text.AlignHCenter
+            text: strings.t("map.source").arg(Math.round(root.mapRadiusValue / 2)).arg(root.mapDistUnit)
+              .arg(Model.formatTime(new Date(root.areaFetchedAt), root.timeFormatMode, root.formatLocale))
+            color: Color.foreground
+            opacity: 0.5
+            font.family: Style.font.family
+            font.pixelSize: Style.font.caption
+          }
+
+          Text {
+            visible: root.forecastReady && root.forecastRange !== "map"
             Layout.alignment: Qt.AlignHCenter
             textFormat: Text.PlainText
             text: strings.t("forecast.source").arg(Model.formatTime(new Date(root.weatherFetchedAt), root.timeFormatMode, root.formatLocale))
