@@ -3465,17 +3465,8 @@ BarWidget {
                 font.italic: root.atomicStyle
               }
 
-              RowLayout {
+              HeaderButtons {
                 Layout.alignment: Qt.AlignRight
-                spacing: Style.space(6)
-                Item {
-                  Layout.alignment: Qt.AlignVCenter
-                  visible: !root.settingsOpen && !root.weatherOpen && !root.moonOpen   // same rule as DaylightBadge
-                  implicitWidth: heroBadge.implicitWidth
-                  implicitHeight: heroBadge.implicitHeight
-                  DaylightBadge { id: heroBadge }
-                }
-                HeaderButtons {}
               }
             }
           }
@@ -3490,9 +3481,9 @@ Text {
               readonly property bool deco: root.decoStyle
               text: root.settingsOpen ? strings.t("section.settings") : (root.weatherOpen ? strings.t("section.forecast") : (root.moonOpen ? strings.t("section.moon") : strings.t("plugin.title")))
               elide: Text.ElideRight
-              Layout.maximumWidth: implicitWidth
+              // Its full width first; the spacer after it takes what is left
+              Layout.preferredWidth: implicitWidth
               Layout.minimumWidth: Math.min(implicitWidth, Style.space(60))
-              Layout.fillWidth: true
               color: root.ornate ? root.ornMetal : Color.foreground
               font.family: Style.font.family
               font.pixelSize: Style.font.body
@@ -3501,7 +3492,6 @@ Text {
               font.letterSpacing: deco ? 3.0 : (root.nouveauStyle ? 1.2 : (root.atomicStyle ? 0.8 : 0))
               font.italic: root.atomicStyle
             }
-            DaylightBadge {}
             Item { Layout.fillWidth: true }
             HeaderButtons {}
           }
@@ -3571,17 +3561,24 @@ Text {
               Layout.preferredHeight: infoGrid.iconWidth
               kind: "calendar"
             }
-            Text {
+            // Date and week, with the daylight badge at the end of the line (the
+            // header row has no room for it beside four buttons)
+            RowLayout {
               Layout.fillWidth: true
-              textFormat: Text.PlainText
-              text: root.currentDate.toLocaleDateString(root.formatLocale, "ddd, MMM d, yyyy")
-                + " · " + strings.t("header.week").arg(Model.weekNumber(root.currentDate, root.weekScheme).week)
-              color: infoGrid.dateColor
-              opacity: root.browsing ? 1.0 : 0.62
-              font.family: Style.font.family
-              font.pixelSize: infoGrid.textSize
-              font.bold: root.browsing
-              elide: Text.ElideRight
+              spacing: Style.space(6)
+              Text {
+                Layout.fillWidth: true
+                textFormat: Text.PlainText
+                text: root.currentDate.toLocaleDateString(root.formatLocale, "ddd, MMM d, yyyy")
+                  + " · " + strings.t("header.week").arg(Model.weekNumber(root.currentDate, root.weekScheme).week)
+                color: infoGrid.dateColor
+                opacity: root.browsing ? 1.0 : 0.62
+                font.family: Style.font.family
+                font.pixelSize: infoGrid.textSize
+                font.bold: root.browsing
+                elide: Text.ElideRight
+              }
+              DaylightBadge {}
             }
           }
         }
