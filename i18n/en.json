@@ -134,6 +134,5 @@
   "moon.event.first": "1st Qtr",
   "moon.event.full": "Full",
   "moon.event.last": "Last Qtr",
-  "moon.bestNow": "Visible now, until %1",
-  "moon.keyPhases": "Main phase: New, 1st Qtr, Full, Last Qtr"
+  "moon.bestNow": "Visible now, until %1"
 }

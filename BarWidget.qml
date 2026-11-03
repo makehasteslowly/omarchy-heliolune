@@ -4001,43 +4001,6 @@ Text {
                   }
                 }
               }
-
-              // Key: what the outline and the fill mean
-              RowLayout {
-                Layout.alignment: Qt.AlignHCenter
-                spacing: Style.space(6)
-                Rectangle {
-                  implicitWidth: Style.space(14); implicitHeight: Style.space(10)
-                  radius: 2
-                  color: "transparent"
-                  border.width: 2
-                  border.color: trackerPopup.popupSolarColor
-                }
-                Text {
-                  textFormat: Text.PlainText
-                  text: strings.t("view.today")
-                  color: Color.foreground
-                  opacity: 0.8
-                  font.family: Style.font.family
-                  font.pixelSize: Style.font.caption
-                }
-                Item { implicitWidth: Style.space(8) }
-                Rectangle {
-                  implicitWidth: Style.space(14); implicitHeight: Style.space(10)
-                  radius: 2
-                  color: Qt.alpha(trackerPopup.popupLunarColor, root.isLightPopup ? 0.16 : 0.22)
-                  border.width: 1
-                  border.color: root.ornate ? Qt.alpha(root.ornMetal, 0.8) : Qt.alpha(trackerPopup.popupLunarColor, 0.5)
-                }
-                Text {
-                  textFormat: Text.PlainText
-                  text: strings.t("moon.keyPhases")
-                  color: Color.foreground
-                  opacity: 0.8
-                  font.family: Style.font.family
-                  font.pixelSize: Style.font.caption
-                }
-              }
             }
           }
 
