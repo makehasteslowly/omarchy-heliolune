@@ -5,7 +5,6 @@
   "section.skyHorizon": "24-Hour Sky & Horizon Path",
   "section.solarCycle": "Solar Cycle",
   "section.lunarPhase": "Lunar Phase",
-  "section.upcomingMoon": "7-Day Lunar Forecast",
   "section.settings": "Settings",
   "solar.blueHourAm": "Blue Hour AM",
   "solar.sunrise": "Sunrise",
@@ -67,7 +66,6 @@
   "weather.thunderHail": "Thunderstorm with hail",
   "header.week": "Week %1",
   "weather.feels": "Feels %1",
-  "settings.barWeather": "Bar Weather",
   "lunar.moonrise": "Moonrise",
   "lunar.moonset": "Moonset",
   "lunar.inSign": "Moon in %1",
@@ -83,7 +81,6 @@
   "settings.card.sky": "Sky",
   "settings.card.sun": "Sun",
   "settings.card.moon": "Moon",
-  "settings.card.forecast": "7 Days",
   "settings.card.year": "Year",
   "settings.week": "Week",
   "settings.seasons": "Seasons",
@@ -118,10 +115,8 @@
   "moon.range.today": "Today",
   "moon.range.7": "7 Days",
   "moon.range.30": "30 Days",
-  "moon.today": "Today's Moon",
   "moon.next24": "Next 24 Hours",
   "moon.next30": "Next 30 Days",
-  "moon.litAge": "%1% lit · %2 · %3 old",
   "moon.best": "Best viewing %1 – %2",
   "moon.clouded": "Up in a dark sky %1 – %2, but clouds or rain may hide it",
   "moon.notVisible": "Not up in a dark sky in the next 24 hours",
@@ -137,5 +132,6 @@
   "settings.barShow": "Show",
   "settings.barDetails": "Details",
   "settings.barIcons": "Icons only",
-  "settings.barValues": "With values"
+  "settings.barValues": "With values",
+  "section.sun": "Sun"
 }

@@ -275,7 +275,7 @@
         "key": "cardSky",
         "type": "enum",
         "label": "Sky Card",
-        "description": "Show the 24-hour sky path card in the popup.",
+        "description": "Show the 24-hour sky path card in the Sun view.",
         "defaultValue": "on",
         "options": [
           {
@@ -292,7 +292,7 @@
         "key": "cardSun",
         "type": "enum",
         "label": "Sun Card",
-        "description": "Show the sun card in the popup.",
+        "description": "Show the Sun card (phase, day length and the day's timetable) in the Sun view.",
         "defaultValue": "on",
         "options": [
           {
@@ -309,24 +309,7 @@
         "key": "cardMoon",
         "type": "enum",
         "label": "Moon Card",
-        "description": "Show the moon card in the popup.",
-        "defaultValue": "on",
-        "options": [
-          {
-            "value": "on",
-            "label": "Shown"
-          },
-          {
-            "value": "off",
-            "label": "Hidden"
-          }
-        ]
-      },
-      {
-        "key": "cardForecast",
-        "type": "enum",
-        "label": "7-Day Moon Card",
-        "description": "Show the 7-day lunar phase strip in the popup.",
+        "description": "Show the Moon card (altitude, moonrise and moonset, distance, next quarter, full and new Moon) in the Moon view's Today tab.",
         "defaultValue": "on",
         "options": [
           {
@@ -343,7 +326,7 @@
         "key": "cardYear",
         "type": "enum",
         "label": "Year Card",
-        "description": "Show the sun's yearly path and the next equinox/solstice countdown in the popup.",
+        "description": "Show the Sun's yearly path and the next equinox/solstice countdown in the Sun view.",
         "defaultValue": "on",
         "options": [
           {

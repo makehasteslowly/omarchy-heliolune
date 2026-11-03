@@ -42,13 +42,17 @@ With weather on, the capsule also shows the current conditions as a small themed
 
 ![The Heliolune popup in the default Atomic theme](docs/screenshots/popup.png)
 
-- **Header:** the **current weather** up top: a large drawn icon for the conditions, the temperature, the sky, and feels-like, wind and humidity (optional, see [Privacy](#privacy--network)). Below it, your city and coordinates, the **date and ISO week number** (e.g. `Mon, Nov 2, 2026 · Week 45`), and the daylight gained or lost since yesterday.
-- **24-hour sky path:** the Sun's and Moon's altitude through the day against your horizon, and where they are right now.
-- **The Sun:** sky phase (from astronomical night through blue hour, golden hour and solar noon), altitude and compass bearing, day length, and the day's timetable: blue hour, sunrise, golden hour, solar noon, sunset, blue hour.
-- **The Moon:** phase, illumination, waxing or waning, age, **moonrise and moonset**, altitude, distance, ecliptic sign, and countdowns to the next quarter, full and new Moon.
-- **7-day Moon forecast.** Click the moon on the bar for the Moon view: **Today** (the Moon now, moonrise and moonset, and when it is up in a dark sky, hour by hour, with the weather's clouds taken into account), **7 Days** (a row per day: phase, moonrise, illumination) and **30 Days** (a month of Moons with the new, quarter and full Moons marked).
-- **Weather forecast:** click the weather (on the bar or in the popup header) for **Today** (the next 24 hours, every three hours, with chance of rain), **3 Days** (a card per day: conditions, high and low, rain chance, wind) or **7 Days** (one row per day with the week's temperature range). Any card except the header can be hidden in settings.
-- **The Sun's yearly path:** the analemma, then the countdown to the next equinox or solstice with the current season's progress (*Autumn · day 41 of 90*). Hemisphere-aware: in Sydney, June brings the Winter Solstice.
+Each item on the bar opens its own view; the header buttons and **W** / **M** switch between them.
+
+- **Header (every view):** the **current weather**: a large drawn icon for the conditions, the temperature, the sky, and feels-like, wind and humidity (optional, see [Privacy](#privacy--network)). Below it, your city and coordinates, the **date and week number** (e.g. `Mon, Nov 2, 2026 · Week 45`), and the daylight gained or lost since yesterday. During severe weather an alert banner sits under it.
+- **Sun** (click the sun, or anywhere else on the capsule):
+  - **24-hour sky path:** the Sun's and Moon's altitude through the day against your horizon, and where they are right now.
+  - **The Sun:** sky phase (from astronomical night through blue hour, golden hour and solar noon), altitude and compass bearing, day length, and the day's timetable: blue hour, sunrise, golden hour, solar noon, sunset, blue hour.
+  - **The Sun's yearly path:** the analemma, then the countdown to the next equinox or solstice with the current season's progress (*Autumn · day 41 of 90*). Hemisphere-aware: in Sydney, June brings the Winter Solstice.
+- **Moon** (click the moon): **Today** (the Moon card: phase, illumination, age, moonrise and moonset, altitude, distance, ecliptic sign, the next quarter, full and new Moon; then when it is up in a dark sky, hour by hour, with the weather's clouds taken into account), **7 Days** (a row per day: phase, moonrise, illumination) and **30 Days** (a month of Moons with the new, quarter and full Moons marked).
+- **Weather** (click the weather): **Today** (the next 24 hours, every three hours, with chance of rain), **3 Days** (conditions, high and low, rain chance, wind per day) or **7 Days** (one row per day with the week's temperature range).
+
+Any card can be hidden in settings, under **Popup Cards**.
 
 ### Time travel
 
@@ -117,12 +121,12 @@ omarchy plugin remove makehasteslowly.heliolune
 
 | | |
 |---|---|
-| **Left-click** | Open or close the popup; on the weather, open the forecast; on the moon, open the 7-day Moon |
+| **Left-click** | On the sun: the Sun view; on the moon: the Moon view; on the weather: the forecast (click again to close) |
 | **Right-click** | Open settings |
 | **Middle-click** | Refresh location, weather and astronomy |
 | **← / →** | Previous / next day (Shift: a week) |
 | **T** | Back to today |
-| **S** / **W** / **M** / **R** | Settings / weather forecast / 7-day Moon / refresh |
+| **S** / **W** / **M** / **R** | Settings / weather forecast / Moon view / refresh |
 | **↑ ↓ PgUp PgDn Home** | Scroll |
 | **Esc** | Close (from the forecast: back to the tracker) |
 | **1 / 2 / 3** (in settings) | Art Nouveau / Art Deco / Atomic |
@@ -136,7 +140,7 @@ omarchy-shell makehasteslowly.heliolune toggle   # also: open, close, refresh
 omarchy-shell makehasteslowly.heliolune stepDays 7   # time travel: +/- n days
 omarchy-shell makehasteslowly.heliolune today
 omarchy-shell makehasteslowly.heliolune forecast   # open the weather forecast
-omarchy-shell makehasteslowly.heliolune moon       # open the 7-day Moon
+omarchy-shell makehasteslowly.heliolune moon       # open the Moon view
 ```
 
 ---
@@ -157,7 +161,7 @@ Everything is in the right-click panel. The same keys can be set on the widget's
 | `windUnit` | `auto` (mph with °F, km/h otherwise) · `kmh` · `mph` · `ms` | `auto` |
 | `weatherRefresh` | `15` · `30` · `60` minutes | `30` |
 | `weatherAlerts` | `on` · `off`: heavy rain, freezing rain, heavy snow, thunderstorms or hail now or within 12 hours scroll across the bar (from the same forecast; not an official warning service) | `on` |
-| `cardSky`, `cardSun`, `cardMoon`, `cardForecast`, `cardYear` | `on` · `off`: show or hide each popup card | `on` |
+| `cardSky`, `cardSun`, `cardYear` (Sun view), `cardMoon` (Moon view) | `on` · `off`: show or hide each card | `on` |
 | `weekScheme` | `auto` (from locale) · `iso` · `us` | `auto` |
 | `seasons` | `astronomical` · `meteorological` | `astronomical` |
 | `lightPreset` | `standard` · `photographer` · `extended` golden/blue-hour windows | `standard` |

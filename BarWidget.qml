@@ -130,12 +130,11 @@ BarWidget {
   onSeasonModeChanged: root.recalculate()
 
   // Popup cards that can be hidden
-  readonly property var cardKeys: ["cardSky", "cardSun", "cardMoon", "cardForecast", "cardYear"]
+  readonly property var cardKeys: ["cardSky", "cardSun", "cardMoon", "cardYear"]
   function cardOn(key) { return root.opt(key, ["on", "off"], "on") === "on" }
   readonly property bool showSky: root.cardOn("cardSky")
   readonly property bool showSun: root.cardOn("cardSun")
   readonly property bool showMoon: root.cardOn("cardMoon")
-  readonly property bool showForecast: root.cardOn("cardForecast")
   readonly property bool showYear: root.cardOn("cardYear")
 
   onConfiguredColorModeChanged: root.localColorModeOverride = ""
@@ -766,7 +765,7 @@ BarWidget {
     var defaults = {
       barSun: "on", barMoon: "on", barDetails: "values", colorMode: "celestial", moonStyle: "atomic", timeFormat: "auto",
       weather: "auto", barWeather: "on", weatherAlerts: "on", windUnit: "auto", weatherRefresh: "30",
-      cardSky: "on", cardSun: "on", cardMoon: "on", cardForecast: "on", cardYear: "on",
+      cardSky: "on", cardSun: "on", cardMoon: "on", cardYear: "on",
       weekScheme: "auto", seasons: "astronomical", lightPreset: "standard", elevation: "0"
     }
     var cmds = []
@@ -2975,7 +2974,7 @@ BarWidget {
       + (root.weatherNow && root.weatherEnabled ? " · " + root.weatherTempText + " " + root.weatherConditionText : "")
       + (root.weatherAlertText !== "" ? "\n" + root.weatherAlertText : "")
       + (root.showWeatherOnBar ? " · Click the weather: forecast" : "")
-      + (root.showLunarOnBar ? " · Click the moon: 7-day Moon" : "")
+      + (root.showLunarOnBar ? " · Click the moon: Moon" : "")
       + " · Right-click: settings"
     )
 
@@ -3443,7 +3442,7 @@ BarWidget {
                 Layout.alignment: Qt.AlignRight
                 textFormat: Text.PlainText
                 readonly property bool deco: root.decoStyle
-                text: root.settingsOpen ? strings.t("section.settings") : (root.weatherOpen ? strings.t("section.forecast") : (root.moonOpen ? strings.t("section.moon") : strings.t("plugin.title")))
+                text: root.settingsOpen ? strings.t("section.settings") : (root.weatherOpen ? strings.t("section.forecast") : (root.moonOpen ? strings.t("section.moon") : strings.t("section.sun")))
                 color: root.ornate ? root.ornMetal : Color.foreground
                 font.family: Style.font.family
                 font.pixelSize: Style.font.body
@@ -3467,7 +3466,7 @@ BarWidget {
 Text {
               textFormat: Text.PlainText
               readonly property bool deco: root.decoStyle
-              text: root.settingsOpen ? strings.t("section.settings") : (root.weatherOpen ? strings.t("section.forecast") : (root.moonOpen ? strings.t("section.moon") : strings.t("plugin.title")))
+              text: root.settingsOpen ? strings.t("section.settings") : (root.weatherOpen ? strings.t("section.forecast") : (root.moonOpen ? strings.t("section.moon") : strings.t("section.sun")))
               elide: Text.ElideRight
               // Its full width first; the spacer after it takes what is left
               Layout.preferredWidth: implicitWidth
@@ -3685,11 +3684,11 @@ Text {
             }
           }
 
-          // ---- Today: the Moon now, and when it can be seen
+          // ---- Today: the Moon card (moved here from the old all-in-one popup)
           Rectangle {
-            visible: root.moonRange === "today"
+            visible: root.showMoon && root.moonRange === "today"
             Layout.fillWidth: true
-            implicitHeight: moonTodayCol.implicitHeight + Style.space(16) + root.cardFootPad
+            implicitHeight: lunarCardCol.implicitHeight + Style.space(16) + root.cardFootPad
             radius: trackerPopup.cardRadius
             color: trackerPopup.cardSurfaceColor
             border.width: 1
@@ -3697,102 +3696,184 @@ Text {
             OrnCardFrame {}
 
             ColumnLayout {
-              id: moonTodayCol
+              id: lunarCardCol
               anchors.fill: parent
-              anchors.margins: Style.space(8)
-              anchors.bottomMargin: Style.space(8) + root.cardFootPad
+              anchors.margins: Style.space(9)
+              anchors.bottomMargin: Style.space(9) + root.cardFootPad
               spacing: Style.space(6)
 
+              // Lunar Hero Header with 40x40 Realistic Vector Moon Disc
               RowLayout {
                 Layout.fillWidth: true
-                CardTitle {
-                  text: (root.decoStyle ? "◆ " : (root.nouveauStyle ? "❦ " : (root.atomicStyle ? "✦ " : ""))) + strings.t("moon.today")
-                }
-                Item { Layout.fillWidth: true }
-                Text {
-                  textFormat: Text.PlainText
-                  text: strings.t("lunar.inSign").arg(root.lunarData.zodiacName)
-                  color: trackerPopup.popupLunarColor
-                  font.family: Style.font.family
-                  font.pixelSize: Style.font.bodySmall
-                }
-              }
-
-              RowLayout {
-                Layout.fillWidth: true
-                spacing: Style.space(10)
+                spacing: Style.space(8)
 
                 MoonDisc {
-                  Layout.preferredWidth: 46
-                  Layout.preferredHeight: 46
-                  discSize: 44
+                  discSize: 38
                   phase: root.lunarData.phase
                   litColor: trackerPopup.popupLunarLitColor
-                  darkColor: root.ornatePalette ? root.ornMoonShadow(root.isLightPopup, 0.22) : (root.isLightPopup ? Qt.rgba(0.14, 0.19, 0.28, 0.22) : Qt.rgba(0.05, 0.08, 0.14, 0.82))
-                  rimColor: Qt.alpha(trackerPopup.popupLunarColor, 0.5)
+                  darkColor: root.ornatePalette ? root.ornMoonShadow(root.isLightPopup, 0.24) : (root.isLightPopup ? Qt.rgba(0.14, 0.19, 0.28, 0.24) : Qt.rgba(0.05, 0.08, 0.14, 0.85))
+                  rimColor: Qt.alpha(trackerPopup.popupLunarColor, 0.55)
+                  showCraters: true
                   renderStyle: root.moonStyle
                 }
 
                 ColumnLayout {
                   Layout.fillWidth: true
                   spacing: 1
+
                   Text {
                     textFormat: Text.PlainText
                     text: root.lunarData.phaseName
-                    color: trackerPopup.popupLunarColor
+                    color: Color.foreground
                     font.family: Style.font.family
                     font.pixelSize: Style.font.body
                     font.bold: true
-                  }
-                  Text {
-                    Layout.fillWidth: true
-                    textFormat: Text.PlainText
+                    font.capitalization: root.decoStyle ? Font.AllUppercase : Font.MixedCase
+                    font.letterSpacing: root.decoStyle ? 1.2 : (root.nouveauStyle || root.atomicStyle ? 0.4 : 0)
                     elide: Text.ElideRight
-                    text: strings.t("moon.litAge")
-                      .arg(Commons.I18n.formatNumber(root.lunarData.illuminationPct))
-                      .arg(strings.t(root.lunarData.waxing ? "lunar.waxing" : "lunar.waning"))
-                      .arg(Model.formatAgeDays(root.lunarData.ageDays))
-                    color: Color.foreground
-                    opacity: 0.8
-                    font.family: Style.font.family
-                    font.pixelSize: Style.font.bodySmall
+                    Layout.fillWidth: true
                   }
-                }
 
-                ColumnLayout {
-                  spacing: 1
                   Text {
-                    Layout.alignment: Qt.AlignRight
                     textFormat: Text.PlainText
-                    text: "↑ " + root.moonEventText(root.lunarData.nextMoonrise)
-                    color: Color.foreground
+                    text: strings.t("lunar.illumination").arg(Commons.I18n.formatNumber(root.lunarData.illuminationPct))
+                      + " · " + (root.lunarData.waxing ? strings.t("lunar.waxing") : strings.t("lunar.waning"))
+                    color: trackerPopup.popupLunarColor
                     font.family: Style.font.family
                     font.pixelSize: Style.font.bodySmall
                     font.bold: true
-                  }
-                  Text {
-                    Layout.alignment: Qt.AlignRight
-                    textFormat: Text.PlainText
-                    text: "↓ " + root.moonEventText(root.lunarData.nextMoonset)
-                    color: Color.foreground
-                    opacity: 0.8
-                    font.family: Style.font.family
-                    font.pixelSize: Style.font.bodySmall
+                    elide: Text.ElideRight
+                    Layout.fillWidth: true
                   }
                 }
               }
 
-              // The verdict: when it is up in a dark sky and (with weather on) not clouded over
-              Text {
+              // Illumination bar
+              ColumnLayout {
                 Layout.fillWidth: true
-                textFormat: Text.PlainText
-                wrapMode: Text.WordWrap
-                text: root.moonVisibilityText
-                color: root.moonBestWindow ? trackerPopup.popupLunarColor : Color.foreground
-                opacity: root.moonBestWindow ? 1.0 : 0.78
-                font.family: Style.font.family
-                font.pixelSize: Style.font.bodySmall
-                font.bold: root.moonBestWindow !== null
+                spacing: Style.space(3)
+
+                RowLayout {
+                  Layout.fillWidth: true
+                  Text {
+                    textFormat: Text.PlainText
+                    text: strings.t("lunar.age")
+                    color: Color.foreground
+                    opacity: 0.65
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.bodySmall
+                  }
+                  Item { Layout.fillWidth: true }
+                  Text {
+                    textFormat: Text.PlainText
+                    text: Model.formatAgeDays(root.lunarData.ageDays) + " / 29.5d"
+                    color: trackerPopup.popupLunarColor
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.bodySmall
+                    font.bold: true
+                  }
+                }
+
+                Rectangle {
+                  Layout.fillWidth: true
+                  height: 5
+                  radius: trackerPopup.barRadius
+                  color: trackerPopup.barTrackColor
+
+                  Rectangle {
+                    width: Math.max(4, parent.width * Math.min(1.0, Math.max(0.0, root.lunarData.fraction)))
+                    height: parent.height
+                    radius: parent.radius
+                    color: trackerPopup.popupLunarColor
+                  }
+                }
+              }
+
+              // Lunar telemetry rows
+              Repeater {
+                model: [
+                  {
+                    kind: "altitude",
+                    label: strings.t("solar.altitude"),
+                    value: (root.lunarData.altitude >= 0 ? "+" : "") + root.lunarData.altitude.toFixed(1) + "° " + root.lunarData.compassDir
+                  },
+                  {
+                    kind: "moonrise",
+                    label: strings.t("lunar.moonrise"),
+                    value: root.moonEventText(root.lunarData.nextMoonrise)
+                  },
+                  {
+                    kind: "moonset",
+                    label: strings.t("lunar.moonset"),
+                    value: root.moonEventText(root.lunarData.nextMoonset)
+                  },
+                  {
+                    kind: "distance",
+                    label: strings.t("lunar.distance"),
+                    value: Commons.I18n.formatNumber(root.lunarData.distanceKm) + " km"
+                  },
+                  {
+                    kind: "moonPhase", phase: root.lunarData.nextQuarterIsFirst ? 0.25 : 0.75,
+                    label: strings.t("lunar.nextQuarter"),
+                    value: root.lunarData.nextQuarterDate.toLocaleDateString(root.formatLocale, "MMM d") + " (" + Model.formatCountdownDays(root.lunarData.daysToQuarter) + ")"
+                  },
+                  {
+                    kind: "moonPhase", phase: 0.5,
+                    label: strings.t("lunar.nextFull"),
+                    value: root.lunarData.nextFullDate.toLocaleDateString(root.formatLocale, "MMM d") + " (" + Model.formatCountdownDays(root.lunarData.daysToFull) + ")"
+                  },
+                  {
+                    kind: "moonPhase", phase: 0.0,
+                    label: strings.t("lunar.nextNew"),
+                    value: root.lunarData.nextNewDate.toLocaleDateString(root.formatLocale, "MMM d") + " (" + Model.formatCountdownDays(root.lunarData.daysToNew) + ")"
+                  }
+                ]
+
+                RowLayout {
+                  required property var modelData
+                  Layout.fillWidth: true
+                  spacing: Style.space(4)
+
+                  Item {
+                    Layout.preferredWidth: Style.font.bodySmall + 4
+                    Layout.preferredHeight: Style.font.bodySmall + 4
+                    SkyIcon {
+                      anchors.fill: parent
+                      visible: modelData.kind !== "moonPhase"
+                      kind: modelData.kind === "moonPhase" ? "night" : modelData.kind
+                    }
+                    MoonDisc {
+                      anchors.centerIn: parent
+                      visible: modelData.kind === "moonPhase"
+                      discSize: Style.font.bodySmall + 3
+                      renderStyle: root.moonStyle
+                      phase: modelData.phase !== undefined ? modelData.phase : 0.5
+                      litColor: trackerPopup.popupLunarLitColor
+                      darkColor: root.ornatePalette ? root.ornMoonShadow(root.isLightPopup, 0.24) : Qt.rgba(0.05, 0.08, 0.14, 0.85)
+                      rimColor: Qt.alpha(trackerPopup.popupLunarColor, 0.6)
+                    }
+                  }
+
+                  Text {
+                    textFormat: Text.PlainText
+                    text: modelData.label
+                    color: Color.foreground
+                    opacity: 0.72
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.bodySmall
+                    Layout.fillWidth: true
+                    elide: Text.ElideRight
+                  }
+
+                  Text {
+                    textFormat: Text.PlainText
+                    text: modelData.value
+                    color: Color.foreground
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.bodySmall
+                    font.bold: true
+                  }
+                }
               }
             }
           }
@@ -3816,6 +3897,20 @@ Text {
 
               CardTitle {
                 text: (root.decoStyle ? "◆ " : (root.nouveauStyle ? "❦ " : (root.atomicStyle ? "✦ " : ""))) + strings.t("moon.next24")
+              }
+
+              // The verdict: when it is up in a dark sky and (with weather on) not clouded over
+              Text {
+                Layout.fillWidth: true
+                Layout.bottomMargin: Style.space(2)
+                textFormat: Text.PlainText
+                wrapMode: Text.WordWrap
+                text: root.moonVisibilityText
+                color: root.moonBestWindow ? trackerPopup.popupLunarColor : Color.foreground
+                opacity: root.moonBestWindow ? 1.0 : 0.78
+                font.family: Style.font.family
+                font.pixelSize: Style.font.bodySmall
+                font.bold: root.moonBestWindow !== null
               }
 
               // Every third hour, the weather rows' columns: time, sky, status, altitude
@@ -4593,7 +4688,8 @@ Text {
         }
 
         // ======================================================================
-        // MAIN TRACKER VIEW
+        // SUN VIEW (click the sun on the bar, or anywhere else on it): sky path,
+        // Solar card and the Sun's yearly path
         // ======================================================================
         ColumnLayout {
           id: trackerView
@@ -4920,9 +5016,9 @@ Text {
             }
           }
 
-          // ---- 2. Solar & Lunar Side-by-Side Hero Cards
+          // ---- 2. Solar card, full width
           RowLayout {
-            visible: root.showSun || root.showMoon
+            visible: root.showSun
             Layout.fillWidth: true
             spacing: Style.space(8)
 
@@ -5113,306 +5209,9 @@ Text {
                 }
               }
             }
-
-            // ================= LUNAR CARD =================
-            Rectangle {
-              visible: root.showMoon
-              Layout.fillWidth: true
-              Layout.preferredWidth: 1
-              Layout.fillHeight: true
-              implicitHeight: lunarCardCol.implicitHeight + Style.space(16) + root.cardFootPad
-              radius: trackerPopup.cardRadius
-              color: trackerPopup.cardSurfaceColor
-              border.width: 1
-              border.color: trackerPopup.cardBorderColor
-              OrnCardFrame {}
-
-              ColumnLayout {
-                id: lunarCardCol
-                anchors.fill: parent
-                anchors.margins: Style.space(9)
-                anchors.bottomMargin: Style.space(9) + root.cardFootPad
-                spacing: Style.space(6)
-
-                // Lunar Hero Header with 40x40 Realistic Vector Moon Disc
-                RowLayout {
-                  Layout.fillWidth: true
-                  spacing: Style.space(8)
-
-                  MoonDisc {
-                    discSize: 38
-                    phase: root.lunarData.phase
-                    litColor: trackerPopup.popupLunarLitColor
-                    darkColor: root.ornatePalette ? root.ornMoonShadow(root.isLightPopup, 0.24) : (root.isLightPopup ? Qt.rgba(0.14, 0.19, 0.28, 0.24) : Qt.rgba(0.05, 0.08, 0.14, 0.85))
-                    rimColor: Qt.alpha(trackerPopup.popupLunarColor, 0.55)
-                    showCraters: true
-                    renderStyle: root.moonStyle
-                  }
-
-                  ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: 1
-
-                    Text {
-                      textFormat: Text.PlainText
-                      text: root.lunarData.phaseName
-                      color: Color.foreground
-                      font.family: Style.font.family
-                      font.pixelSize: Style.font.body
-                      font.bold: true
-                      font.capitalization: root.decoStyle ? Font.AllUppercase : Font.MixedCase
-                      font.letterSpacing: root.decoStyle ? 1.2 : (root.nouveauStyle || root.atomicStyle ? 0.4 : 0)
-                      elide: Text.ElideRight
-                      Layout.fillWidth: true
-                    }
-
-                    Text {
-                      textFormat: Text.PlainText
-                      text: strings.t("lunar.illumination").arg(Commons.I18n.formatNumber(root.lunarData.illuminationPct))
-                        + " · " + (root.lunarData.waxing ? strings.t("lunar.waxing") : strings.t("lunar.waning"))
-                      color: trackerPopup.popupLunarColor
-                      font.family: Style.font.family
-                      font.pixelSize: Style.font.bodySmall
-                      font.bold: true
-                      elide: Text.ElideRight
-                      Layout.fillWidth: true
-                    }
-                  }
-                }
-
-                // Illumination bar
-                ColumnLayout {
-                  Layout.fillWidth: true
-                  spacing: Style.space(3)
-
-                  RowLayout {
-                    Layout.fillWidth: true
-                    Text {
-                      textFormat: Text.PlainText
-                      text: strings.t("lunar.age")
-                      color: Color.foreground
-                      opacity: 0.65
-                      font.family: Style.font.family
-                      font.pixelSize: Style.font.bodySmall
-                    }
-                    Item { Layout.fillWidth: true }
-                    Text {
-                      textFormat: Text.PlainText
-                      text: Model.formatAgeDays(root.lunarData.ageDays) + " / 29.5d"
-                      color: trackerPopup.popupLunarColor
-                      font.family: Style.font.family
-                      font.pixelSize: Style.font.bodySmall
-                      font.bold: true
-                    }
-                  }
-
-                  Rectangle {
-                    Layout.fillWidth: true
-                    height: 5
-                    radius: trackerPopup.barRadius
-                    color: trackerPopup.barTrackColor
-
-                    Rectangle {
-                      width: Math.max(4, parent.width * Math.min(1.0, Math.max(0.0, root.lunarData.fraction)))
-                      height: parent.height
-                      radius: parent.radius
-                      color: trackerPopup.popupLunarColor
-                    }
-                  }
-                }
-
-                // Lunar telemetry rows
-                Repeater {
-                  model: [
-                    {
-                      kind: "altitude",
-                      label: strings.t("solar.altitude"),
-                      value: (root.lunarData.altitude >= 0 ? "+" : "") + root.lunarData.altitude.toFixed(1) + "° " + root.lunarData.compassDir
-                    },
-                    {
-                      kind: "moonrise",
-                      label: strings.t("lunar.moonrise"),
-                      value: root.moonEventText(root.lunarData.nextMoonrise)
-                    },
-                    {
-                      kind: "moonset",
-                      label: strings.t("lunar.moonset"),
-                      value: root.moonEventText(root.lunarData.nextMoonset)
-                    },
-                    {
-                      kind: "distance",
-                      label: strings.t("lunar.distance"),
-                      value: Commons.I18n.formatNumber(root.lunarData.distanceKm) + " km"
-                    },
-                    {
-                      kind: "moonPhase", phase: root.lunarData.nextQuarterIsFirst ? 0.25 : 0.75,
-                      label: strings.t("lunar.nextQuarter"),
-                      value: root.lunarData.nextQuarterDate.toLocaleDateString(root.formatLocale, "MMM d") + " (" + Model.formatCountdownDays(root.lunarData.daysToQuarter) + ")"
-                    },
-                    {
-                      kind: "moonPhase", phase: 0.5,
-                      label: strings.t("lunar.nextFull"),
-                      value: root.lunarData.nextFullDate.toLocaleDateString(root.formatLocale, "MMM d") + " (" + Model.formatCountdownDays(root.lunarData.daysToFull) + ")"
-                    },
-                    {
-                      kind: "moonPhase", phase: 0.0,
-                      label: strings.t("lunar.nextNew"),
-                      value: root.lunarData.nextNewDate.toLocaleDateString(root.formatLocale, "MMM d") + " (" + Model.formatCountdownDays(root.lunarData.daysToNew) + ")"
-                    }
-                  ]
-
-                  RowLayout {
-                    required property var modelData
-                    Layout.fillWidth: true
-                    spacing: Style.space(4)
-
-                    Item {
-                      Layout.preferredWidth: Style.font.bodySmall + 4
-                      Layout.preferredHeight: Style.font.bodySmall + 4
-                      SkyIcon {
-                        anchors.fill: parent
-                        visible: modelData.kind !== "moonPhase"
-                        kind: modelData.kind === "moonPhase" ? "night" : modelData.kind
-                      }
-                      MoonDisc {
-                        anchors.centerIn: parent
-                        visible: modelData.kind === "moonPhase"
-                        discSize: Style.font.bodySmall + 3
-                        renderStyle: root.moonStyle
-                        phase: modelData.phase !== undefined ? modelData.phase : 0.5
-                        litColor: trackerPopup.popupLunarLitColor
-                        darkColor: root.ornatePalette ? root.ornMoonShadow(root.isLightPopup, 0.24) : Qt.rgba(0.05, 0.08, 0.14, 0.85)
-                        rimColor: Qt.alpha(trackerPopup.popupLunarColor, 0.6)
-                      }
-                    }
-
-                    Text {
-                      textFormat: Text.PlainText
-                      text: modelData.label
-                      color: Color.foreground
-                      opacity: 0.72
-                      font.family: Style.font.family
-                      font.pixelSize: Style.font.bodySmall
-                      Layout.fillWidth: true
-                      elide: Text.ElideRight
-                    }
-
-                    Text {
-                      textFormat: Text.PlainText
-                      text: modelData.value
-                      color: Color.foreground
-                      font.family: Style.font.family
-                      font.pixelSize: Style.font.bodySmall
-                      font.bold: true
-                    }
-                  }
-                }
-              }
-            }
           }
 
-          // ---- 3. 7-Day Lunar Phase Forecast Strip
-          Rectangle {
-            visible: root.showForecast
-            Layout.fillWidth: true
-            implicitHeight: forecastCol.implicitHeight + Style.space(14) + root.cardFootPad
-            radius: trackerPopup.cardRadius
-            color: trackerPopup.cardSurfaceColor
-            border.width: 1
-            border.color: trackerPopup.cardBorderColor
-            OrnCardFrame {}
-
-            ColumnLayout {
-              id: forecastCol
-              anchors.fill: parent
-              anchors.margins: Style.space(8)
-              anchors.bottomMargin: Style.space(8) + root.cardFootPad
-              spacing: Style.space(6)
-
-              RowLayout {
-                Layout.fillWidth: true
-                CardTitle {
-                  text: (root.decoStyle ? "◆ " : (root.nouveauStyle ? "❦ " : (root.atomicStyle ? "✦ " : ""))) + strings.t("section.upcomingMoon")
-                }
-                Item { Layout.fillWidth: true }
-                Text {
-                  textFormat: Text.PlainText
-                  text: strings.t("lunar.inSign").arg(root.lunarData.zodiacName)
-                  color: trackerPopup.popupLunarColor
-                  font.family: Style.font.family
-                  font.pixelSize: Style.font.bodySmall
-                }
-              }
-
-              RowLayout {
-                Layout.fillWidth: true
-                spacing: Style.space(4)
-
-                Repeater {
-                  model: root.lunarData.forecast || []
-
-                  Rectangle {
-                    required property var modelData
-                    required property int index
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: Style.space(64)
-                    radius: trackerPopup.chipRadius
-                    color: index === 0
-                      ? Qt.alpha(trackerPopup.popupLunarColor, root.isLightPopup ? 0.14 : 0.18)
-                      : Qt.alpha(Color.foreground, root.isLightPopup ? 0.03 : 0.04)
-                    // non-current days get a faint gold hairline in deco mode
-                    readonly property color ornHairline: Qt.alpha(root.ornMetal, 0.25)
-                    border.width: index === 0 ? 1 : (root.ornate ? 1 : 0)
-                    border.color: index === 0
-                      ? (root.ornate ? Qt.alpha(root.ornMetal, 0.8) : Qt.alpha(trackerPopup.popupLunarColor, 0.42))
-                      : ornHairline
-
-                    ColumnLayout {
-                      anchors.fill: parent
-                      anchors.margins: Style.space(4)
-                      spacing: 2
-
-                      Text {
-                        Layout.alignment: Qt.AlignHCenter
-                        textFormat: Text.PlainText
-                        text: index === 0
-                          ? "Now"
-                          : modelData.date.toLocaleDateString(root.formatLocale, "ddd")
-                        color: index === 0 ? trackerPopup.popupLunarColor : Color.foreground
-                        opacity: index === 0 ? 1.0 : 0.72
-                        font.family: Style.font.family
-                        font.pixelSize: Style.font.caption
-                        font.bold: index === 0
-                      }
-
-                      MoonDisc {
-                        Layout.alignment: Qt.AlignHCenter
-                        discSize: 20
-                        phase: modelData.phase
-                        litColor: trackerPopup.popupLunarLitColor
-                        darkColor: root.ornatePalette ? root.ornMoonShadow(root.isLightPopup, 0.22) : (root.isLightPopup ? Qt.rgba(0.14, 0.19, 0.28, 0.22) : Qt.rgba(0.05, 0.08, 0.14, 0.82))
-                        rimColor: Qt.alpha(trackerPopup.popupLunarColor, 0.5)
-                        renderStyle: root.moonStyle
-                      }
-
-                      Text {
-                        Layout.alignment: Qt.AlignHCenter
-                        textFormat: Text.PlainText
-                        text: Commons.I18n.formatNumber(modelData.illuminationPct) + "%"
-                        color: Color.foreground
-                        opacity: 0.85
-                        font.family: Style.font.family
-                        font.pixelSize: Style.font.caption
-                        font.bold: index === 0
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-
-          // ---- 4. Sun's Yearly Path: analemma figure-8 + next equinox/solstice countdown
+          // ---- 3. Sun's Yearly Path: analemma figure-8 + next equinox/solstice countdown
           Rectangle {
             visible: root.showYear
             Layout.fillWidth: true
@@ -5915,7 +5714,6 @@ Text {
                 { key: "cardSky",      label: strings.t("settings.card.sky") },
                 { key: "cardSun",      label: strings.t("settings.card.sun") },
                 { key: "cardMoon",     label: strings.t("settings.card.moon") },
-                { key: "cardForecast", label: strings.t("settings.card.forecast") },
                 { key: "cardYear",     label: strings.t("settings.card.year") }
               ]
 
