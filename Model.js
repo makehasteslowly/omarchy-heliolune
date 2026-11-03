@@ -291,8 +291,30 @@ function sunAltitudeEvent(transit, hDeg, lat, lon, rising) {
   return new Date(t)
 }
 
-function getSunTimesForDay(date, lat, lon) {
+// ---- User options shared by the sun and moon calculations (all optional;
+// without them the standard definitions apply, as the accuracy suite tests).
+//   elevation: observer height in metres (lowers the apparent horizon)
+//   light:     "standard" | "photographer" | "extended" golden/blue-hour windows
+var LIGHT_PRESETS = {
+  standard:     { goldenLow: null, goldenHigh: 6,  blueLow: -6, blueHigh: -4 },   // golden: sunrise .. +6 deg
+  photographer: { goldenLow: -4,   goldenHigh: 6,  blueLow: -6, blueHigh: -4 },
+  extended:     { goldenLow: -4,   goldenHigh: 10, blueLow: -8, blueHigh: -4 }
+}
+
+// Dip of the sea-level horizon seen from height h metres, in degrees (1.76' x sqrt(h))
+function horizonDip(elevationM) {
+  var h = Math.max(0, Math.min(9000, Number(elevationM) || 0))
+  return 1.76 * Math.sqrt(h) / 60.0
+}
+
+function resolveOptions(opts) {
+  var o = opts || {}
+  return { dip: horizonDip(o.elevation), light: LIGHT_PRESETS[o.light] || LIGHT_PRESETS.standard }
+}
+
+function getSunTimesForDay(date, lat, lon, opts) {
   var transit = solarTransitFor(date, lon)
+  var op = resolveOptions(opts)
 
   function pairForAngle(angleDeg) {
     return {
@@ -301,12 +323,14 @@ function getSunTimesForDay(date, lat, lon) {
     }
   }
 
-  var sunStd = pairForAngle(-0.833)       // Official Sunrise / Sunset
-  var blue = pairForAngle(-4.0)           // Blue Hour inner boundary (-4° to -6°)
-  var civil = pairForAngle(-6.0)          // Civil Dawn / Dusk (-6°, outer Blue Hour boundary)
-  var nautical = pairForAngle(-12.0)      // Nautical Dawn / Dusk
-  var astro = pairForAngle(-18.0)         // Astronomical Dawn / Dusk
-  var golden = pairForAngle(6.0)          // Golden Hour end (morning) / start (evening)
+  var sunStd = pairForAngle(-0.833 - op.dip)          // Sunrise / Sunset (lower when observer is elevated)
+  var blue = pairForAngle(op.light.blueHigh)          // Blue Hour inner boundary
+  var blueOuter = pairForAngle(op.light.blueLow)      // Blue Hour outer boundary
+  var civil = pairForAngle(-6.0)                      // Civil Dawn / Dusk
+  var nautical = pairForAngle(-12.0)                  // Nautical Dawn / Dusk
+  var astro = pairForAngle(-18.0)                     // Astronomical Dawn / Dusk
+  var golden = pairForAngle(op.light.goldenHigh)      // Golden Hour end (morning) / start (evening)
+  var goldenLow = op.light.goldenLow === null ? sunStd : pairForAngle(op.light.goldenLow)
 
   var dayLengthSeconds = 0
   var noonPosition = getSunPosition(transit, lat, lon)
@@ -323,33 +347,39 @@ function getSunTimesForDay(date, lat, lon) {
     sunset: sunStd.set,
     dawn: civil.rise,
     dusk: civil.set,
-    blueHourMorningStart: civil.rise,
+    blueHourMorningStart: blueOuter.rise,
     blueHourMorningEnd: blue.rise,
     blueHourEveningStart: blue.set,
-    blueHourEveningEnd: civil.set,
+    blueHourEveningEnd: blueOuter.set,
     nauticalDawn: nautical.rise,
     nauticalDusk: nautical.set,
     astroDawn: astro.rise,
     astroDusk: astro.set,
     goldenHourEnd: golden.rise,
     goldenHourStart: golden.set,
+    goldenMorningStart: goldenLow.rise,
+    goldenEveningEnd: goldenLow.set,
+    lightPreset: op.light,
     dayLengthSeconds: dayLengthSeconds,
     maxAltitude: noonPosition.altitude
   }
 }
 
 // Classify current solar phase & next milestone
-function computeSolarSummary(now, lat, lon) {
-  var today = getSunTimesForDay(now, lat, lon)
+function computeSolarSummary(now, lat, lon, opts) {
+  var op = resolveOptions(opts)
+  var today = getSunTimesForDay(now, lat, lon, opts)
   var yesterdayDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 12, 0, 0)
   var tomorrowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 12, 0, 0)
-  var yesterday = getSunTimesForDay(yesterdayDate, lat, lon)
-  var tomorrow = getSunTimesForDay(tomorrowDate, lat, lon)
+  var yesterday = getSunTimesForDay(yesterdayDate, lat, lon, opts)
+  var tomorrow = getSunTimesForDay(tomorrowDate, lat, lon, opts)
 
   var pos = getSunPosition(now, lat, lon)
   var dayDiffSec = today.dayLengthSeconds - yesterday.dayLengthSeconds
 
-  var isDay = pos.altitude > -0.833
+  var horizonAlt = -0.833 - op.dip
+  var gLow = op.light.goldenLow === null ? horizonAlt : op.light.goldenLow
+  var isDay = pos.altitude > horizonAlt
   var phaseKey = "night"
   var phaseName = "Night"
   var phaseIcon = "󰖔"
@@ -375,16 +405,16 @@ function computeSolarSummary(now, lat, lon) {
     phaseIcon = "󰖛"
   } else if ((bhMorningStart !== null && bhMorningEnd !== null && t >= bhMorningStart && t <= bhMorningEnd) ||
              (bhEveningStart !== null && bhEveningEnd !== null && t >= bhEveningStart && t <= bhEveningEnd) ||
-             (pos.altitude <= -4.0 && pos.altitude >= -6.0)) {
+             (pos.altitude <= op.light.blueHigh && pos.altitude >= op.light.blueLow)) {
     phaseKey = "blue_hour"
     phaseName = t < (sn || t) ? "Morning Blue Hour" : "Evening Blue Hour"
     phaseIcon = "󰖚"
-  } else if (pos.altitude > -0.833) {
+  } else if (pos.altitude > horizonAlt) {
     if (sn !== null && Math.abs(t - sn) <= 25 * 60000) {
       phaseKey = "solar_noon"
       phaseName = "Solar Noon"
       phaseIcon = "󰖙"
-    } else if ((ghMorningEnd !== null && t < ghMorningEnd) || (ghEveningStart !== null && t > ghEveningStart) || pos.altitude < 6.0) {
+    } else if ((ghMorningEnd !== null && t < ghMorningEnd) || (ghEveningStart !== null && t > ghEveningStart) || pos.altitude < op.light.goldenHigh) {
       phaseKey = "golden_hour"
       phaseName = t < (sn || t) ? "Morning Golden Hour" : "Evening Golden Hour"
       phaseIcon = "󰖨"
@@ -397,6 +427,11 @@ function computeSolarSummary(now, lat, lon) {
       phaseName = "Afternoon Sun"
       phaseIcon = "󰖙"
     }
+  } else if (pos.altitude > gLow) {
+    // presets whose golden hour starts below the horizon (e.g. photographer's -4 deg)
+    phaseKey = "golden_hour"
+    phaseName = t < (sn || t) ? "Morning Golden Hour" : "Evening Golden Hour"
+    phaseIcon = "󰖨"
   } else if (pos.altitude > -4.0) {
     phaseKey = t < (sn || t) ? "civil_dawn" : "civil_dusk"
     phaseName = t < (sn || t) ? "Civil Dawn" : "Civil Dusk"
@@ -472,10 +507,10 @@ function computeSolarSummary(now, lat, lon) {
 
   // Active/upcoming Golden Hour window (Morning Golden Hour before noon, Evening Golden Hour after noon)
   var activeGoldenHourStart = today.goldenHourStart
-  var activeGoldenHourEnd = today.sunset
+  var activeGoldenHourEnd = today.goldenEveningEnd
   var activeGoldenHourIsMorning = false
   if (sn !== null && t < sn) {
-    activeGoldenHourStart = today.sunrise
+    activeGoldenHourStart = today.goldenMorningStart
     activeGoldenHourEnd = today.goldenHourEnd
     activeGoldenHourIsMorning = true
   }
@@ -618,16 +653,17 @@ function getMoonPosition(date, lat, lon) {
 // The Moon's upper limb touches the horizon when its geocentric altitude is
 // 0.7275 x parallax - 0.5667 deg (parallax, refraction and semi-diameter; Meeus 15.1).
 // Scans in 2-hour windows and fits a parabola through three samples per window.
-function moonRiseSetTarget(date, lat, lon) {
+function moonRiseSetTarget(date, lat, lon, dip) {
   var p = getMoonPosition(date, lat, lon)
-  return p.geoAltitude - (0.7275 * p.parallaxDeg - 0.5667)
+  return p.geoAltitude - (0.7275 * p.parallaxDeg - 0.5667 - (dip || 0))
 }
 
-function getMoonTimes(date, lat, lon) {
+function getMoonTimes(date, lat, lon, opts) {
+  var dip = resolveOptions(opts).dip
   var t0 = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0, 0).getTime()
   var t1 = new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1, 0, 0, 0, 0).getTime()
   var hours = (t1 - t0) / 3600000.0   // 23/24/25 on DST days
-  function f(h) { return moonRiseSetTarget(new Date(t0 + h * 3600000.0), lat, lon) }
+  function f(h) { return moonRiseSetTarget(new Date(t0 + h * 3600000.0), lat, lon, dip) }
 
   // Every crossing in the day: at high latitudes the Moon can rise (or set) twice
   var rises = [], sets = []
@@ -678,12 +714,12 @@ function getMoonTimes(date, lat, lon) {
 }
 
 // Next moonrise and moonset strictly after `now`, looking up to 3 local days ahead.
-function getNextMoonEvents(now, lat, lon) {
+function getNextMoonEvents(now, lat, lon, opts) {
   var t = now.getTime()
   var nextRise = null, nextSet = null
   for (var k = 0; k < 3 && (nextRise === null || nextSet === null); k++) {
     var day = new Date(now.getFullYear(), now.getMonth(), now.getDate() + k, 12, 0, 0, 0)
-    var mt = getMoonTimes(day, lat, lon)
+    var mt = getMoonTimes(day, lat, lon, opts)
     for (var a = 0; a < mt.rises.length && nextRise === null; a++) if (mt.rises[a].getTime() > t) nextRise = mt.rises[a]
     for (var b = 0; b < mt.sets.length && nextSet === null; b++) if (mt.sets[b].getTime() > t) nextSet = mt.sets[b]
   }
@@ -791,11 +827,11 @@ function findNextLunarPhaseDate(now, targetPhase) {
   return new Date(estMs)
 }
 
-function computeLunarSummary(now, lat, lon) {
+function computeLunarSummary(now, lat, lon, opts) {
   var illum = getMoonIllumination(now)
   var pos = getMoonPosition(now, lat, lon)
-  var todayMoon = getMoonTimes(now, lat, lon)
-  var nextMoon = getNextMoonEvents(now, lat, lon)
+  var todayMoon = getMoonTimes(now, lat, lon, opts)
+  var nextMoon = getNextMoonEvents(now, lat, lon, opts)
   var info = phaseInfoFromValue(illum.phase)
   var zodiac = zodiacFromLongitude(illum.eclipticLon)
 
@@ -1018,14 +1054,23 @@ function formatSeasonCountdown(calendarDays) {
   return calendarDays + " days"
 }
 
-function computeSeasonSummary(now, lat) {
+// mode: "astronomical" (equinoxes and solstices) or "meteorological" (seasons
+// begin on the first of March, June, September and December, local time).
+var SEASON_START_META = {
+  spring: "Start of Spring", summer: "Start of Summer", autumn: "Start of Autumn", winter: "Start of Winter"
+}
+
+function computeSeasonSummary(now, lat, mode) {
   var south = Number(lat) < 0
   var table = south ? SEASONS_SOUTH : SEASONS_NORTH
+  var meteo = mode === "meteorological"
   var t = now.getTime()
   var year = now.getFullYear()
   var events = []
   for (var y = year - 1; y <= year + 1; y++) {
-    for (var k = 0; k < 4; k++) events.push({ kind: k, date: seasonEventDate(y, k) })
+    for (var k = 0; k < 4; k++) {
+      events.push({ kind: k, date: meteo ? new Date(y, 2 + k * 3, 1, 0, 0, 0) : seasonEventDate(y, k) })
+    }
   }
   var prev = null
   var next = null
@@ -1041,13 +1086,14 @@ function computeSeasonSummary(now, lat) {
   var span = next.date.getTime() - prev.date.getTime()
   var elapsed = t - prev.date.getTime()
   return {
-    nextEventName: nextMeta.event,
+    meteorological: meteo,
+    nextEventName: meteo ? SEASON_START_META[table[next.kind]] : nextMeta.event,
     nextSeasonName: nextMeta.name,
     nextIcon: nextMeta.icon,
     nextDate: next.date,
     daysUntil: (next.date.getTime() - t) / DAY_MS,
     calendarDaysUntil: calendarDaysBetween(now, next.date),
-    isSolstice: next.kind === 1 || next.kind === 3,
+    isSolstice: !meteo && (next.kind === 1 || next.kind === 3),
     currentSeasonName: curMeta.name,
     currentIcon: curMeta.icon,
     seasonDay: Math.floor(elapsed / DAY_MS) + 1,
@@ -1234,10 +1280,15 @@ function parseCurrentWeather(raw) {
   }
 }
 
-function formatWind(kmh, imperial) {
+// unit: "kmh" | "mph" | "ms" (a boolean is accepted as imperial yes/no)
+function formatWind(kmh, unit) {
   var v = Number(kmh)
   if (!isFinite(v)) return ""
-  return imperial ? Math.round(v * 0.621371) + " mph" : Math.round(v) + " km/h"
+  if (unit === true) unit = "mph"
+  if (unit === false || unit === undefined) unit = "kmh"
+  if (unit === "mph") return Math.round(v * 0.621371) + " mph"
+  if (unit === "ms") return (Math.round(v / 3.6 * 10) / 10) + " m/s"
+  return Math.round(v) + " km/h"
 }
 
 function formatTemperature(tempC, imperial) {
@@ -1249,6 +1300,15 @@ function formatTemperature(tempC, imperial) {
 // ISO 8601 week number of a local calendar date: weeks start on Monday and
 // week 1 is the one containing the year's first Thursday (so Jan 1-3 can fall
 // in week 52/53 of the previous year, and Dec 29-31 in week 1 of the next).
+// Week number by scheme: "iso" (Monday start, first-Thursday rule) or "us"
+// (Sunday start, week 1 is the week containing January 1).
+function weekNumber(date, scheme) {
+  if (scheme !== "us") return isoWeek(date)
+  var jan1 = new Date(date.getFullYear(), 0, 1)
+  var doy = Math.round((Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) - Date.UTC(date.getFullYear(), 0, 1)) / DAY_MS)
+  return { week: Math.floor((doy + jan1.getDay()) / 7) + 1, year: date.getFullYear() }
+}
+
 function isoWeek(date) {
   var d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
   var day = d.getUTCDay() || 7                 // Monday = 1 ... Sunday = 7
