@@ -7577,7 +7577,7 @@ BarWidget {
                 onAccepted: root.applyCustomCoords(latField.text, lonField.text, nameField.text)
                 accent: root.ornate ? root.ornMetal : Color.accent
                 Layout.fillWidth: true
-                placeholderText: "Label (e.g. Lisbon)"
+                placeholderText: strings.t("settings.coordsLabel")
               }
 
               TextField {
@@ -7585,7 +7585,7 @@ BarWidget {
                 onAccepted: root.applyCustomCoords(latField.text, lonField.text, nameField.text)
                 accent: root.ornate ? root.ornMetal : Color.accent
                 Layout.preferredWidth: Style.space(92)
-                placeholderText: "Lat (38.72)"
+                placeholderText: strings.t("settings.coordsLat")
               }
 
               TextField {
@@ -7593,13 +7593,13 @@ BarWidget {
                 onAccepted: root.applyCustomCoords(latField.text, lonField.text, nameField.text)
                 accent: root.ornate ? root.ornMetal : Color.accent
                 Layout.preferredWidth: Style.space(92)
-                placeholderText: "Lon (-9.14)"
+                placeholderText: strings.t("settings.coordsLon")
               }
 
               ChoiceButton {
                 Layout.preferredHeight: Style.space(28)
                 selected: true
-                text: "Save"
+                text: strings.t("settings.save")
                 onClicked: {
                   root.applyCustomCoords(latField.text, lonField.text, nameField.text)
                 }
@@ -7622,9 +7622,9 @@ BarWidget {
             label: strings.t("settings.moonStyle")
             // chronological: Art Nouveau (1890s-1910s), Art Deco (1920s-30s), Atomic (1940s-50s)
             choices: [
-              { key: "nouveau", label: "Nouveau" },
-              { key: "deco",    label: "Deco" },
-              { key: "atomic",  label: "Atomic" }
+              { key: "nouveau", label: strings.t("opt.nouveau") },
+              { key: "deco",    label: strings.t("opt.deco") },
+              { key: "atomic",  label: strings.t("opt.atomic") }
             ]
             current: root.moonStyle
             onPicked: key => root.selectMoonStyle(key)
@@ -7633,9 +7633,9 @@ BarWidget {
           OptionRow {
             label: strings.t("settings.colorMode")
             choices: [
-              { key: "celestial", label: "Soft" },
-              { key: "bold",      label: "Bold" },
-              { key: "theme",     label: "Theme" }
+              { key: "celestial", label: strings.t("opt.soft") },
+              { key: "bold",      label: strings.t("opt.bold") },
+              { key: "theme",     label: strings.t("opt.theme") }
             ]
             current: root.colorMode
             onPicked: key => root.selectColorMode(key)
@@ -7644,9 +7644,9 @@ BarWidget {
           OptionRow {
             label: strings.t("settings.timeFormat")
             choices: [
-              { key: "auto", label: "Auto" },
-              { key: "12",   label: "12-Hour" },
-              { key: "24",   label: "24-Hour" }
+              { key: "auto", label: strings.t("opt.auto") },
+              { key: "12",   label: strings.t("opt.12_hour") },
+              { key: "24",   label: strings.t("opt.24_hour") }
             ]
             current: root.timeFormatMode
             onPicked: key => root.selectTimeFormat(key)
@@ -7756,7 +7756,7 @@ BarWidget {
             visible: root.weatherEnabled
             label: strings.t("settings.units")
             choices: [
-              { key: "auto", label: "Auto" },
+              { key: "auto", label: strings.t("opt.auto") },
               { key: "c",    label: "°C" },
               { key: "f",    label: "°F" }
             ]
@@ -7768,10 +7768,10 @@ BarWidget {
             visible: root.weatherEnabled
             label: strings.t("settings.wind")
             choices: [
-              { key: "auto", label: "Auto" },
-              { key: "kmh",  label: "km/h" },
-              { key: "mph",  label: "mph" },
-              { key: "ms",   label: "m/s" }
+              { key: "auto", label: strings.t("opt.auto") },
+              { key: "kmh",  label: strings.t("opt.km_h") },
+              { key: "mph",  label: strings.t("opt.mph") },
+              { key: "ms",   label: strings.t("opt.m_s") }
             ]
             current: root.windSetting
             onPicked: key => root.setOpt("windUnit", key)
@@ -7781,9 +7781,9 @@ BarWidget {
             visible: root.weatherEnabled
             label: strings.t("settings.refresh")
             choices: [
-              { key: "15", label: "15 min" },
-              { key: "30", label: "30 min" },
-              { key: "60", label: "1 hour" }
+              { key: "15", label: strings.t("opt.15_min") },
+              { key: "30", label: strings.t("opt.30_min") },
+              { key: "60", label: strings.t("opt.1_hour") }
             ]
             current: root.weatherRefreshSetting
             onPicked: key => root.setOpt("weatherRefresh", key)
@@ -7843,9 +7843,9 @@ BarWidget {
           OptionRow {
             label: strings.t("settings.week")
             choices: [
-              { key: "auto", label: "Auto" },
-              { key: "iso",  label: "ISO" },
-              { key: "us",   label: "US" }
+              { key: "auto", label: strings.t("opt.auto") },
+              { key: "iso",  label: strings.t("opt.iso") },
+              { key: "us",   label: strings.t("opt.us") }
             ]
             current: root.weekSetting
             onPicked: key => root.setOpt("weekScheme", key)
@@ -7854,8 +7854,8 @@ BarWidget {
           OptionRow {
             label: strings.t("settings.seasons")
             choices: [
-              { key: "astronomical",   label: "Astronomical" },
-              { key: "meteorological", label: "Meteorological" }
+              { key: "astronomical",   label: strings.t("opt.astronomical") },
+              { key: "meteorological", label: strings.t("opt.meteorological") }
             ]
             current: root.seasonMode
             onPicked: key => root.setOpt("seasons", key)
@@ -7928,9 +7928,9 @@ BarWidget {
             visible: root.notifyOn
             label: strings.t("settings.notifyLead")
             choices: [
-              { key: "0",  label: "At start" },
-              { key: "10", label: "10 min" },
-              { key: "30", label: "30 min" }
+              { key: "0",  label: strings.t("opt.at_start") },
+              { key: "10", label: strings.t("opt.10_min") },
+              { key: "30", label: strings.t("opt.30_min") }
             ]
             current: root.notifyLead
             onPicked: key => root.setOpt("notifyLead", key)
@@ -7972,9 +7972,9 @@ BarWidget {
           OptionRow {
             label: strings.t("settings.light")
             choices: [
-              { key: "standard",     label: "Standard" },
-              { key: "photographer", label: "Photo" },
-              { key: "extended",     label: "Extended" }
+              { key: "standard",     label: strings.t("opt.standard") },
+              { key: "photographer", label: strings.t("opt.photo") },
+              { key: "extended",     label: strings.t("opt.extended") }
             ]
             current: root.lightPreset
             onPicked: key => root.setOpt("lightPreset", key)
@@ -8022,7 +8022,7 @@ BarWidget {
             ChoiceButton {
               visible: root.confirmingReset
               Layout.preferredHeight: Style.space(28)
-              text: "Cancel"
+              text: strings.t("settings.cancel")
               onClicked: root.confirmingReset = false
             }
 
