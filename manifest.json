@@ -6,7 +6,7 @@
   "author": "makehasteslowly",
   "license": "MIT",
   "homepage": "https://github.com/makehasteslowly/omarchy-heliolune",
-  "description": "Heliolune: a sun, moon and seasons instrument for the Omarchy bar. Live solar and lunar phases, sunrise/sunset with blue and golden hours, moonrise/moonset, a 24-hour sky path, 7-day moon forecast, and the Sun's yearly analemma with equinox and solstice countdowns. Drag the figure-8 or use the arrow keys to travel through the year. All astronomy is computed offline (Meeus) and validated against the US Naval Observatory to within a minute. Three period themes (Atomic, Art Deco, Art Nouveau) restyle the whole widget with Soft/Bold intensity and light-theme-adaptive colours.",
+  "description": "Sun, Moon & Seasons for the Omarchy bar: solar and lunar phases, sunrise/sunset with blue and golden hours, moonrise/moonset, a 24-hour sky path, 7-day moon forecast, and the Sun's yearly analemma with equinox and solstice countdowns. Drag the figure-8 to travel through the year. Offline astronomy validated against the US Naval Observatory; optional current weather. Three themes (Atomic, Art Deco, Art Nouveau) restyle the whole widget, light-theme aware.",
   "kinds": [
     "bar-widget"
   ],
