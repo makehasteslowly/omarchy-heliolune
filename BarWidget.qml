@@ -3501,11 +3501,12 @@ Text {
             }
           }
 
-          // ---- Today: every third hour of the next 24
+          // ---- Today: every third hour of the next 24, in the 7-day row style;
+          // each bar fills from the 24-hour low to that hour's temperature
           Rectangle {
             visible: root.forecastReady && root.forecastRange === "today"
             Layout.fillWidth: true
-            implicitHeight: todayCol.implicitHeight + Style.space(16)
+            implicitHeight: todayCol.implicitHeight + Style.space(root.ornate ? 26 : 16)   // room for the frame's bottom ornament
             radius: trackerPopup.cardRadius
             color: trackerPopup.cardSurfaceColor
             border.width: 1
@@ -3516,7 +3517,7 @@ Text {
               id: todayCol
               anchors.fill: parent
               anchors.margins: Style.space(8)
-              spacing: Style.space(8)
+              spacing: Style.space(4)
 
               RowLayout {
                 Layout.fillWidth: true
@@ -3525,7 +3526,6 @@ Text {
                 }
                 Item { Layout.fillWidth: true }
                 Text {
-                  visible: root.forecastReady
                   textFormat: Text.PlainText
                   text: root.forecastReady
                     ? strings.t("forecast.highLow").arg(root.tempShort(root.forecast.daily[0].maxC)).arg(root.tempShort(root.forecast.daily[0].minC))
@@ -3536,87 +3536,102 @@ Text {
                 }
               }
 
-              RowLayout {
-                Layout.fillWidth: true
-                spacing: Style.space(4)
+              Repeater {
+                model: root.forecastHours
 
-                Repeater {
-                  model: root.forecastHours
+                RowLayout {
+                  id: hourRow
+                  required property var modelData
+                  required property int index
+                  readonly property real lo: Math.min.apply(null, root.forecast.hourly.map(function(h) { return h.tempC }))
+                  readonly property real hi: Math.max.apply(null, root.forecast.hourly.map(function(h) { return h.tempC }))
+                  readonly property real span: Math.max(1, hi - lo)
+                  Layout.fillWidth: true
+                  spacing: Style.space(6)
 
-                  Rectangle {
-                    required property var modelData
-                    required property int index
+                  Text {
+                    Layout.preferredWidth: Style.space(64)
+                    textFormat: Text.PlainText
+                    elide: Text.ElideRight
+                    text: hourRow.index === 0 ? strings.t("forecast.now") : root.hourLabel(hourRow.modelData.h)
+                    color: hourRow.index === 0 ? trackerPopup.popupSolarColor : Color.foreground
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.bodySmall
+                    font.bold: hourRow.index === 0
+                  }
+                  SkyIcon {
+                    Layout.preferredWidth: Style.space(24)
+                    Layout.preferredHeight: Style.space(24)
+                    kind: hourRow.modelData.kind
+                  }
+                  Text {
                     Layout.fillWidth: true
-                    Layout.preferredWidth: 1
-                    implicitHeight: hourCol.implicitHeight + Style.space(8)
-                    radius: trackerPopup.chipRadius
-                    color: index === 0
-                      ? Qt.alpha(trackerPopup.popupSolarColor, root.isLightPopup ? 0.12 : 0.16)
-                      : Qt.alpha(Color.foreground, root.isLightPopup ? 0.03 : 0.04)
-                    border.width: index === 0 || root.ornate ? 1 : 0
-                    border.color: index === 0
-                      ? (root.ornate ? Qt.alpha(root.ornMetal, 0.8) : Qt.alpha(trackerPopup.popupSolarColor, 0.42))
-                      : Qt.alpha(root.ornMetal, 0.25)
-
-                    ColumnLayout {
-                      id: hourCol
-                      anchors.centerIn: parent
-                      spacing: 2
-
-                      Text {
-                        Layout.alignment: Qt.AlignHCenter
-                        textFormat: Text.PlainText
-                        text: index === 0 ? strings.t("forecast.now") : root.hourLabel(modelData.h)
-                        color: index === 0 ? trackerPopup.popupSolarColor : Color.foreground
-                        opacity: index === 0 ? 1.0 : 0.72
-                        font.family: Style.font.family
-                        font.pixelSize: Style.font.caption
-                        font.bold: index === 0
-                      }
-                      SkyIcon {
-                        Layout.alignment: Qt.AlignHCenter
-                        Layout.preferredWidth: Style.space(26)
-                        Layout.preferredHeight: Style.space(26)
-                        kind: modelData.kind
-                      }
-                      Text {
-                        Layout.alignment: Qt.AlignHCenter
-                        textFormat: Text.PlainText
-                        text: root.tempShort(modelData.tempC)
-                        color: Color.foreground
-                        font.family: Style.font.family
-                        font.pixelSize: Style.font.bodySmall
-                        font.bold: true
-                      }
-                      Text {
-                        Layout.alignment: Qt.AlignHCenter
-                        textFormat: Text.PlainText
-                        text: modelData.pop !== null ? Math.round(modelData.pop) + "%" : "–"
-                        color: trackerPopup.popupBlueHourColor
-                        opacity: modelData.pop !== null && modelData.pop >= 20 ? 1.0 : 0.5
-                        font.family: Style.font.family
-                        font.pixelSize: Style.font.caption
+                    Layout.preferredWidth: 0   // share leftover space equally: bars line up
+                    textFormat: Text.PlainText
+                    elide: Text.ElideRight
+                    text: strings.t("weather." + hourRow.modelData.key)
+                    color: Color.foreground
+                    opacity: 0.8
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.bodySmall
+                  }
+                  Text {
+                    Layout.preferredWidth: Style.space(32)
+                    horizontalAlignment: Text.AlignRight
+                    textFormat: Text.PlainText
+                    text: hourRow.modelData.pop !== null && hourRow.modelData.pop >= 10 ? Math.round(hourRow.modelData.pop) + "%" : ""
+                    color: trackerPopup.popupBlueHourColor
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.caption
+                  }
+                  // Same columns as the 7-day rows: the low slot stays empty
+                  Item { Layout.preferredWidth: Style.space(30) }
+                  Item {
+                    Layout.preferredWidth: Style.space(72)
+                    Layout.preferredHeight: Style.space(6)
+                    Rectangle {
+                      anchors.fill: parent
+                      radius: height / 2
+                      color: Qt.alpha(Color.foreground, root.isLightPopup ? 0.08 : 0.1)
+                    }
+                    Rectangle {
+                      width: Math.max(height, parent.width * (hourRow.modelData.tempC - hourRow.lo) / hourRow.span)
+                      height: parent.height
+                      radius: height / 2
+                      gradient: Gradient {
+                        orientation: Gradient.Horizontal
+                        GradientStop { position: 0.0; color: trackerPopup.popupLunarColor }
+                        GradientStop { position: 1.0; color: trackerPopup.popupSolarColor }
                       }
                     }
+                  }
+                  Text {
+                    Layout.preferredWidth: Style.space(30)
+                    textFormat: Text.PlainText
+                    text: root.tempShort(hourRow.modelData.tempC)
+                    color: trackerPopup.popupSolarColor
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.bodySmall
+                    font.bold: true
                   }
                 }
               }
 
+              // The day's details, as under each day in 3 Days
               Text {
-                visible: root.forecastReady
                 Layout.fillWidth: true
+                Layout.topMargin: Style.space(2)
                 textFormat: Text.PlainText
                 elide: Text.ElideRight
                 text: {
                   if (!root.forecastReady) return ""
                   var t = root.forecast.daily[0]
-                  var parts = [strings.t("weather." + t.key)]
+                  var parts = []
                   if (t.pop !== null) parts.push(strings.t("forecast.rain").arg(Math.round(t.pop) + "%"))
                   if (t.windKmh !== null) parts.push(strings.t("forecast.wind").arg(Model.formatWind(t.windKmh, root.windUnit)))
-                  return parts.join(" · ")
+                  return parts.join("  ·  ")
                 }
-                color: Color.foreground
-                opacity: 0.78
+                color: trackerPopup.popupBlueHourColor
                 font.family: Style.font.family
                 font.pixelSize: Style.font.bodySmall
               }
