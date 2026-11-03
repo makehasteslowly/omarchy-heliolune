@@ -341,16 +341,17 @@ BarWidget {
   readonly property string weatherTempText: root.weatherNow ? Model.formatTemperature(root.weatherNow.tempC, root.weatherImperial) : ""
   readonly property string weatherConditionText: root.weatherNow ? strings.t("weather." + root.weatherNow.key) : ""
   // "Feels 50°  [wind] 6 mph  [humidity] 62%": only the values the response actually had
-  readonly property string weatherDetailsText: {
+  // Pieces of the details line: [{kind, text}], kind "" = text only
+  readonly property var weatherDetailParts: {
     var w = root.weatherNow
-    if (!w) return ""
-    var parts = []
-    // the unit is already on the big temperature, so feels-like shows just the degree
-    if (w.feelsC !== null) parts.push(strings.t("weather.feels").arg(Model.formatTemperature(w.feelsC, root.weatherImperial).replace(/°[CF]$/, "°")))
-    if (w.windKmh !== null) parts.push("󰖝 " + Model.formatWind(w.windKmh, root.weatherImperial))
-    if (w.humidity !== null) parts.push("󰖎 " + Math.round(w.humidity) + "%")
-    return parts.join("   ")
+    if (!w) return []
+    var out = []
+    if (w.feelsC !== null) out.push({ kind: "", text: strings.t("weather.feels").arg(Model.formatTemperature(w.feelsC, root.weatherImperial).replace(/°[CF]$/, "°")) })
+    if (w.windKmh !== null) out.push({ kind: "wind", text: Model.formatWind(w.windKmh, root.weatherImperial) })
+    if (w.humidity !== null) out.push({ kind: "humidity", text: Math.round(w.humidity) + "%" })
+    return out
   }
+
   readonly property string weatherText: root.weatherNow && root.weatherEnabled
     ? Model.formatTemperature(root.weatherNow.tempC, root.weatherImperial) + " " + strings.t("weather." + root.weatherNow.key)
     : ""
@@ -395,19 +396,39 @@ BarWidget {
 
   readonly property var formatLocale: Qt.locale(Commons.I18n.formatLocale)
 
-  // Next moonrise and moonset in time order, e.g. "↑ 6:12 PM  ↓ 8:40 AM"
-  readonly property string moonRiseSetText: {
-    var L = root.lunarData
-    if (!L) return ""
-    var ev = []
-    if (L.nextMoonrise) ev.push({ t: L.nextMoonrise, mark: "↑" })
-    if (L.nextMoonset) ev.push({ t: L.nextMoonset, mark: "↓" })
-    if (ev.length === 0) return L.moonAlwaysUp ? strings.t("lunar.alwaysUp") : strings.t("lunar.alwaysDown")
-    ev.sort(function(a, b) { return a.t.getTime() - b.t.getTime() })
-    var parts = []
-    for (var i = 0; i < ev.length; i++) parts.push(ev[i].mark + Model.formatTime(ev[i].t, root.timeFormatMode, root.formatLocale))
-    return parts.join(" ")
+  // Solar phase key -> drawn sky icon kind
+  function sunPhaseKind(key) {
+    var map = { sunrise: "sunrise", sunset: "sunset", blue_hour: "blueHour", solar_noon: "noon",
+      golden_hour: "goldenHour", morning: "day", afternoon: "day",
+      civil_dawn: "twilight", civil_dusk: "twilight", nautical_dawn: "twilight", nautical_dusk: "twilight" }
+    return map[key] || "night"
   }
+
+  // ---- Canvas text uses the shell font and type scale, with each theme's
+  // emphasis: Deco bold, Atomic bold italic (signage), Nouveau regular.
+  function canvasFont(px) {
+    var emphasis = root.decoStyle ? "bold " : (root.atomicStyle ? "italic bold " : "")
+    return emphasis + Math.round(px) + "px \"" + Style.font.family + "\""
+  }
+  // Chart hour labels in the user's time format: "06:00" (24h) or "6 AM" (12h)
+  function hourLabel(h) {
+    if (h === 24 && root.timeFormatMode !== "12" && Model.formatTime(new Date(2000, 0, 1, 13, 0), root.timeFormatMode, root.formatLocale).indexOf("M") < 0) return "24:00"
+    var t = Model.formatTime(new Date(2000, 0, 1, h % 24, 0, 0), root.timeFormatMode, root.formatLocale)
+    return t.replace(/:00(?=\s)/, "")
+  }
+
+
+  // A moonrise/moonset time; tomorrow's or later get the weekday ("Tue 1:12 AM").
+  // With no crossing in the next days the Moon is up or down all day.
+  function moonEventText(t) {
+    var L = root.lunarData
+    if (!t) return L && L.moonAlwaysUp ? strings.t("lunar.alwaysUp") : strings.t("lunar.alwaysDown")
+    var now = root.currentDate
+    var sameDay = t.getFullYear() === now.getFullYear() && t.getMonth() === now.getMonth() && t.getDate() === now.getDate()
+    var time = Model.formatTime(t, root.timeFormatMode, root.formatLocale)
+    return sameDay ? time : t.toLocaleDateString(root.formatLocale, "ddd") + " " + time
+  }
+
   // The very next moon event, for the bar tooltip
   readonly property string nextMoonEventText: {
     var L = root.lunarData
@@ -1382,7 +1403,7 @@ BarWidget {
         elide: Text.ElideRight
         color: choice.selected ? root.ornSelectText : root.ornMetal
         font.family: Style.font.family
-        font.pixelSize: Style.font.small || 11
+        font.pixelSize: Style.font.bodySmall
         font.bold: root.decoStyle || root.atomicStyle || choice.selected
         font.capitalization: root.decoStyle ? Font.AllUppercase : Font.MixedCase
         font.letterSpacing: root.decoStyle ? 1.2 : (root.atomicStyle ? 0.4 : 0.6)
@@ -1477,7 +1498,7 @@ BarWidget {
       color: Color.foreground
       opacity: 0.78
       font.family: Style.font.family
-      font.pixelSize: Style.font.small || 11
+      font.pixelSize: Style.font.bodySmall
       font.bold: true
     }
 
@@ -1493,7 +1514,7 @@ BarWidget {
         text: heading.text
         color: root.ornMetal
         font.family: Style.font.family
-        font.pixelSize: Style.font.small || 11
+        font.pixelSize: Style.font.bodySmall
         font.bold: true
         font.capitalization: Font.AllUppercase
         font.letterSpacing: 2.4
@@ -1513,7 +1534,7 @@ BarWidget {
         text: heading.text
         color: root.ornMetal
         font.family: Style.font.family
-        font.pixelSize: Style.font.small || 11
+        font.pixelSize: Style.font.bodySmall
         font.bold: true
         font.letterSpacing: 1.4
       }
@@ -1531,7 +1552,7 @@ BarWidget {
         text: heading.text
         color: root.ornMetal
         font.family: Style.font.family
-        font.pixelSize: Style.font.small || 11
+        font.pixelSize: Style.font.bodySmall
         font.bold: true
         font.italic: true
         font.letterSpacing: 0.8
@@ -1546,7 +1567,7 @@ BarWidget {
     textFormat: Text.PlainText
     color: root.ornate ? root.ornMetal : Color.foreground
     font.family: Style.font.family
-    font.pixelSize: root.ornate ? (Style.font.small || 11) : Style.font.body
+    font.pixelSize: root.ornate ? Style.font.bodySmall : Style.font.body
     font.bold: root.ornate
     font.capitalization: root.decoStyle ? Font.AllUppercase : Font.MixedCase
     font.letterSpacing: root.decoStyle ? 1.0 : (root.nouveauStyle ? 0.5 : 0)
@@ -1741,7 +1762,7 @@ BarWidget {
     color: root.ornate ? root.ornMetal : Color.foreground
     opacity: root.ornate ? 1.0 : 0.72
     font.family: Style.font.family
-    font.pixelSize: Style.font.small || 11
+    font.pixelSize: Style.font.bodySmall
     font.bold: true
     font.capitalization: root.decoStyle ? Font.AllUppercase : Font.MixedCase
     font.letterSpacing: root.decoStyle ? 1.8 : (root.nouveauStyle ? 0.8 : (root.atomicStyle ? 0.6 : 0))
@@ -1905,15 +1926,25 @@ BarWidget {
     border.width: 1
     border.color: root.ornate ? Qt.alpha(root.ornMetal, 0.7) : Qt.alpha(trackerPopup.popupSolarColor, 0.35)
 
-    Text {
+    Row {
       id: badgeLabel
       anchors.centerIn: parent
-      textFormat: Text.PlainText
-      text: "󰖙 " + Model.formatDaylightDiff(root.solarData.dayDiffSeconds)
-      color: trackerPopup.popupSolarColor
-      font.family: Style.font.family
-      font.pixelSize: Style.font.small || 11
-      font.bold: true
+      spacing: Style.space(3)
+      SkyIcon {
+        anchors.verticalCenter: parent.verticalCenter
+        width: Style.font.bodySmall + 2
+        height: Style.font.bodySmall + 2
+        kind: "day"
+      }
+      Text {
+        anchors.verticalCenter: parent.verticalCenter
+        textFormat: Text.PlainText
+        text: Model.formatDaylightDiff(root.solarData.dayDiffSeconds)
+        color: trackerPopup.popupSolarColor
+        font.family: Style.font.family
+        font.pixelSize: Style.font.bodySmall
+        font.bold: true
+      }
     }
   }
 
@@ -1984,6 +2015,22 @@ BarWidget {
     Rectangle { visible: root.atomicStyle; anchors.centerIn: parent; width: 1.4; height: 7; radius: 0.7; color: root.barMetal }
   }
 
+  // Sky and weather icons in the popup, in the theme's style and popup colours
+  component SkyIcon: WeatherIcon {
+    iconStyle: root.moonStyle
+    sunColor: root.ornatePalette ? root.ornSunFor(root.isLightPopup) : trackerPopup.popupSolarColor
+    moonColor: trackerPopup.popupLunarLitColor
+    rainColor: trackerPopup.popupBlueHourColor
+    cloudColor: root.isLightPopup ? Qt.rgba(0.6, 0.64, 0.71, 1) : Qt.rgba(0.86, 0.89, 0.94, 1)
+    edgeColor: root.decoStyle ? root.ornMetal
+      : (root.nouveauStyle ? Qt.alpha(root.ornMetal, 0.85)
+      : (root.isLightPopup ? Qt.rgba(0.2, 0.18, 0.16, 1) : Qt.rgba(0.08, 0.06, 0.05, 1)))
+    lineColor: root.ornate ? root.ornMetal : Color.foreground
+    accentColor: root.ornFlower
+    snowColor: root.isLightPopup ? "#7F93A8" : "#F4F7FB"
+    boltColor: root.nouveauStyle ? root.ornSunFor(root.isLightPopup) : root.ornMetal
+  }
+
   // The weather icon at bar size, coloured against the bar background
   component BarWeatherIcon: WeatherIcon {
     implicitWidth: Style.space(18)
@@ -1999,6 +2046,8 @@ BarWidget {
       : (root.isLightBar ? Qt.rgba(0.2, 0.18, 0.16, 1) : Qt.rgba(0.08, 0.06, 0.05, 1)))
     snowColor: root.isLightBar ? "#7F93A8" : "#F4F7FB"
     boltColor: root.nouveauStyle ? root.ornPick("sun", root.isLightBar, root.effectiveBarBg) : root.barMetal
+    lineColor: root.ornate ? root.barMetal : Color.foreground
+    accentColor: root.ornatePalette ? root.ornPick("flower", root.isLightBar, root.effectiveBarBg) : root.barMetal
   }
 
   // ---- Weather icons: drawn vector art (crisp at any size), one set per theme.
@@ -2020,6 +2069,8 @@ BarWidget {
     property color rainColor: "#6EC5E9"
     property color snowColor: "#F4F7FB"
     property color boltColor: "#FFD23F"
+    property color lineColor: edgeColor          // horizons, arrows, outlines of sky icons
+    property color accentColor: "#E88AA0"        // blossoms
     implicitWidth: iconSize
     implicitHeight: iconSize
     antialiasing: true
@@ -2275,13 +2326,258 @@ BarWidget {
       }
     }
 
+    // ---------- sky-icon primitives (horizon, arrows, shapes), styled per theme
+    function horizon(ctx, x0, x1, y, S) {
+      ctx.strokeStyle = String(lineColor)
+      ctx.lineCap = "round"
+      if (deco) {
+        ctx.lineWidth = Math.max(1, S * 0.05)
+        ctx.beginPath(); ctx.moveTo(x0, y); ctx.lineTo(x1, y); ctx.stroke()
+        ctx.lineWidth = Math.max(0.8, S * 0.03)
+        ctx.beginPath(); ctx.moveTo(x0 + S * 0.08, y + S * 0.08); ctx.lineTo(x1 - S * 0.08, y + S * 0.08); ctx.stroke()
+      } else if (nouveau) {
+        ctx.lineWidth = Math.max(1, S * 0.06)
+        ctx.beginPath(); ctx.moveTo(x0, y)
+        ctx.bezierCurveTo(x0 + (x1 - x0) * 0.33, y - S * 0.05, x0 + (x1 - x0) * 0.66, y + S * 0.05, x1, y)
+        ctx.stroke()
+      } else {
+        ctx.lineWidth = Math.max(1.2, S * 0.08)
+        ctx.beginPath(); ctx.moveTo(x0 + S * 0.06, y); ctx.lineTo(x1 - S * 0.06, y); ctx.stroke()
+        ctx.fillStyle = String(lineColor)
+        ctx.beginPath(); ctx.arc(x0, y, S * 0.045, 0, Math.PI * 2); ctx.fill()
+        ctx.beginPath(); ctx.arc(x1, y, S * 0.045, 0, Math.PI * 2); ctx.fill()
+      }
+    }
+    function arrow(ctx, x, y, up, s) {
+      var d = up ? -1 : 1
+      ctx.strokeStyle = String(lineColor); ctx.fillStyle = String(lineColor)
+      ctx.lineCap = "round"; ctx.lineJoin = "round"
+      ctx.lineWidth = Math.max(1, s * 0.22)
+      if (deco) {
+        ctx.beginPath(); ctx.moveTo(x - s * 0.5, y - d * s * 0.1); ctx.lineTo(x, y + d * s * 0.4); ctx.lineTo(x + s * 0.5, y - d * s * 0.1); ctx.stroke()
+        ctx.beginPath(); ctx.moveTo(x - s * 0.5, y - d * s * 0.5); ctx.lineTo(x, y); ctx.lineTo(x + s * 0.5, y - d * s * 0.5); ctx.stroke()
+      } else if (nouveau) {
+        ctx.beginPath(); ctx.moveTo(x, y - d * s * 0.5)
+        ctx.quadraticCurveTo(x + s * 0.35, y, x, y + d * s * 0.5); ctx.stroke()
+        ctx.beginPath(); ctx.moveTo(x - s * 0.32, y + d * s * 0.2); ctx.lineTo(x, y + d * s * 0.52); ctx.lineTo(x + s * 0.3, y + d * s * 0.16); ctx.stroke()
+      } else {
+        ctx.beginPath(); ctx.moveTo(x - s * 0.5, y - d * s * 0.25); ctx.lineTo(x, y + d * s * 0.45); ctx.lineTo(x + s * 0.5, y - d * s * 0.25); ctx.closePath(); ctx.fill()
+      }
+    }
+    // a sun cut off by the horizon (only the part above y shows)
+    function sunAbove(ctx, cx, cy, r, yCut, S) {
+      ctx.save(); ctx.beginPath(); ctx.rect(0, 0, S, yCut); ctx.clip()
+      sun(ctx, cx, cy, r)
+      ctx.restore()
+    }
+    function leafShape(ctx, x, y, angle, len, wid) {
+      if (deco) {
+        var tx = x + Math.cos(angle) * len, ty = y + Math.sin(angle) * len
+        var nx = -Math.sin(angle) * wid, ny = Math.cos(angle) * wid
+        var mx = (x + tx) / 2, my = (y + ty) / 2
+        ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(mx + nx, my + ny); ctx.lineTo(tx, ty); ctx.lineTo(mx - nx, my - ny); ctx.closePath(); ctx.fill()
+      } else {
+        root.ornLeaf(ctx, x, y, angle, len, wid)
+      }
+    }
+
     onPaint: {
       var ctx = getContext("2d")
       ctx.reset()
       var S = Math.min(width, height)
       if (S < 8) return
       var c = cloudColor
+      var hy, r, k
       switch (kind) {
+      // ----- sun phases and events
+      case "day":
+        sun(ctx, S * 0.5, S * 0.5, S * 0.22); break
+      case "noon":
+        sun(ctx, S * 0.5, S * 0.58, S * 0.2)
+        ctx.strokeStyle = String(lineColor); ctx.lineWidth = Math.max(1, S * 0.07); ctx.lineCap = "round"
+        ctx.beginPath(); ctx.moveTo(S * 0.5, S * 0.02); ctx.lineTo(S * 0.5, S * 0.12); ctx.stroke()
+        break
+      case "night":
+        moon(ctx, S * 0.46, S * 0.54, S * 0.3)
+        star(ctx, S * 0.8, S * 0.22, S * 0.08); break
+      case "sunrise":
+      case "sunset":
+        hy = S * 0.72
+        sunAbove(ctx, S * 0.5, hy, S * 0.2, hy, S)
+        horizon(ctx, S * 0.06, S * 0.94, hy, S)
+        arrow(ctx, S * 0.5, S * 0.17, kind === "sunrise", S * 0.28)
+        break
+      case "goldenHour":
+        hy = S * 0.74
+        sunAbove(ctx, S * 0.5, hy - S * 0.08, S * 0.2, hy, S)
+        horizon(ctx, S * 0.06, S * 0.94, hy, S)
+        break
+      case "blueHour":
+      case "twilight":
+        hy = S * 0.62
+        // the sun has set: just its glow above the horizon
+        ctx.strokeStyle = String(kind === "blueHour" ? rainColor : sunColor)
+        ctx.lineCap = "round"; ctx.lineWidth = Math.max(1, S * 0.07)
+        for (k = 0; k < 3; k++) {
+          ctx.beginPath(); ctx.arc(S * 0.5, hy, S * (0.16 + k * 0.13), Math.PI * 1.12, Math.PI * 1.88); ctx.stroke()
+        }
+        horizon(ctx, S * 0.06, S * 0.94, hy, S)
+        if (kind === "blueHour") star(ctx, S * 0.82, S * 0.16, S * 0.07)
+        break
+      // ----- moon telemetry
+      case "altitude":
+        hy = S * 0.8
+        horizon(ctx, S * 0.06, S * 0.94, hy, S)
+        ctx.strokeStyle = String(lineColor); ctx.lineWidth = Math.max(1, S * 0.06); ctx.lineCap = "round"
+        ctx.beginPath(); ctx.moveTo(S * 0.14, hy); ctx.lineTo(S * 0.66, S * 0.3); ctx.stroke()
+        ctx.beginPath(); ctx.arc(S * 0.14, hy, S * 0.3, -Math.PI * 0.24, 0); ctx.stroke()
+        moon(ctx, S * 0.72, S * 0.24, S * 0.16)
+        break
+      case "moonrise":
+      case "moonset":
+        hy = S * 0.7
+        moon(ctx, S * 0.42, S * 0.46, S * 0.22)
+        horizon(ctx, S * 0.06, S * 0.94, hy, S)
+        arrow(ctx, S * 0.82, S * 0.3, kind === "moonrise", S * 0.26)
+        break
+      case "riseSet":
+        hy = S * 0.66
+        moon(ctx, S * 0.5, S * 0.42, S * 0.2)
+        horizon(ctx, S * 0.06, S * 0.94, hy, S)
+        arrow(ctx, S * 0.16, S * 0.34, true, S * 0.22)
+        arrow(ctx, S * 0.84, S * 0.34, false, S * 0.22)
+        break
+      case "distance":
+        ctx.fillStyle = String(rainColor)
+        ctx.beginPath(); ctx.arc(S * 0.24, S * 0.5, S * 0.17, 0, Math.PI * 2); ctx.fill()
+        ctx.strokeStyle = String(lineColor); ctx.lineWidth = Math.max(1, S * 0.06)
+        ctx.setLineDash([S * 0.06, S * 0.06])
+        ctx.beginPath(); ctx.moveTo(S * 0.44, S * 0.5); ctx.lineTo(S * 0.7, S * 0.5); ctx.stroke()
+        ctx.setLineDash([])
+        ctx.fillStyle = String(moonColor)
+        ctx.beginPath(); ctx.arc(S * 0.82, S * 0.5, S * 0.1, 0, Math.PI * 2); ctx.fill()
+        break
+      case "ecliptic":
+        ctx.strokeStyle = String(lineColor); ctx.lineWidth = Math.max(1, S * 0.06)
+        ctx.beginPath(); ctx.arc(S * 0.5, S * 0.5, S * 0.36, 0, Math.PI * 2); ctx.stroke()
+        root.ornOrbit(ctx, S * 0.5, S * 0.5, S * 0.46, S * 0.15, -0.4, "all")
+        ctx.fillStyle = String(moonColor)
+        var op = root.ornOrbitPoint(S * 0.5, S * 0.5, S * 0.46, S * 0.15, -0.4, 0.5)
+        ctx.beginPath(); ctx.arc(op[0], op[1], S * 0.08, 0, Math.PI * 2); ctx.fill()
+        break
+      // ----- seasons
+      case "spring":
+        if (deco) {
+          // lotus fan: three diamond petals rising from a stem
+          ctx.strokeStyle = String(lineColor); ctx.lineWidth = Math.max(1, S * 0.06)
+          ctx.beginPath(); ctx.moveTo(S * 0.5, S * 0.94); ctx.lineTo(S * 0.5, S * 0.62); ctx.stroke()
+          ctx.fillStyle = String(accentColor)
+          var petals = [[-0.55, 0.3], [0, 0.4], [0.55, 0.3]]
+          for (k = 0; k < petals.length; k++) {
+            ctx.save(); ctx.translate(S * 0.5, S * 0.64); ctx.rotate(petals[k][0])
+            var L = S * petals[k][1]
+            ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(S * 0.1, -L * 0.5); ctx.lineTo(0, -L); ctx.lineTo(-S * 0.1, -L * 0.5); ctx.closePath(); ctx.fill()
+            ctx.restore()
+          }
+        } else {
+          root.ornBlossom(ctx, S * 0.5, S * 0.5, S * 0.42, String(accentColor), String(sunColor))
+        }
+        break
+      case "summer":
+        sun(ctx, S * 0.5, S * 0.5, S * 0.22); break
+      case "autumn":
+        ctx.fillStyle = String(sunColor)
+        leafShape(ctx, S * 0.2, S * 0.8, -Math.PI / 4, S * 0.78, S * 0.24)
+        ctx.strokeStyle = String(Qt.darker(sunColor, 1.5)); ctx.lineWidth = Math.max(1, S * 0.05); ctx.lineCap = "round"
+        ctx.beginPath(); ctx.moveTo(S * 0.12, S * 0.88); ctx.lineTo(S * 0.66, S * 0.34); ctx.stroke()
+        break
+      case "winter":
+        if (deco) {
+          ctx.strokeStyle = String(snowColor); ctx.fillStyle = String(snowColor)
+          ctx.lineWidth = Math.max(1, S * 0.06)
+          for (k = 0; k < 6; k++) {
+            var da = k * Math.PI / 3 - Math.PI / 2
+            var dx = Math.cos(da), dy = Math.sin(da)
+            ctx.beginPath(); ctx.moveTo(S * 0.5, S * 0.5); ctx.lineTo(S * 0.5 + dx * S * 0.3, S * 0.5 + dy * S * 0.3); ctx.stroke()
+            var tx = S * 0.5 + dx * S * 0.38, ty = S * 0.5 + dy * S * 0.38, q = S * 0.08
+            ctx.beginPath(); ctx.moveTo(tx + dx * q, ty + dy * q); ctx.lineTo(tx - dy * q * 0.7, ty + dx * q * 0.7)
+            ctx.lineTo(tx - dx * q, ty - dy * q); ctx.lineTo(tx + dy * q * 0.7, ty - dx * q * 0.7); ctx.closePath(); ctx.fill()
+          }
+        } else if (nouveau) {
+          // organic snowflake: six arms ending in small curls
+          ctx.strokeStyle = String(snowColor); ctx.lineCap = "round"; ctx.lineWidth = Math.max(1, S * 0.06)
+          for (k = 0; k < 6; k++) {
+            var na = k * Math.PI / 3 - Math.PI / 2
+            var ex2 = S * 0.5 + Math.cos(na) * S * 0.3, ey2 = S * 0.5 + Math.sin(na) * S * 0.3
+            ctx.beginPath(); ctx.moveTo(S * 0.5, S * 0.5); ctx.lineTo(ex2, ey2); ctx.stroke()
+            root.ornCurl(ctx, ex2, ey2, S * 0.07, na + Math.PI, 0.8, true)
+          }
+          ctx.fillStyle = String(accentColor); ctx.beginPath(); ctx.arc(S * 0.5, S * 0.5, S * 0.07, 0, Math.PI * 2); ctx.fill()
+        } else {
+          // six-arm snowflake with atom-dot tips
+          ctx.strokeStyle = String(snowColor); ctx.fillStyle = String(snowColor)
+          ctx.lineCap = "round"; ctx.lineWidth = Math.max(1, S * 0.07)
+          for (k = 0; k < 6; k++) {
+            var ang = k * Math.PI / 3 - Math.PI / 2
+            var ex = S * 0.5 + Math.cos(ang) * S * 0.34, ey = S * 0.5 + Math.sin(ang) * S * 0.34
+            ctx.beginPath(); ctx.moveTo(S * 0.5, S * 0.5); ctx.lineTo(ex, ey); ctx.stroke()
+            ctx.beginPath(); ctx.arc(ex, ey, S * 0.07, 0, Math.PI * 2); ctx.fill()
+          }
+        }
+        break
+      // ----- header marks
+      case "pin":
+        ctx.fillStyle = String(lineColor)
+        if (deco) {
+          ctx.beginPath(); ctx.moveTo(S * 0.5, S * 0.06); ctx.lineTo(S * 0.8, S * 0.38); ctx.lineTo(S * 0.5, S * 0.94); ctx.lineTo(S * 0.2, S * 0.38); ctx.closePath(); ctx.fill()
+        } else {
+          ctx.beginPath(); ctx.arc(S * 0.5, S * 0.38, S * 0.3, Math.PI * 0.85, Math.PI * 2.15)
+          ctx.quadraticCurveTo(S * 0.66, S * 0.66, S * 0.5, S * 0.95)
+          ctx.quadraticCurveTo(S * 0.34, S * 0.66, S * 0.5 - Math.cos(Math.PI * 0.15) * S * 0.3, S * 0.38 + Math.sin(Math.PI * 0.15) * S * 0.3)
+          ctx.closePath(); ctx.fill()
+        }
+        ctx.save(); ctx.globalCompositeOperation = "destination-out"
+        ctx.beginPath(); ctx.arc(S * 0.5, S * 0.38, S * 0.11, 0, Math.PI * 2); ctx.fill(); ctx.restore()
+        break
+      case "calendar":
+        r = deco ? 0 : (nouveau ? S * 0.18 : S * 0.12)
+        ctx.strokeStyle = String(lineColor); ctx.fillStyle = String(lineColor)
+        ctx.lineWidth = Math.max(1, S * 0.08)
+        var x0 = S * 0.12, y0 = S * 0.2, w = S * 0.76, hgt = S * 0.7
+        ctx.beginPath()
+        ctx.moveTo(x0 + r, y0); ctx.lineTo(x0 + w - r, y0); ctx.arcTo(x0 + w, y0, x0 + w, y0 + r, r)
+        ctx.lineTo(x0 + w, y0 + hgt - r); ctx.arcTo(x0 + w, y0 + hgt, x0 + w - r, y0 + hgt, r)
+        ctx.lineTo(x0 + r, y0 + hgt); ctx.arcTo(x0, y0 + hgt, x0, y0 + hgt - r, r)
+        ctx.lineTo(x0, y0 + r); ctx.arcTo(x0, y0, x0 + r, y0, r); ctx.closePath(); ctx.stroke()
+        ctx.fillRect(x0, y0, w, S * 0.18)
+        ctx.lineCap = "round"
+        ctx.beginPath(); ctx.moveTo(S * 0.32, S * 0.08); ctx.lineTo(S * 0.32, S * 0.28); ctx.moveTo(S * 0.68, S * 0.08); ctx.lineTo(S * 0.68, S * 0.28); ctx.stroke()
+        ctx.fillStyle = String(sunColor)
+        if (deco) { ctx.beginPath(); ctx.moveTo(S * 0.5, S * 0.5); ctx.lineTo(S * 0.6, S * 0.62); ctx.lineTo(S * 0.5, S * 0.74); ctx.lineTo(S * 0.4, S * 0.62); ctx.closePath(); ctx.fill() }
+        else { ctx.beginPath(); ctx.arc(S * 0.5, S * 0.62, S * 0.1, 0, Math.PI * 2); ctx.fill() }
+        break
+      case "wind":
+        ctx.strokeStyle = String(lineColor); ctx.lineCap = "round"; ctx.lineWidth = Math.max(1, S * 0.08)
+        var rows = [[0.3, 0.7], [0.52, 0.86], [0.74, 0.56]]
+        for (k = 0; k < rows.length; k++) {
+          var yy = S * rows[k][0], xe = S * rows[k][1]
+          ctx.beginPath(); ctx.moveTo(S * 0.08, yy); ctx.lineTo(xe, yy); ctx.stroke()
+          if (!deco) root.ornCurl(ctx, xe, yy, S * 0.1, Math.PI * 0.5, 0.7, false)
+          else { ctx.fillStyle = String(lineColor); ctx.beginPath(); ctx.moveTo(xe + S * 0.08, yy); ctx.lineTo(xe, yy - S * 0.06); ctx.lineTo(xe - S * 0.04, yy); ctx.lineTo(xe, yy + S * 0.06); ctx.closePath(); ctx.fill() }
+        }
+        break
+      case "humidity":
+        if (deco) {
+          // faceted geometric drop
+          ctx.fillStyle = String(rainColor)
+          ctx.beginPath(); ctx.moveTo(S * 0.5, S * 0.08); ctx.lineTo(S * 0.76, S * 0.56); ctx.lineTo(S * 0.5, S * 0.9); ctx.lineTo(S * 0.24, S * 0.56); ctx.closePath(); ctx.fill()
+          ctx.strokeStyle = String(lineColor); ctx.lineWidth = Math.max(0.8, S * 0.04)
+          ctx.beginPath(); ctx.moveTo(S * 0.5, S * 0.08); ctx.lineTo(S * 0.5, S * 0.9); ctx.moveTo(S * 0.24, S * 0.56); ctx.lineTo(S * 0.76, S * 0.56); ctx.stroke()
+        } else {
+          drops(ctx, S * 0.25, S * 0.12, S * 0.5, 1, S * 0.62, true)
+        }
+        break
+      // ----- weather
       case "clear":
         sun(ctx, S * 0.5, S * 0.5, S * 0.22); break
       case "clearNight":
@@ -2455,14 +2751,9 @@ BarWidget {
         spacing: Style.space(4)
         anchors.verticalCenter: parent.verticalCenter
 
-        Text {
+        BarWeatherIcon {
           anchors.verticalCenter: parent.verticalCenter
-          textFormat: Text.PlainText
-          text: root.solarData.phaseIcon
-          color: root.barSolarColor
-          font.family: root.bar ? root.bar.fontFamily : Style.font.family
-          font.pixelSize: Math.round(Style.font.body * 1.12)
-          renderType: Text.CurveRendering
+          kind: root.sunPhaseKind(root.solarData.phaseKey)
         }
 
         Text {
@@ -2539,14 +2830,10 @@ BarWidget {
       spacing: Style.space(4)
       scale: barButton.pressScale
 
-      Text {
+      BarWeatherIcon {
         visible: root.showSolarOnBar
         anchors.horizontalCenter: parent.horizontalCenter
-        textFormat: Text.PlainText
-        text: root.solarData.phaseIcon
-        color: root.barSolarColor
-        font.family: root.bar ? root.bar.fontFamily : Style.font.family
-        font.pixelSize: Math.round(Style.font.body * 1.1)
+        kind: root.sunPhaseKind(root.solarData.phaseKey)
       }
 
       Rectangle {
@@ -2581,7 +2868,7 @@ BarWidget {
         text: root.barTempText
         color: root.useThemeColors ? barButton.foreground : Color.foreground
         font.family: root.bar ? root.bar.fontFamily : Style.font.family
-        font.pixelSize: Math.round(Style.font.body * 0.9)
+        font.pixelSize: Style.font.bodySmall
       }
     }
   }
@@ -2702,21 +2989,11 @@ BarWidget {
             Layout.fillWidth: true
             spacing: Style.space(10)
 
-            WeatherIcon {
+            SkyIcon {
               Layout.preferredWidth: Style.space(58)
               Layout.preferredHeight: Style.space(58)
               Layout.alignment: Qt.AlignVCenter
               kind: root.weatherNow ? root.weatherNow.kind : "clear"
-              iconStyle: root.moonStyle
-              sunColor: root.ornatePalette ? root.ornSunFor(root.isLightPopup) : trackerPopup.popupSolarColor
-              moonColor: trackerPopup.popupLunarLitColor
-              rainColor: trackerPopup.popupBlueHourColor
-              cloudColor: root.isLightPopup ? Qt.rgba(0.6, 0.64, 0.71, 1) : Qt.rgba(0.86, 0.89, 0.94, 1)
-              edgeColor: root.decoStyle ? root.ornMetal
-                : (root.nouveauStyle ? Qt.alpha(root.ornMetal, 0.85)
-                : (root.isLightPopup ? Qt.rgba(0.2, 0.18, 0.16, 1) : Qt.rgba(0.08, 0.06, 0.05, 1)))
-              snowColor: root.isLightPopup ? "#7F93A8" : "#F4F7FB"
-              boltColor: root.nouveauStyle ? root.ornSunFor(root.isLightPopup) : root.ornMetal
             }
 
             ColumnLayout {
@@ -2728,7 +3005,7 @@ BarWidget {
                 text: root.weatherTempText
                 color: root.ornate ? root.ornMetal : Color.foreground
                 font.family: Style.font.family
-                font.pixelSize: Math.round(Style.font.body * 2.3)
+                font.pixelSize: Style.font.displayLarge
                 font.bold: true
                 font.italic: root.atomicStyle
                 font.letterSpacing: root.decoStyle ? 1.5 : 0
@@ -2746,16 +3023,43 @@ BarWidget {
                 font.letterSpacing: root.decoStyle ? 1.2 : 0
                 elide: Text.ElideRight
               }
-              Text {
-                Layout.fillWidth: true
-                visible: root.weatherDetailsText !== ""
-                textFormat: Text.PlainText
-                text: root.weatherDetailsText
-                color: Color.foreground
-                opacity: 0.6
-                font.family: Style.font.family
-                font.pixelSize: Style.font.small || 11
-                elide: Text.ElideRight
+              Row {
+                visible: root.weatherDetailParts.length > 0
+                spacing: Style.space(4)
+                Repeater {
+                  model: root.weatherDetailParts
+                  Row {
+                    required property var modelData
+                    required property int index
+                    spacing: Style.space(3)
+                    Text {
+                      visible: index > 0
+                      anchors.verticalCenter: parent.verticalCenter
+                      textFormat: Text.PlainText
+                      text: "·"
+                      color: Color.foreground
+                      opacity: 0.6
+                      font.family: Style.font.family
+                      font.pixelSize: Style.font.bodySmall
+                    }
+                    SkyIcon {
+                      visible: modelData.kind !== ""
+                      anchors.verticalCenter: parent.verticalCenter
+                      width: Style.font.bodySmall + 2
+                      height: Style.font.bodySmall + 2
+                      kind: modelData.kind !== "" ? modelData.kind : "wind"
+                    }
+                    Text {
+                      anchors.verticalCenter: parent.verticalCenter
+                      textFormat: Text.PlainText
+                      text: modelData.text
+                      color: Color.foreground
+                      opacity: 0.6
+                      font.family: Style.font.family
+                      font.pixelSize: Style.font.bodySmall
+                    }
+                  }
+                }
               }
             }
 
@@ -2824,19 +3128,14 @@ Text {
             rowSpacing: Style.space(3)
 
             readonly property real iconWidth: Style.space(14)
-            readonly property real textSize: Style.font.small || 11
+            readonly property real textSize: Style.font.bodySmall
             readonly property color dateColor: root.browsing ? trackerPopup.popupSolarColor : Color.foreground
 
             // ---- row 1: location
-            Text {
+            SkyIcon {
               Layout.preferredWidth: infoGrid.iconWidth
-              horizontalAlignment: Text.AlignHCenter
-              textFormat: Text.PlainText
-              text: "󰍎"
-              color: Color.foreground
-              opacity: 0.8
-              font.family: Style.font.family
-              font.pixelSize: infoGrid.textSize
+              Layout.preferredHeight: infoGrid.iconWidth
+              kind: "pin"
             }
             RowLayout {
               Layout.fillWidth: true
@@ -2866,7 +3165,7 @@ Text {
               Text {
                 textFormat: Text.PlainText
                 text: (root.activeLat >= 0 ? root.activeLat.toFixed(2) + "°N" : Math.abs(root.activeLat).toFixed(2) + "°S")
-                  + "  " + (root.activeLon >= 0 ? root.activeLon.toFixed(2) + "°E" : Math.abs(root.activeLon).toFixed(2) + "°W")
+                  + ", " + (root.activeLon >= 0 ? root.activeLon.toFixed(2) + "°E" : Math.abs(root.activeLon).toFixed(2) + "°W")
                 color: Color.foreground
                 opacity: 0.5
                 font.family: Style.font.family
@@ -2876,21 +3175,16 @@ Text {
             }
 
             // ---- row 2: date of the day shown (follows time travel) and its ISO week
-            Text {
+            SkyIcon {
               Layout.preferredWidth: infoGrid.iconWidth
-              horizontalAlignment: Text.AlignHCenter
-              textFormat: Text.PlainText
-              text: "󰃭"
-              color: infoGrid.dateColor
-              opacity: root.browsing ? 1.0 : 0.62
-              font.family: Style.font.family
-              font.pixelSize: infoGrid.textSize
+              Layout.preferredHeight: infoGrid.iconWidth
+              kind: "calendar"
             }
             Text {
               Layout.fillWidth: true
               textFormat: Text.PlainText
               text: root.currentDate.toLocaleDateString(root.formatLocale, "ddd, MMM d, yyyy")
-                + "  ·  " + strings.t("header.week").arg(Model.isoWeek(root.currentDate).week)
+                + " · " + strings.t("header.week").arg(Model.isoWeek(root.currentDate).week)
               color: infoGrid.dateColor
               opacity: root.browsing ? 1.0 : 0.62
               font.family: Style.font.family
@@ -2931,7 +3225,7 @@ Text {
                 .arg(strings.t(root.viewOffsetDays > 0 ? "view.ahead" : "view.ago").arg(Math.abs(root.viewOffsetDays)))
               color: trackerPopup.popupSolarColor
               font.family: Style.font.family
-              font.pixelSize: Style.font.small || 11
+              font.pixelSize: Style.font.bodySmall
               font.bold: true
               elide: Text.ElideRight
             }
@@ -2980,7 +3274,7 @@ Text {
                 spacing: Style.space(6)
 
                 CardTitle {
-                  text: (root.decoStyle ? "◆ " : (root.nouveauStyle ? "󰌪 " : (root.atomicStyle ? "✦ " : ""))) + strings.t("section.skyHorizon")
+                  text: (root.decoStyle ? "◆ " : (root.nouveauStyle ? "❦ " : (root.atomicStyle ? "✦ " : ""))) + strings.t("section.skyHorizon")
                 }
 
                 Text {
@@ -2992,7 +3286,7 @@ Text {
                     : ""
                   color: trackerPopup.popupSolarColor
                   font.family: Style.font.family
-                  font.pixelSize: Style.font.small || 11
+                  font.pixelSize: Style.font.bodySmall
                   font.bold: true
                   Layout.fillWidth: true
                   horizontalAlignment: Text.AlignRight
@@ -3027,6 +3321,8 @@ Text {
                 onDecoChanged: requestPaint()
                 onNouveauChanged: requestPaint()
                 onAtomicChanged: requestPaint()
+                property string timeFmt: root.timeFormatMode
+                onTimeFmtChanged: requestPaint()
                 onLeafColorChanged: requestPaint()
                 onGoldColorChanged: requestPaint()
 
@@ -3251,15 +3547,15 @@ Text {
 
                   // Time axis labels (00:00, 06:00, 12:00, 18:00, 24:00)
                   ctx.fillStyle = (deco || nouveau || atomic) ? Qt.alpha(goldColor, 0.8) : Qt.alpha(fgColor, 0.48)
-                  ctx.font = deco ? "bold 9px sans-serif" : (nouveau ? "italic 10px serif" : (atomic ? "italic bold 10px sans-serif" : "10px sans-serif"))
+                  ctx.font = root.canvasFont(Style.font.caption)
                   ctx.textAlign = "left"
-                  ctx.fillText("00:00", padL, h - 2)
+                  ctx.fillText(root.hourLabel(0), padL, h - 2)
                   ctx.textAlign = "center"
-                  ctx.fillText("06:00", fracToX(0.25), h - 2)
-                  ctx.fillText("12:00", fracToX(0.50), h - 2)
-                  ctx.fillText("18:00", fracToX(0.75), h - 2)
+                  ctx.fillText(root.hourLabel(6), fracToX(0.25), h - 2)
+                  ctx.fillText(root.hourLabel(12), fracToX(0.50), h - 2)
+                  ctx.fillText(root.hourLabel(18), fracToX(0.75), h - 2)
                   ctx.textAlign = "right"
-                  ctx.fillText("24:00", padL + plotW, h - 2)
+                  ctx.fillText(root.hourLabel(24), padL + plotW, h - 2)
                 }
               }
             }
@@ -3301,13 +3597,11 @@ Text {
                     border.width: 1
                     border.color: root.ornate ? Qt.alpha(root.ornMetal, 0.7) : Qt.alpha(trackerPopup.popupSolarColor, 0.36)
 
-                    Text {
+                    SkyIcon {
                       anchors.centerIn: parent
-                      textFormat: Text.PlainText
-                      text: root.solarData.phaseIcon
-                      color: trackerPopup.popupSolarColor
-                      font.family: Style.font.family
-                      font.pixelSize: Style.space(18)
+                      width: Style.space(24)
+                      height: Style.space(24)
+                      kind: root.sunPhaseKind(root.solarData.phaseKey)
                     }
                   }
 
@@ -3336,7 +3630,7 @@ Text {
                       color: Color.foreground
                       opacity: 0.65
                       font.family: Style.font.family
-                      font.pixelSize: Style.font.small || 11
+                      font.pixelSize: Style.font.bodySmall
                     }
                   }
                 }
@@ -3354,7 +3648,7 @@ Text {
                       color: Color.foreground
                       opacity: 0.65
                       font.family: Style.font.family
-                      font.pixelSize: Style.font.small || 11
+                      font.pixelSize: Style.font.bodySmall
                     }
                     Item { Layout.fillWidth: true }
                     Text {
@@ -3362,7 +3656,7 @@ Text {
                       text: Model.formatDurationHm(root.solarData.dayLengthSeconds)
                       color: trackerPopup.popupSolarColor
                       font.family: Style.font.family
-                      font.pixelSize: Style.font.small || 11
+                      font.pixelSize: Style.font.bodySmall
                       font.bold: true
                     }
                   }
@@ -3386,37 +3680,37 @@ Text {
                 Repeater {
                   model: [
                     {
-                      icon: "󰖚",
+                      kind: "blueHour",
                       label: strings.t("solar.blueHourAm"),
                       value: Model.formatTimeRange(root.solarData.blueHourMorningStart, root.solarData.blueHourMorningEnd, root.timeFormatMode, root.formatLocale),
                       isBlue: true
                     },
                     {
-                      icon: "󰖜",
+                      kind: "sunrise",
                       label: strings.t("solar.sunrise"),
                       value: Model.formatTime(root.solarData.sunrise, root.timeFormatMode, root.formatLocale),
                       isBlue: false
                     },
                     {
-                      icon: "󰖨",
+                      kind: "goldenHour",
                       label: strings.t(root.solarData.goldenHourIsMorning ? "solar.goldenHourAm" : "solar.goldenHourPm"),
                       value: Model.formatTimeRange(root.solarData.goldenHourWindowStart, root.solarData.goldenHourWindowEnd, root.timeFormatMode, root.formatLocale),
                       isBlue: false
                     },
                     {
-                      icon: "󰖙",
+                      kind: "noon",
                       label: strings.t("solar.solarNoon"),
                       value: Model.formatTime(root.solarData.solarNoon, root.timeFormatMode, root.formatLocale),
                       isBlue: false
                     },
                     {
-                      icon: "󰖛",
+                      kind: "sunset",
                       label: strings.t("solar.sunset"),
                       value: Model.formatTime(root.solarData.sunset, root.timeFormatMode, root.formatLocale),
                       isBlue: false
                     },
                     {
-                      icon: "󰖚",
+                      kind: "blueHour",
                       label: strings.t("solar.blueHourPm"),
                       value: Model.formatTimeRange(root.solarData.blueHourEveningStart, root.solarData.blueHourEveningEnd, root.timeFormatMode, root.formatLocale),
                       isBlue: true
@@ -3428,12 +3722,10 @@ Text {
                     Layout.fillWidth: true
                     spacing: Style.space(4)
 
-                    Text {
-                      textFormat: Text.PlainText
-                      text: modelData.icon
-                      color: modelData.isBlue ? trackerPopup.popupBlueHourColor : trackerPopup.popupSolarColor
-                      font.family: Style.font.family
-                      font.pixelSize: Style.font.small || 11
+                    SkyIcon {
+                      Layout.preferredWidth: Style.font.bodySmall + 4
+                      Layout.preferredHeight: Style.font.bodySmall + 4
+                      kind: modelData.kind
                     }
 
                     Text {
@@ -3442,7 +3734,7 @@ Text {
                       color: modelData.isBlue ? trackerPopup.popupBlueHourColor : Color.foreground
                       opacity: modelData.isBlue ? 0.92 : 0.72
                       font.family: Style.font.family
-                      font.pixelSize: Style.font.small || 11
+                      font.pixelSize: Style.font.bodySmall
                       Layout.fillWidth: true
                       elide: Text.ElideRight
                     }
@@ -3452,7 +3744,7 @@ Text {
                       text: modelData.value
                       color: modelData.isBlue ? trackerPopup.popupBlueHourColor : Color.foreground
                       font.family: Style.font.family
-                      font.pixelSize: Style.font.small || 11
+                      font.pixelSize: Style.font.bodySmall
                       font.bold: true
                     }
                   }
@@ -3516,7 +3808,7 @@ Text {
                         + " · " + (root.lunarData.waxing ? strings.t("lunar.waxing") : strings.t("lunar.waning"))
                       color: trackerPopup.popupLunarColor
                       font.family: Style.font.family
-                      font.pixelSize: Style.font.small || 11
+                      font.pixelSize: Style.font.bodySmall
                       font.bold: true
                       elide: Text.ElideRight
                       Layout.fillWidth: true
@@ -3537,7 +3829,7 @@ Text {
                       color: Color.foreground
                       opacity: 0.65
                       font.family: Style.font.family
-                      font.pixelSize: Style.font.small || 11
+                      font.pixelSize: Style.font.bodySmall
                     }
                     Item { Layout.fillWidth: true }
                     Text {
@@ -3545,7 +3837,7 @@ Text {
                       text: Model.formatAgeDays(root.lunarData.ageDays) + " / 29.5d"
                       color: trackerPopup.popupLunarColor
                       font.family: Style.font.family
-                      font.pixelSize: Style.font.small || 11
+                      font.pixelSize: Style.font.bodySmall
                       font.bold: true
                     }
                   }
@@ -3569,37 +3861,37 @@ Text {
                 Repeater {
                   model: [
                     {
-                      icon: "󰍍",
+                      kind: "altitude",
                       label: strings.t("solar.altitude"),
                       value: (root.lunarData.altitude >= 0 ? "+" : "") + root.lunarData.altitude.toFixed(1) + "° " + root.lunarData.compassDir
                     },
                     {
-                      icon: "󰽥",
-                      label: strings.t("lunar.riseSet"),
-                      value: root.moonRiseSetText
+                      kind: "moonrise",
+                      label: strings.t("lunar.moonrise"),
+                      value: root.moonEventText(root.lunarData.nextMoonrise)
                     },
                     {
-                      icon: "󰞍",
+                      kind: "moonset",
+                      label: strings.t("lunar.moonset"),
+                      value: root.moonEventText(root.lunarData.nextMoonset)
+                    },
+                    {
+                      kind: "distance",
                       label: strings.t("lunar.distance"),
                       value: Commons.I18n.formatNumber(root.lunarData.distanceKm) + " km"
                     },
                     {
-                      icon: "󰭦",
-                      label: strings.t("lunar.zodiac"),
-                      value: root.lunarData.zodiacName
-                    },
-                    {
-                      icon: root.lunarData.nextQuarterIsFirst ? "󰽡" : "󰽣",
+                      kind: "moonPhase", phase: root.lunarData.nextQuarterIsFirst ? 0.25 : 0.75,
                       label: strings.t("lunar.nextQuarter"),
                       value: root.lunarData.nextQuarterDate.toLocaleDateString(root.formatLocale, "MMM d") + " (" + Model.formatCountdownDays(root.lunarData.daysToQuarter) + ")"
                     },
                     {
-                      icon: "󰽢",
+                      kind: "moonPhase", phase: 0.5,
                       label: strings.t("lunar.nextFull"),
                       value: root.lunarData.nextFullDate.toLocaleDateString(root.formatLocale, "MMM d") + " (" + Model.formatCountdownDays(root.lunarData.daysToFull) + ")"
                     },
                     {
-                      icon: "󰽤",
+                      kind: "moonPhase", phase: 0.0,
                       label: strings.t("lunar.nextNew"),
                       value: root.lunarData.nextNewDate.toLocaleDateString(root.formatLocale, "MMM d") + " (" + Model.formatCountdownDays(root.lunarData.daysToNew) + ")"
                     }
@@ -3610,12 +3902,24 @@ Text {
                     Layout.fillWidth: true
                     spacing: Style.space(4)
 
-                    Text {
-                      textFormat: Text.PlainText
-                      text: modelData.icon
-                      color: trackerPopup.popupLunarColor
-                      font.family: Style.font.family
-                      font.pixelSize: Style.font.small || 11
+                    Item {
+                      Layout.preferredWidth: Style.font.bodySmall + 4
+                      Layout.preferredHeight: Style.font.bodySmall + 4
+                      SkyIcon {
+                        anchors.fill: parent
+                        visible: modelData.kind !== "moonPhase"
+                        kind: modelData.kind === "moonPhase" ? "night" : modelData.kind
+                      }
+                      MoonDisc {
+                        anchors.centerIn: parent
+                        visible: modelData.kind === "moonPhase"
+                        discSize: Style.font.bodySmall + 3
+                        renderStyle: root.moonStyle
+                        phase: modelData.phase !== undefined ? modelData.phase : 0.5
+                        litColor: trackerPopup.popupLunarLitColor
+                        darkColor: root.ornatePalette ? root.ornMoonShadow(root.isLightPopup, 0.24) : Qt.rgba(0.05, 0.08, 0.14, 0.85)
+                        rimColor: Qt.alpha(trackerPopup.popupLunarColor, 0.6)
+                      }
                     }
 
                     Text {
@@ -3624,7 +3928,7 @@ Text {
                       color: Color.foreground
                       opacity: 0.72
                       font.family: Style.font.family
-                      font.pixelSize: Style.font.small || 11
+                      font.pixelSize: Style.font.bodySmall
                       Layout.fillWidth: true
                       elide: Text.ElideRight
                     }
@@ -3634,7 +3938,7 @@ Text {
                       text: modelData.value
                       color: Color.foreground
                       font.family: Style.font.family
-                      font.pixelSize: Style.font.small || 11
+                      font.pixelSize: Style.font.bodySmall
                       font.bold: true
                     }
                   }
@@ -3662,15 +3966,15 @@ Text {
               RowLayout {
                 Layout.fillWidth: true
                 CardTitle {
-                  text: (root.decoStyle ? "◆ " : (root.nouveauStyle ? "󰌪 " : (root.atomicStyle ? "✦ " : ""))) + strings.t("section.upcomingMoon")
+                  text: (root.decoStyle ? "◆ " : (root.nouveauStyle ? "❦ " : (root.atomicStyle ? "✦ " : ""))) + strings.t("section.upcomingMoon")
                 }
                 Item { Layout.fillWidth: true }
                 Text {
                   textFormat: Text.PlainText
-                  text: root.lunarData.phaseName
+                  text: strings.t("lunar.inSign").arg(root.lunarData.zodiacName)
                   color: trackerPopup.popupLunarColor
                   font.family: Style.font.family
-                  font.pixelSize: Style.font.small || 11
+                  font.pixelSize: Style.font.bodySmall
                 }
               }
 
@@ -3711,7 +4015,7 @@ Text {
                         color: index === 0 ? trackerPopup.popupLunarColor : Color.foreground
                         opacity: index === 0 ? 1.0 : 0.72
                         font.family: Style.font.family
-                        font.pixelSize: Style.font.small || 10
+                        font.pixelSize: Style.font.caption
                         font.bold: index === 0
                       }
 
@@ -3732,7 +4036,7 @@ Text {
                         color: Color.foreground
                         opacity: 0.85
                         font.family: Style.font.family
-                        font.pixelSize: Style.font.small || 10
+                        font.pixelSize: Style.font.caption
                         font.bold: index === 0
                       }
                     }
@@ -3761,7 +4065,7 @@ Text {
               RowLayout {
                 Layout.fillWidth: true
                 CardTitle {
-                  text: (root.decoStyle ? "◆ " : (root.nouveauStyle ? "󰌪 " : (root.atomicStyle ? "✦ " : ""))) + strings.t("section.analemma")
+                  text: (root.decoStyle ? "◆ " : (root.nouveauStyle ? "❦ " : (root.atomicStyle ? "✦ " : ""))) + strings.t("section.analemma")
                 }
                 Item { Layout.fillWidth: true }
                 Text {
@@ -3773,7 +4077,7 @@ Text {
                     : ""
                   color: trackerPopup.popupSolarColor
                   font.family: Style.font.family
-                  font.pixelSize: Style.font.small || 11
+                  font.pixelSize: Style.font.bodySmall
                   font.bold: true
                 }
               }
@@ -3793,8 +4097,8 @@ Text {
                 property color textColor: Color.foreground
                 property string style: root.moonStyle
                 property bool bold: root.useBoldColors
-                readonly property real plotPadL: 44
-                readonly property real plotPadR: 44
+                property real plotPadL: 44   // measured from the solstice labels on each paint
+                property real plotPadR: 44
                 readonly property real plotPadT: 14
                 readonly property real plotPadB: 16
 
@@ -3867,6 +4171,14 @@ Text {
                   if (!a || w < 80 || h < 40) return
 
                   // Lying on its side: x = noon altitude (low -> high), y = equation of time (sundial fast = up)
+                  // Side margins fit the widest solstice label in the chart font
+                  ctx.font = root.canvasFont(Style.font.caption)
+                  var labelW = ctx.measureText(strings.t("analemma.solstice")).width
+                  for (var li2 = 0; li2 < a.events.length; li2++) {
+                    if (a.events[li2].isSolstice) labelW = Math.max(labelW, ctx.measureText(a.events[li2].date.toLocaleDateString(root.formatLocale, "MMM d")).width)
+                  }
+                  plotPadL = Math.ceil(labelW) + 12
+                  plotPadR = Math.ceil(labelW) + 12
                   var padL = plotPadL, padR = plotPadR, padT = plotPadT, padB = plotPadB
                   var altSpan = Math.max(1.0, a.maxAlt - a.minAlt)
                   var eotSpan = Math.max(Math.abs(a.minEot), Math.abs(a.maxEot), 1.0)
@@ -3927,7 +4239,7 @@ Text {
                   }
 
                   // Equinox / solstice markers and labels
-                  ctx.font = (style === "nouveau" ? "italic " : (style === "atomic" ? "italic bold " : "bold ")) + "9px sans-serif"
+                  ctx.font = root.canvasFont(Style.font.caption)
                   for (var e = 0; e < a.events.length; e++) {
                     var ev = a.events[e]
                     var ex = X(ev), ey = Y(ev)
@@ -3972,7 +4284,7 @@ Text {
 
                   // Axis hints
                   ctx.fillStyle = Qt.alpha(textColor, 0.45)
-                  ctx.font = "8px sans-serif"
+                  ctx.font = root.canvasFont(Style.font.caption - 1)
                   ctx.textAlign = "left"
                   ctx.fillText(Math.round(a.minAlt) + "°", 2, h - 3)
                   ctx.textAlign = "right"
@@ -3994,13 +4306,11 @@ Text {
                 Layout.fillWidth: true
                 spacing: Style.space(8)
 
-                Text {
+                SkyIcon {
                   Layout.alignment: Qt.AlignVCenter
-                  textFormat: Text.PlainText
-                  text: root.seasonData.nextIcon
-                  color: trackerPopup.popupSolarColor
-                  font.family: Style.font.family
-                  font.pixelSize: Math.round((Style.font.size || 13) * 1.6)
+                  Layout.preferredWidth: Style.space(28)
+                  Layout.preferredHeight: Style.space(28)
+                  kind: String(root.seasonData.nextSeasonName || "winter").toLowerCase()
                 }
 
                 ColumnLayout {
@@ -4014,7 +4324,7 @@ Text {
                       text: root.seasonData.nextEventName
                       color: root.ornate ? root.ornMetal : Color.foreground
                       font.family: Style.font.family
-                      font.pixelSize: Style.font.size || 13
+                      font.pixelSize: Style.font.subtitle
                       font.bold: true
                       font.capitalization: root.decoStyle ? Font.AllUppercase : Font.MixedCase
                       font.letterSpacing: root.decoStyle ? 1.6 : (root.nouveauStyle ? 0.6 : 0)
@@ -4025,7 +4335,7 @@ Text {
                       text: Model.formatSeasonCountdown(root.seasonData.calendarDaysUntil)
                       color: trackerPopup.popupSolarColor
                       font.family: Style.font.family
-                      font.pixelSize: Style.font.size || 13
+                      font.pixelSize: Style.font.subtitle
                       font.bold: true
                     }
                   }
@@ -4039,7 +4349,7 @@ Text {
                       color: Color.foreground
                       opacity: 0.72
                       font.family: Style.font.family
-                      font.pixelSize: Style.font.small || 11
+                      font.pixelSize: Style.font.bodySmall
                     }
                     Item { Layout.fillWidth: true }
                     Text {
@@ -4051,7 +4361,7 @@ Text {
                       color: Color.foreground
                       opacity: 0.72
                       font.family: Style.font.family
-                      font.pixelSize: Style.font.small || 11
+                      font.pixelSize: Style.font.bodySmall
                     }
                   }
                 }
@@ -4271,7 +4581,7 @@ Text {
               color: root.ornate ? root.ornMetal : Color.foreground
               opacity: root.ornate ? 0.92 : 0.78
               font.family: Style.font.family
-              font.pixelSize: Style.font.small || 11
+              font.pixelSize: Style.font.bodySmall
               font.bold: true
               font.letterSpacing: root.ornate ? 0.8 : 0
               elide: Text.ElideRight

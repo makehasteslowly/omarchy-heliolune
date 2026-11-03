@@ -17,11 +17,10 @@
   "solar.dayLength": "Day Length",
   "solar.altitude": "Altitude",
   "solar.azimuth": "Azimuth",
-  "solar.next": "› %1 · %2",
+  "solar.next": "%1 · %2",
   "lunar.illumination": "%1% Lit",
   "lunar.age": "Lunar Age",
   "lunar.distance": "Distance",
-  "lunar.zodiac": "Ecliptic",
   "lunar.nextQuarter": "Next Qtr",
   "lunar.nextFull": "Next Full",
   "lunar.nextNew": "Next New",
@@ -39,7 +38,6 @@
   "analemma.equinox": "Equinox",
   "analemma.fast": "sundial fast",
   "analemma.slow": "sundial slow",
-  "lunar.riseSet": "Rise/Set",
   "lunar.alwaysUp": "Up all day",
   "lunar.alwaysDown": "Below horizon all day",
   "lunar.moonriseAt": "Moonrise %1",
@@ -70,5 +68,8 @@
   "weather.thunderHail": "Thunderstorm with hail",
   "header.week": "Week %1",
   "weather.feels": "Feels %1",
-  "settings.barWeather": "Bar Weather"
+  "settings.barWeather": "Bar Weather",
+  "lunar.moonrise": "Moonrise",
+  "lunar.moonset": "Moonset",
+  "lunar.inSign": "Moon in %1"
 }
