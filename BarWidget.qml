@@ -3945,17 +3945,21 @@ Text {
                     required property var modelData
                     required property int index
                     readonly property bool marked: modelData.event !== ""
+                    readonly property bool today: index === 0
                     Layout.fillWidth: true
                     Layout.preferredWidth: 1
                     implicitHeight: cellCol.implicitHeight + Style.space(8)
                     radius: trackerPopup.chipRadius
-                    color: moonCell.index === 0 || moonCell.marked
-                      ? Qt.alpha(trackerPopup.popupLunarColor, root.isLightPopup ? 0.12 : 0.16)
+                    // Phase days: filled with the Moon's tint. Today: outlined in the
+                    // Sun colour ("Today" everywhere else); both when they coincide.
+                    color: moonCell.marked
+                      ? Qt.alpha(trackerPopup.popupLunarColor, root.isLightPopup ? 0.16 : 0.22)
                       : Qt.alpha(Color.foreground, root.isLightPopup ? 0.03 : 0.04)
-                    border.width: moonCell.index === 0 || moonCell.marked ? 1 : (root.ornate ? 1 : 0)
-                    border.color: moonCell.index === 0 || moonCell.marked
-                      ? (root.ornate ? Qt.alpha(root.ornMetal, 0.8) : Qt.alpha(trackerPopup.popupLunarColor, 0.5))
-                      : Qt.alpha(root.ornMetal, 0.25)
+                    border.width: moonCell.today ? 2 : (moonCell.marked || root.ornate ? 1 : 0)
+                    border.color: moonCell.today ? trackerPopup.popupSolarColor
+                      : (moonCell.marked
+                        ? (root.ornate ? Qt.alpha(root.ornMetal, 0.8) : Qt.alpha(trackerPopup.popupLunarColor, 0.5))
+                        : Qt.alpha(root.ornMetal, 0.25))
 
                     ColumnLayout {
                       id: cellCol
@@ -3965,13 +3969,13 @@ Text {
                       Text {
                         Layout.alignment: Qt.AlignHCenter
                         textFormat: Text.PlainText
-                        text: moonCell.index === 0 ? strings.t("forecast.now")
+                        text: moonCell.today ? strings.t("view.today")
                           : moonCell.modelData.date.toLocaleDateString(root.formatLocale, moonCell.modelData.date.getDate() === 1 || moonCell.index === 1 ? "MMM d" : "ddd d")
-                        color: moonCell.index === 0 ? trackerPopup.popupLunarColor : Color.foreground
-                        opacity: moonCell.index === 0 ? 1.0 : 0.72
+                        color: moonCell.today ? trackerPopup.popupSolarColor : Color.foreground
+                        opacity: moonCell.today ? 1.0 : 0.72
                         font.family: Style.font.family
                         font.pixelSize: Style.font.caption
-                        font.bold: moonCell.index === 0
+                        font.bold: moonCell.today
                       }
                       MoonDisc {
                         Layout.alignment: Qt.AlignHCenter
@@ -3995,6 +3999,43 @@ Text {
                       }
                     }
                   }
+                }
+              }
+
+              // Key: what the outline and the fill mean
+              RowLayout {
+                Layout.alignment: Qt.AlignHCenter
+                spacing: Style.space(6)
+                Rectangle {
+                  implicitWidth: Style.space(14); implicitHeight: Style.space(10)
+                  radius: 2
+                  color: "transparent"
+                  border.width: 2
+                  border.color: trackerPopup.popupSolarColor
+                }
+                Text {
+                  textFormat: Text.PlainText
+                  text: strings.t("view.today")
+                  color: Color.foreground
+                  opacity: 0.8
+                  font.family: Style.font.family
+                  font.pixelSize: Style.font.caption
+                }
+                Item { implicitWidth: Style.space(8) }
+                Rectangle {
+                  implicitWidth: Style.space(14); implicitHeight: Style.space(10)
+                  radius: 2
+                  color: Qt.alpha(trackerPopup.popupLunarColor, root.isLightPopup ? 0.16 : 0.22)
+                  border.width: 1
+                  border.color: root.ornate ? Qt.alpha(root.ornMetal, 0.8) : Qt.alpha(trackerPopup.popupLunarColor, 0.5)
+                }
+                Text {
+                  textFormat: Text.PlainText
+                  text: strings.t("moon.keyPhases")
+                  color: Color.foreground
+                  opacity: 0.8
+                  font.family: Style.font.family
+                  font.pixelSize: Style.font.caption
                 }
               }
             }
