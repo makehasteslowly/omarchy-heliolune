@@ -27,7 +27,7 @@ There are good moon widgets and good sunrise widgets for Omarchy. Heliolune is o
 
 ### On the bar
 
-The Sun and Moon share one themed capsule (here with values: Atomic, Art Deco and Art Nouveau, Soft and Bold):
+The Sun, the Moon and the weather share one themed capsule (here with values; Atomic, Art Deco and Art Nouveau from top to bottom, Soft on the left and Bold on the right):
 
 ![The bar capsule in each theme](docs/screenshots/bar.png)
 
@@ -45,17 +45,21 @@ With weather on, the capsule also shows the current conditions as a small line-d
 
 ### In the popup
 
-![The Heliolune popup in the default Atomic theme](docs/screenshots/popup.png)
+![The Sun view in the default Atomic theme](docs/screenshots/popup.png)
 
 Each item on the bar opens its own view; the header buttons and **W** / **M** switch between them.
 
-- **Header (every view):** the **current weather**: a large drawn icon for the conditions, the temperature, the sky, and feels-like, wind and humidity (optional, see [Privacy](#privacy--network)). Below it, your city and coordinates, the **date and week number** (e.g. `Mon, Nov 2, 2026 · Week 45`), and the daylight gained or lost since yesterday. During severe weather an alert banner sits under it.
+- **Header (every view):** the **current weather**: a large line-drawn icon for the conditions, the temperature, the sky, and feels-like, wind and humidity (optional, see [Privacy](#privacy--network)). Below it, your city and coordinates, the **date and week number** (e.g. `Mon, Nov 2, 2026 · Week 45`), and the daylight gained or lost since yesterday. During severe weather an alert banner sits under it.
 - **Sun** (click the sun, or anywhere else on the capsule):
   - **24-hour sky path:** the Sun's and Moon's altitude through the day against your horizon, and where they are right now.
   - **The Sun:** sky phase (from astronomical night through blue hour, golden hour and solar noon), altitude and compass bearing, day length, and the day's timetable: blue hour, sunrise, golden hour, solar noon, sunset, blue hour.
   - **The Sun's yearly path:** the analemma, then the countdown to the next equinox or solstice with the current season's progress (*Autumn · day 41 of 90*). Hemisphere-aware: in Sydney, June brings the Winter Solstice.
 - **Moon** (click the moon): opens on **Cycle**: the current lunation from the last new Moon to the next, with today's Moon large and marked on a track with the quarters and the full Moon. Press play for a **time lapse** through the cycle, or switch to **Sky** to watch the Moon (and the Sun) cross a compass horizon over the next 24 hours; scrub, pause, or jump back to **Now**. Below it, the Moon card: phase, illumination, age, moonrise and moonset, altitude, distance, ecliptic sign, the next quarter, full and new Moon. Then **Today** (when the Moon is up in a dark sky, hour by hour, with the weather's clouds taken into account), **7 Days** (a row per day: phase, moonrise, illumination) and **30 Days** (a month of Moons with the new, quarter and full Moons marked).
 - **Weather** (click the weather): **Today** (the next 24 hours, every three hours, with chance of rain), **3 Days** (conditions, high and low, rain chance, wind per day) **7 Days** (one row per day with the week's temperature range) or **Map** (a 5 × 5 grid of forecast points around you, out to 20, 60 or 100 miles (30, 100 or 160 km in metric), showing **Temp**, **Rain** (real radar for the past two hours from RainViewer, then the forecast as a radar-style picture, with bars on the timeline showing when rain comes) or **Wind** (streaks flowing the way the wind blows, brighter where it is stronger; they also drift faintly over the rain); drag the hour bar or press play to watch the next 24 hours move across the area, and hover a square for its distance, direction and conditions). The squares sit on an OpenStreetMap map of the area (towns, roads, rivers), muted to suit the theme; north is up and the middle square is your location.
+
+| Moon | Forecast | Map |
+|---|---|---|
+| ![The Moon view: this cycle with a time lapse, and the Moon card](docs/screenshots/moon.png) | ![The 7-day forecast](docs/screenshots/forecast.png) | ![The area map: forecast points over OpenStreetMap, with a 24-hour timeline](docs/screenshots/map.png) |
 
 Any card can be hidden in settings, under **View Cards**.
 
@@ -89,9 +93,9 @@ Right-click the widget and pick a **Style**: the choice restyles the whole widge
 - **Bold:** full-saturation color, heavy rules and deep jewel-toned cards.
 - **Theme:** keeps the theme's shapes but takes its colors from your Omarchy theme.
 
-| Atomic: Soft / Bold | Art Deco: Soft / Bold | Art Nouveau: Soft / Bold |
+| Atomic | Art Deco | Art Nouveau |
 |---|---|---|
-| ![Atomic, Soft and Bold](docs/screenshots/theme-atomic.png) | ![Art Deco, Soft and Bold](docs/screenshots/theme-deco.png) | ![Art Nouveau, Soft and Bold](docs/screenshots/theme-nouveau.png) |
+| ![The Sun view in Atomic](docs/screenshots/theme-atomic.png) | ![The Sun view in Art Deco](docs/screenshots/theme-deco.png) | ![The Sun view in Art Nouveau](docs/screenshots/theme-nouveau.png) |
 
 On light themes, every color is checked against the actual bar and popup background and darkened until it meets WCAG contrast (4.5:1 for text), so nothing washes out.
 
@@ -153,7 +157,11 @@ omarchy-shell makehasteslowly.heliolune moon       # open the Moon view
 
 ## Settings
 
-Everything is in the right-click panel. The same keys can be set on the widget's entry in `~/.config/omarchy/shell.json`:
+Everything is in the right-click panel, in foldable sections: **Location** (search for a city), **Appearance**, **Bar**, **Weather**, **View Cards**, **Calendar**, **Sky Reminders** and **Advanced**. Click a section's heading to fold or unfold it.
+
+<p align="center"><img src="docs/screenshots/settings.png" alt="The settings panel in Art Deco" width="380"></p>
+
+The same keys can be set on the widget's entry in `~/.config/omarchy/shell.json`:
 
 | Key | Values | Default |
 |---|---|---|
@@ -222,7 +230,8 @@ USNO publishes times to the minute; errors are measured after allowing for that 
 ```bash
 node tests/accuracy.mjs            # summary; exits non-zero on any regression
 node tests/accuracy.mjs --verbose  # every comparison
-node tests/calendar.mjs            # ISO week numbers, incl. New Year edge cases
+node tests/calendar.mjs            # week numbers, options, weather, map, city search, reminders
+node tests/strings.mjs             # every string the code names exists in i18n/en.json
 python3 -I tests/fetch-usno.py     # refresh the reference data (public test cities only)
 ```
 

@@ -2,11 +2,11 @@
   "schemaVersion": 1,
   "id": "makehasteslowly.heliolune",
   "name": "Heliolune — Sun, Moon & Seasons",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "author": "makehasteslowly",
   "license": "MIT",
   "homepage": "https://github.com/makehasteslowly/omarchy-heliolune",
-  "description": "Sun, Moon & Seasons for the Omarchy bar: solar and lunar phases, sunrise/sunset with blue and golden hours, moonrise/moonset, a 24-hour sky path, 7-day moon forecast, and the Sun's yearly analemma with equinox and solstice countdowns. Drag the figure-8 to travel through the year. Offline astronomy validated against the US Naval Observatory; optional current weather. Three themes (Art Nouveau, Art Deco, Atomic) restyle the whole widget, light-theme aware.",
+  "description": "Sun, Moon & Seasons for the Omarchy bar: sky phase, sunrise/sunset with blue and golden hours, moonrise/moonset, a 24-hour sky path, lunar cycle and the Sun's yearly analemma with season countdowns. Forecast and area map with rain radar, city search, and sky reminders (golden hour, full moon, seasons) that scroll on the bar like weather alerts. Offline astronomy validated against the US Naval Observatory. Three themes (Art Nouveau, Art Deco, Atomic) restyle everything.",
   "kinds": [
     "bar-widget"
   ],
@@ -15,7 +15,7 @@
   },
   "barWidget": {
     "displayName": "Heliolune",
-    "description": "Sun & moon phases on the bar; popup with sky path, solar timetable, lunar forecast and the Sun's yearly figure-8.",
+    "description": "Sun, Moon and weather on the bar; views for the sky, the lunar cycle and the forecast, with sky reminders.",
     "category": "Time",
     "aliases": [
       "heliolune",
