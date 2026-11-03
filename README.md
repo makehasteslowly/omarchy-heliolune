@@ -71,7 +71,7 @@ Look at any date up to ten years either way, and every card follows.
 - **Scroll over it** to step a day at a time (Shift: a week), or use **← / →**, and **T** for today.
 - A *Viewing …* chip shows the date you are on. Closing the popup always returns to live.
 
-![Stepping through half a year: the sky path, timetable, Moon, forecast and countdowns follow, and today's Sun travels round the figure-8](docs/screenshots/time-travel.gif)
+![Stepping through half a year a week at a time in Art Deco: the sky path, the timetable and the season countdown follow, and the Sun travels round the figure-8](docs/screenshots/time-travel.gif)
 
 ---
 
