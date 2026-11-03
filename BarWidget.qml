@@ -3623,103 +3623,144 @@ Text {
             }
           }
 
-          // ---- 3 Days: one card per day
-          RowLayout {
+          // ---- 3 Days: the 7-day layout with room to breathe; a details line
+          // (rain, wind) under each day and a hairline between days
+          Rectangle {
             visible: root.forecastReady && root.forecastRange === "3"
             Layout.fillWidth: true
-            spacing: Style.space(8)
+            implicitHeight: threeCol.implicitHeight + Style.space(root.ornate ? 26 : 16)   // room for the frame's bottom ornament
+            radius: trackerPopup.cardRadius
+            color: trackerPopup.cardSurfaceColor
+            border.width: 1
+            border.color: trackerPopup.cardBorderColor
+            OrnCardFrame {}
 
-            Repeater {
-              model: root.forecast.daily.slice(0, 3)
+            ColumnLayout {
+              id: threeCol
+              anchors.fill: parent
+              anchors.margins: Style.space(8)
+              spacing: Style.space(6)
 
-              Rectangle {
-                required property var modelData
-                required property int index
-                Layout.fillWidth: true
-                Layout.preferredWidth: 1
-                Layout.fillHeight: true
-                implicitHeight: dayCol.implicitHeight + Style.space(root.ornate ? 26 : 16)   // room for the frame's bottom ornament
-                radius: trackerPopup.cardRadius
-                color: trackerPopup.cardSurfaceColor
-                border.width: 1
-                border.color: trackerPopup.cardBorderColor
-                OrnCardFrame {}
+              CardTitle {
+                text: (root.decoStyle ? "◆ " : (root.nouveauStyle ? "❦ " : (root.atomicStyle ? "✦ " : ""))) + strings.t("forecast.next3")
+              }
+
+              Repeater {
+                model: root.forecast.daily.slice(0, 3)
 
                 ColumnLayout {
-                  id: dayCol
-                  anchors.left: parent.left
-                  anchors.right: parent.right
-                  anchors.top: parent.top
-                  anchors.margins: Style.space(8)
-                  spacing: Style.space(3)
+                  id: threeDay
+                  required property var modelData
+                  required property int index
+                  readonly property real span: Math.max(1, root.forecastWeekMax - root.forecastWeekMin)
+                  Layout.fillWidth: true
+                  spacing: Style.space(4)
 
-                  CardTitle {
-                    Layout.alignment: Qt.AlignHCenter
-                    text: root.forecastDayLabel(modelData, index)
-                  }
-                  Text {
-                    Layout.alignment: Qt.AlignHCenter
-                    textFormat: Text.PlainText
-                    text: root.forecastDate(modelData).toLocaleDateString(root.formatLocale, "MMM d")
-                    color: Color.foreground
-                    opacity: 0.6
-                    font.family: Style.font.family
-                    font.pixelSize: Style.font.caption
-                  }
-                  SkyIcon {
-                    Layout.alignment: Qt.AlignHCenter
-                    Layout.topMargin: Style.space(2)
-                    Layout.preferredWidth: Style.space(44)
-                    Layout.preferredHeight: Style.space(44)
-                    kind: modelData.kind
-                  }
-                  Text {
+                  Rectangle {
+                    visible: threeDay.index > 0
                     Layout.fillWidth: true
-                    horizontalAlignment: Text.AlignHCenter
-                    textFormat: Text.PlainText
-                    elide: Text.ElideRight
-                    text: strings.t("weather." + modelData.key)
-                    color: Color.foreground
-                    font.family: Style.font.family
-                    font.pixelSize: Style.font.bodySmall
+                    implicitHeight: 1
+                    color: root.ornate ? Qt.alpha(root.ornMetal, 0.25) : Qt.alpha(Color.foreground, 0.08)
                   }
-                  Row {
-                    Layout.alignment: Qt.AlignHCenter
-                    spacing: Style.space(4)
+
+                  RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Style.space(8)
+
+                    SkyIcon {
+                      Layout.preferredWidth: Style.space(38)
+                      Layout.preferredHeight: Style.space(38)
+                      Layout.alignment: Qt.AlignVCenter
+                      kind: threeDay.modelData.kind
+                    }
+
+                    ColumnLayout {
+                      Layout.fillWidth: true
+                      Layout.preferredWidth: 0   // share leftover space equally: bars line up
+                      spacing: 1
+
+                      // Day and date, then the sky
+                      Text {
+                        Layout.fillWidth: true
+                        textFormat: Text.PlainText
+                        elide: Text.ElideRight
+                        text: root.forecastDayLabel(threeDay.modelData, threeDay.index)
+                          + " · " + root.forecastDate(threeDay.modelData).toLocaleDateString(root.formatLocale, "MMM d")
+                        color: threeDay.index === 0 ? trackerPopup.popupSolarColor : Color.foreground
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.body
+                        font.bold: true
+                      }
+                      Text {
+                        Layout.fillWidth: true
+                        textFormat: Text.PlainText
+                        elide: Text.ElideRight
+                        text: strings.t("weather." + threeDay.modelData.key)
+                        color: Color.foreground
+                        opacity: 0.8
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.bodySmall
+                      }
+                    }
+
                     Text {
+                      Layout.preferredWidth: Style.space(30)
+                      horizontalAlignment: Text.AlignRight
                       textFormat: Text.PlainText
-                      text: root.tempShort(modelData.maxC)
+                      text: root.tempShort(threeDay.modelData.minC)
+                      color: trackerPopup.popupLunarColor
+                      font.family: Style.font.family
+                      font.pixelSize: Style.font.body
+                    }
+                    // Same low-high bar and scale as the 7-day view
+                    Item {
+                      Layout.preferredWidth: Style.space(84)
+                      Layout.preferredHeight: Style.space(6)
+                      Rectangle {
+                        anchors.fill: parent
+                        radius: height / 2
+                        color: Qt.alpha(Color.foreground, root.isLightPopup ? 0.08 : 0.1)
+                      }
+                      Rectangle {
+                        x: parent.width * (threeDay.modelData.minC - root.forecastWeekMin) / threeDay.span
+                        width: Math.max(height, parent.width * (threeDay.modelData.maxC - threeDay.modelData.minC) / threeDay.span)
+                        height: parent.height
+                        radius: height / 2
+                        gradient: Gradient {
+                          orientation: Gradient.Horizontal
+                          GradientStop { position: 0.0; color: trackerPopup.popupLunarColor }
+                          GradientStop { position: 1.0; color: trackerPopup.popupSolarColor }
+                        }
+                      }
+                    }
+                    Text {
+                      Layout.preferredWidth: Style.space(30)
+                      textFormat: Text.PlainText
+                      text: root.tempShort(threeDay.modelData.maxC)
                       color: trackerPopup.popupSolarColor
                       font.family: Style.font.family
                       font.pixelSize: Style.font.body
                       font.bold: true
                     }
-                    Text {
-                      textFormat: Text.PlainText
-                      text: root.tempShort(modelData.minC)
-                      color: trackerPopup.popupLunarColor
-                      font.family: Style.font.family
-                      font.pixelSize: Style.font.body
-                    }
                   }
+
+                  // Details under the day, aligned with its text
                   Text {
-                    visible: modelData.pop !== null
-                    Layout.alignment: Qt.AlignHCenter
+                    visible: text !== ""
+                    Layout.fillWidth: true
+                    Layout.leftMargin: Style.space(46)
                     textFormat: Text.PlainText
-                    text: strings.t("forecast.rain").arg(Math.round(modelData.pop || 0) + "%")
+                    elide: Text.ElideRight
+                    text: {
+                      var d = threeDay.modelData
+                      var parts = []
+                      if (d.pop !== null) parts.push(strings.t("forecast.rain").arg(Math.round(d.pop) + "%"))
+                      if (d.windKmh !== null) parts.push(strings.t("forecast.wind").arg(Model.formatWind(d.windKmh, root.windUnit)))
+                      return parts.join("  ·  ")
+                    }
                     color: trackerPopup.popupBlueHourColor
                     font.family: Style.font.family
-                    font.pixelSize: Style.font.caption
-                  }
-                  Text {
-                    visible: modelData.windKmh !== null
-                    Layout.alignment: Qt.AlignHCenter
-                    textFormat: Text.PlainText
-                    text: strings.t("forecast.wind").arg(Model.formatWind(modelData.windKmh, root.windUnit))
-                    color: Color.foreground
-                    opacity: 0.72
-                    font.family: Style.font.family
-                    font.pixelSize: Style.font.caption
+                    font.pixelSize: Style.font.bodySmall
                   }
                 }
               }
@@ -3775,6 +3816,7 @@ Text {
                   }
                   Text {
                     Layout.fillWidth: true
+                    Layout.preferredWidth: 0   // share leftover space equally: bars line up
                     textFormat: Text.PlainText
                     elide: Text.ElideRight
                     text: strings.t("weather." + weekRow.modelData.key)
