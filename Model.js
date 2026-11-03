@@ -1357,6 +1357,43 @@ function parseCurrentWeather(raw) {
   }
 }
 
+// Conditions that raise a weather alert on the bar, by WMO code (only the heavy
+// or dangerous ones: light rain or ordinary snow do not)
+var SEVERE_CODES = {
+  65: true, 82: true,               // heavy rain, violent showers
+  56: true, 57: true, 66: true, 67: true,   // freezing drizzle / rain
+  75: true, 86: true,               // heavy snow, heavy snow showers
+  95: true, 96: true, 99: true      // thunderstorm, with hail
+}
+
+// The first severe spell now or within the next `hoursAhead` hours, from the
+// current reading and the hourly forecast. -> null or
+// { code, key, kind, now, startH, endH, pop } (endH null when the spell runs
+// past the window; pop the highest rain chance in the spell, or null)
+function computeWeatherAlert(w, hoursAhead) {
+  if (!w) return null
+  var hours = (w.forecast && w.forecast.hourly) || []
+  var ahead = hoursAhead === undefined ? 12 : hoursAhead   // hours[0] is the current hour
+  var start = -1
+  if (SEVERE_CODES[w.code]) start = 0
+  else for (var i = 0; i <= ahead && i < hours.length; i++) if (SEVERE_CODES[hours[i].code]) { start = i; break }
+  if (start < 0) return null
+  var first = start === 0 && SEVERE_CODES[w.code] ? w : hours[start]
+  var end = start
+  while (end + 1 < hours.length && SEVERE_CODES[hours[end + 1].code]) end++
+  var pop = null
+  for (var j = start; j <= end && j < hours.length; j++) {
+    if (hours[j].pop !== null && hours[j].pop !== undefined) pop = pop === null ? hours[j].pop : Math.max(pop, hours[j].pop)
+  }
+  return {
+    code: first.code, key: first.key, kind: first.kind,
+    now: start === 0,
+    startH: hours.length ? hours[Math.min(start, hours.length - 1)].h : null,
+    endH: end + 1 < hours.length ? hours[end + 1].h : null,
+    pop: pop
+  }
+}
+
 // unit: "kmh" | "mph" | "ms" (a boolean is accepted as imperial yes/no)
 function formatWind(kmh, unit) {
   var v = Number(kmh)

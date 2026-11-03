@@ -104,8 +104,8 @@ BarWidget {
     if (dropped) root.localOpts = next
   }
 
-  // Bar ticker: the whole strip scrolls across the capsule every n seconds
-  readonly property string barRotateSetting: root.opt("barRotate", ["off", "5", "10", "30"], "off")
+  // Weather alerts: severe weather now or within 12 hours scrolls across the bar
+  readonly property bool alertsOn: root.opt("weatherAlerts", ["on", "off"], "on") === "on"
   readonly property string windSetting: root.opt("windUnit", ["auto", "kmh", "mph", "ms"], "auto")
   readonly property string windUnit: root.windSetting === "auto" ? (root.weatherImperial ? "mph" : "kmh") : root.windSetting
   readonly property string weatherRefreshSetting: root.opt("weatherRefresh", ["15", "30", "60"], "30")
@@ -718,7 +718,7 @@ BarWidget {
   function resetSettings() {
     var defaults = {
       displayMode: "both", colorMode: "celestial", moonStyle: "atomic", timeFormat: "auto",
-      weather: "auto", barWeather: "on", barRotate: "off", windUnit: "auto", weatherRefresh: "30",
+      weather: "auto", barWeather: "on", weatherAlerts: "on", windUnit: "auto", weatherRefresh: "30",
       cardSky: "on", cardSun: "on", cardMoon: "on", cardForecast: "on", cardYear: "on",
       weekScheme: "auto", seasons: "astronomical", lightPreset: "standard", elevation: "0"
     }
@@ -2845,31 +2845,62 @@ BarWidget {
   readonly property real cardFootPad: root.atomicStyle ? Style.space(10) : 0
   readonly property bool barCapsuleOn: root.ornate && (root.showSolarOnBar || root.showLunarOnBar)
 
-  // ---- Ticker: every n seconds the whole strip (sun · moon · weather) scrolls
-  // out to the left and back in from the right, clipped to the capsule.
-  // Opt-in, so it runs at a fixed speed even with Hyprland animations off.
-  readonly property bool barScrolling: root.barRotateSetting !== "off" && !root.vertical
+  // ---- Weather alert: the bar stays as it is; while severe weather is on the
+  // way, the strip scrolls out, the alert itself scrolls across, and the strip
+  // scrolls back in. Again every 20 s, and at once when an alert appears.
+  readonly property var weatherAlert: root.alertsOn && root.weatherEnabled ? Model.computeWeatherAlert(root.weatherNow, 12) : null
+  readonly property string weatherAlertText: {
+    var a = root.weatherAlert
+    if (!a) return ""
+    var cond = strings.t("weather." + a.key)
+    var text = a.now
+      ? (a.endH !== null ? strings.t("alert.nowUntil").arg(cond).arg(root.hourLabel(a.endH)) : strings.t("alert.now").arg(cond))
+      : (a.endH !== null ? strings.t("alert.fromTo").arg(cond).arg(root.hourLabel(a.startH)).arg(root.hourLabel(a.endH))
+                         : strings.t("alert.from").arg(cond).arg(root.hourLabel(a.startH)))
+    if (a.pop !== null) text += " · " + Math.round(a.pop) + "%"
+    return "⚠ " + text
+  }
+  readonly property color alertColor: Color.urgent
+  readonly property bool barAlerting: root.weatherAlertText !== "" && !root.vertical
   readonly property real barRowWidth: barContentRow.implicitWidth
-  readonly property real barTickerSpeed: 120   // px per second: a pass takes about 4 s
-  onBarScrollingChanged: {
-    barTickerAnim.stop()
-    barTickerShift.x = 0
+  readonly property real barTickerSpeed: 90   // px per second; opt-in, so fixed even with animations off
+  // A new or changed alert scrolls at once (after a short beat); none, and the bar is still
+  onBarAlertingChanged: {
+    if (root.barAlerting) barAlertDelay.restart()
+    else {
+      barTickerAnim.stop()
+      barTickerShift.x = 0
+      barAlertLabel.x = barViewport.width
+    }
+  }
+  onWeatherAlertTextChanged: if (root.weatherAlertText !== "" && !root.vertical) barAlertDelay.restart()
+
+  Timer {
+    id: barAlertDelay
+    interval: 1500
+    onTriggered: if (root.barAlerting && !barTickerAnim.running) barTickerAnim.restart()
   }
 
   Timer {
-    interval: Math.max(5, parseInt(root.barRotateSetting) || 10) * 1000
-    // Counts the rest from the end of each pass (stopped while one runs), and
-    // holds still while the pointer is on it or the popup is open
-    running: root.barScrolling && !barTickerAnim.running && !barButton.tooltipHovered && !root.opened
+    interval: 20000
+    // The rest is counted from the end of each pass; holds still while the
+    // pointer is on the widget or the popup is open
+    running: root.barAlerting && !barTickerAnim.running && !barButton.tooltipHovered && !root.opened
     repeat: true
     onTriggered: barTickerAnim.restart()
   }
 
   SequentialAnimation {
     id: barTickerAnim
+    PropertyAction { target: barAlertLabel; property: "x"; value: barViewport.width }
     NumberAnimation {
       target: barTickerShift; property: "x"; from: 0; to: -barViewport.width
       duration: barViewport.width / root.barTickerSpeed * 1000
+      easing.type: Easing.InQuad
+    }
+    NumberAnimation {
+      target: barAlertLabel; property: "x"; from: barViewport.width; to: -barAlertLabel.implicitWidth
+      duration: (barViewport.width + barAlertLabel.implicitWidth) / root.barTickerSpeed * 1000
     }
     PropertyAction { target: barTickerShift; property: "x"; value: barViewport.width }
     NumberAnimation {
@@ -2895,6 +2926,7 @@ BarWidget {
       + root.lunarData.phaseName + " (" + root.lunarData.illuminationPct + "%)"
       + (root.nextMoonEventText !== "" ? " · " + root.nextMoonEventText : "")
       + (root.weatherNow && root.weatherEnabled ? " · " + root.weatherTempText + " " + root.weatherConditionText : "")
+      + (root.weatherAlertText !== "" ? "\n" + root.weatherAlertText : "")
       + (root.showWeatherOnBar ? " · Click the weather: forecast" : "")
       + " · Right-click: settings"
     )
@@ -2954,7 +2986,21 @@ BarWidget {
       anchors.centerIn: parent
       width: root.barRowWidth + Style.space(6)
       height: parent.height
-      clip: root.barScrolling
+      clip: root.barAlerting || barTickerAnim.running
+
+      // The alert, parked off to the right until it scrolls through
+      Text {
+        id: barAlertLabel
+        x: barViewport.width
+        anchors.verticalCenter: parent.verticalCenter
+        visible: root.barAlerting && barTickerAnim.running
+        textFormat: Text.PlainText
+        text: root.weatherAlertText
+        color: root.alertColor
+        font.family: root.bar ? root.bar.fontFamily : Style.font.family
+        font.pixelSize: Style.font.body
+        font.bold: true
+      }
 
       Row {
         id: barContentRow
@@ -3500,6 +3546,41 @@ Text {
               text: strings.t("view.today")
               selected: true
               onClicked: root.setViewOffset(0)
+            }
+          }
+        }
+
+        // Weather alert banner: the same alert that scrolls on the bar; opens Today
+        Rectangle {
+          visible: root.weatherAlertText !== "" && !root.settingsOpen
+          Layout.fillWidth: true
+          implicitHeight: alertBannerText.implicitHeight + Style.space(10)
+          radius: trackerPopup.chipRadius
+          color: Qt.alpha(root.alertColor, root.isLightPopup ? 0.12 : 0.18)
+          border.width: 1
+          border.color: Qt.alpha(root.alertColor, 0.6)
+
+          Text {
+            id: alertBannerText
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            anchors.leftMargin: Style.space(8)
+            anchors.rightMargin: Style.space(8)
+            textFormat: Text.PlainText
+            elide: Text.ElideRight
+            text: root.weatherAlertText
+            color: Color.foreground
+            font.family: Style.font.family
+            font.pixelSize: Style.font.bodySmall
+            font.bold: true
+          }
+
+          HoverHandler { cursorShape: Qt.PointingHandCursor }
+          TapHandler {
+            onTapped: {
+              root.forecastRange = "today"
+              root.weatherOpen = true
             }
           }
         }
@@ -5223,18 +5304,6 @@ Text {
             onPicked: key => root.selectBarWeather(key)
           }
 
-          OptionRow {
-            label: strings.t("settings.barRotate")
-            choices: [
-              { key: "off", label: "Off" },
-              { key: "5",   label: "5 s" },
-              { key: "10",  label: "10 s" },
-              { key: "30",  label: "30 s" }
-            ]
-            current: root.barRotateSetting
-            onPicked: key => root.setOpt("barRotate", key)
-          }
-
           // ---- Weather
           SectionHeading {
             text: strings.t("settings.section.weather")
@@ -5275,6 +5344,17 @@ Text {
             ]
             current: root.weatherRefreshSetting
             onPicked: key => root.setOpt("weatherRefresh", key)
+          }
+
+          OptionRow {
+            visible: root.weatherEnabled
+            label: strings.t("settings.alerts")
+            choices: [
+              { key: "on",  label: "On" },
+              { key: "off", label: "Off" }
+            ]
+            current: root.alertsOn ? "on" : "off"
+            onPicked: key => root.setOpt("weatherAlerts", key)
           }
 
           // ---- Popup cards (each button toggles one card)

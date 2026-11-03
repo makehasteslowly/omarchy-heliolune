@@ -109,5 +109,9 @@
   "forecast.off": "Weather is off, so no forecast is fetched.",
   "forecast.turnOn": "Turn on weather",
   "forecast.source": "Open-Meteo · updated %1",
-  "settings.barRotate": "Scroll"
+  "settings.alerts": "Alerts",
+  "alert.now": "%1 now",
+  "alert.nowUntil": "%1 now, until %2",
+  "alert.from": "%1 from %2",
+  "alert.fromTo": "%1 from %2 to %3"
 }

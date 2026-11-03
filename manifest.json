@@ -189,31 +189,6 @@
         ]
       },
       {
-        "key": "barRotate",
-        "type": "enum",
-        "label": "Scroll the Bar",
-        "description": "Every few seconds the bar's sun, moon and weather scroll across the widget like a ticker and settle back in place. It pauses while the pointer is on it or the popup is open.",
-        "defaultValue": "off",
-        "options": [
-          {
-            "value": "off",
-            "label": "Off"
-          },
-          {
-            "value": "5",
-            "label": "Every 5 seconds"
-          },
-          {
-            "value": "10",
-            "label": "Every 10 seconds"
-          },
-          {
-            "value": "30",
-            "label": "Every 30 seconds"
-          }
-        ]
-      },
-      {
         "key": "windUnit",
         "type": "enum",
         "label": "Wind Speed Unit",
@@ -256,6 +231,23 @@
           {
             "value": "60",
             "label": "Every hour"
+          }
+        ]
+      },
+      {
+        "key": "weatherAlerts",
+        "type": "enum",
+        "label": "Weather Alerts",
+        "description": "When heavy rain, freezing rain, heavy snow, a thunderstorm or hail is happening or forecast within 12 hours, the alert scrolls across the bar every 20 seconds and shows at the top of the popup. Worked out from the same Open-Meteo forecast; no extra requests. Not an official warning service.",
+        "defaultValue": "on",
+        "options": [
+          {
+            "value": "on",
+            "label": "On"
+          },
+          {
+            "value": "off",
+            "label": "Off"
           }
         ]
       },

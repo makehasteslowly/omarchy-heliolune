@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const src = fs.readFileSync(path.join(here, "..", "Model.js"), "utf8").replace(/^\.pragma library.*$/m, "");
-const M = new Function(src + "\nreturn { isoWeek, weekNumber, computeSeasonSummary, getSunTimesForDay, getMoonTimes, computeSolarSummary, formatWind, parseCurrentWeather, WEATHER_MAX_BYTES };")();
+const M = new Function(src + "\nreturn { isoWeek, weekNumber, computeSeasonSummary, getSunTimesForDay, getMoonTimes, computeSolarSummary, formatWind, parseCurrentWeather, WEATHER_MAX_BYTES, computeWeatherAlert };")();
 const cases = [
   ["2026-11-02", 45, 2026], ["2026-01-01", 1, 2026], ["2027-01-01", 53, 2026], ["2027-01-03", 53, 2026],
   ["2027-01-04", 1, 2027], ["2024-12-30", 1, 2025], ["2025-12-29", 1, 2026], ["2021-01-03", 53, 2020],
@@ -95,6 +95,24 @@ const expectKind = [
 const wrongKinds = expectKind.filter(([c, day, k]) => { const w = wxFor(c, day); return !w || w.kind !== k; });
 checks.push([`weather icons: ${expectKind.length} code/day-night cases map to the right icon` + (wrongKinds.length ? " (wrong: " + wrongKinds.map(x => x[0] + (x[1] ? "d" : "n")).join(", ") + ")" : ""), wrongKinds.length === 0]);
 checks.push(["weather icons: unknown code is rejected, not shown as clear", wxFor(42, 1) === null]);
+
+// Weather alerts: only heavy or dangerous weather, now or within 12 hours
+const hour = (h, code, pop = null) => ({ h, code, pop, key: "k" + code, kind: "x" });
+const calm = { code: 1, key: "mainlyClear", kind: "clear", forecast: { hourly: [0,1,2,3,4,5,6,7,8,9,10,11,12,13].map(h => hour(h, 3)) } };
+checks.push(["alerts: calm day has none", M.computeWeatherAlert(calm) === null]);
+const soon = JSON.parse(JSON.stringify(calm)); soon.forecast.hourly[5] = hour(5, 65, 80); soon.forecast.hourly[6] = hour(6, 82, 90);
+const a1 = M.computeWeatherAlert(soon);
+checks.push(["alerts: heavy rain at 5 runs to 7, highest chance 90%", a1 && !a1.now && a1.startH === 5 && a1.endH === 7 && a1.pop === 90 && a1.code === 65]);
+const nowStorm = JSON.parse(JSON.stringify(calm)); nowStorm.code = 95; nowStorm.key = "thunderstorm"; nowStorm.forecast.hourly[0] = hour(0, 95); nowStorm.forecast.hourly[1] = hour(1, 95);
+const a2 = M.computeWeatherAlert(nowStorm);
+checks.push(["alerts: thunderstorm now, until 2", a2 && a2.now && a2.key === "thunderstorm" && a2.endH === 2]);
+const far = JSON.parse(JSON.stringify(calm)); far.forecast.hourly[13] = hour(13, 75);
+checks.push(["alerts: heavy snow 13 h out is beyond the 12 h window", M.computeWeatherAlert(far) === null]);
+const light = JSON.parse(JSON.stringify(calm)); light.forecast.hourly[2] = hour(2, 61); light.forecast.hourly[3] = hour(3, 71);
+checks.push(["alerts: light rain and light snow do not alert", M.computeWeatherAlert(light) === null]);
+const toEnd = JSON.parse(JSON.stringify(calm)); toEnd.forecast.hourly[12] = hour(12, 96); toEnd.forecast.hourly[13] = hour(13, 96);
+const a3 = M.computeWeatherAlert(toEnd);
+checks.push(["alerts: spell running past the forecast has no end hour", a3 && a3.startH === 12 && a3.endH === null]);
 
 for (const [label, ok] of checks) { if (!ok) { failed++; console.log("FAIL " + label); } else if (process.argv.includes("--verbose")) console.log("ok   " + label); }
 console.log(`Options: ${checks.filter(c => c[1]).length}/${checks.length} checks pass`);
