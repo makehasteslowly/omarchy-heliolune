@@ -2366,10 +2366,13 @@ BarWidget {
     width: vertical ? Math.min(parent.width - Style.space(4), Style.space(26)) : pw + 2 * pad
     height: vertical ? ph + 2 * pad : Math.min(parent.height - Style.space(10), Style.space(18))
     radius: root.decoStyle ? 0 : Math.min(width, height) / 2
-    color: opened ? Qt.alpha(root.ornate ? root.barMetal : Color.accent, 0.10)
-                  : Qt.alpha(root.ornate ? root.barMetal : Color.foreground, 0.16)
-    border.width: opened ? 1 : 0
-    border.color: Qt.alpha(root.ornate ? root.barMetal : Color.accent, 0.9)
+    // Hover: a soft fill with a faint edge. Open view: a bright outline.
+    // (Click: BarGlow.) The same tone family in every theme.
+    color: opened ? Qt.alpha(root.ornate ? root.barMetal : Color.accent, 0.12)
+                  : Qt.alpha(root.ornate ? root.barMetal : Color.foreground, 0.26)
+    border.width: 1
+    border.color: opened ? Qt.alpha(root.ornate ? root.barMetal : Color.accent, 0.95)
+                         : Qt.alpha(root.ornate ? root.barMetal : Color.foreground, 0.45)
     Behavior on x { NumberAnimation { duration: Style.duration(120); easing.type: Easing.OutCubic } }
     Behavior on width { NumberAnimation { duration: Style.duration(120); easing.type: Easing.OutCubic } }
     Behavior on y { NumberAnimation { duration: Style.duration(120); easing.type: Easing.OutCubic } }
@@ -2415,6 +2418,30 @@ BarWidget {
       font.capitalization: parent.deco ? Font.AllUppercase : Font.MixedCase
       font.letterSpacing: parent.tracking
       font.italic: root.atomicStyle
+    }
+  }
+
+  // A small right arrow, drawn so it sits on the row's centre line
+  component BarArrow: Canvas {
+    property color color: Color.foreground
+    implicitWidth: Style.space(9)
+    implicitHeight: Style.space(7)
+    antialiasing: true
+    onColorChanged: requestPaint()
+    onWidthChanged: requestPaint()
+    onHeightChanged: requestPaint()
+    onPaint: {
+      var ctx = getContext("2d")
+      ctx.reset()
+      var w = width, h = height, lw = Math.max(1, h * 0.17)
+      ctx.strokeStyle = String(color)
+      ctx.lineWidth = lw
+      ctx.lineCap = "round"
+      ctx.lineJoin = "round"
+      ctx.beginPath()
+      ctx.moveTo(lw, h / 2); ctx.lineTo(w - lw, h / 2)
+      ctx.moveTo(w - h / 2, lw); ctx.lineTo(w - lw, h / 2); ctx.lineTo(w - h / 2, h - lw)
+      ctx.stroke()
     }
   }
 
@@ -3590,7 +3617,7 @@ BarWidget {
   // time after it are the next event's. The tooltip names that event.
   readonly property string barSolarText: {
     return root.barValues && root.solarData.nextEventTime
-      ? "→ " + Model.formatTime(root.solarData.nextEventTime, root.timeFormatMode, root.formatLocale) : ""
+      ? Model.formatTime(root.solarData.nextEventTime, root.timeFormatMode, root.formatLocale) : ""
   }
   readonly property string barSolarKind: root.sunPhaseKind(root.solarData.phaseKey)
 
@@ -3656,7 +3683,7 @@ BarWidget {
     interval: 20000
     // The rest is counted from the end of each pass; holds still while the
     // pointer is on the widget or the popup is open
-    running: root.barAlerting && !barTickerAnim.running && !barButton.tooltipHovered && !root.opened
+    running: root.barAlerting && !barTickerAnim.running && !root.barHovered && !root.opened
     repeat: true
     onTriggered: barTickerAnim.restart()
   }
@@ -3682,29 +3709,56 @@ BarWidget {
   }
 
   // ---- Hover and the open view, per bar item ("sun" | "moon" | "weather" | "")
-  readonly property string barHoverSeg: root.showSolarOnBar && (barSunHover.hovered || barSunVHover.hovered) ? "sun"
-    : (root.showLunarOnBar && (barMoonHover.hovered || barMoonVHover.hovered) ? "moon"
-    : (root.showWeatherOnBar && (barWeatherHover.hovered || barWeatherIconHover.hovered || barWeatherTextHover.hovered) ? "weather" : ""))
+  // ---- Hover: one model for the whole widget. A single HoverHandler on the
+  // button (it neither blocks the shell's own hover area, which owns the
+  // tooltip, nor misses the gaps); every point belongs to the nearest visible
+  // item, so the highlight, the tooltip and a click always name the same item.
+  readonly property bool barHovered: barHover.hovered
+  readonly property string barHoverSeg: barHover.hovered ? root.barSegAt(barHover.point.position.x, barHover.point.position.y) : ""
+  // The item nearest a point in the button's coordinates
+  function barSegAt(px, py) {
+    var pos = { x: px, y: py }
+    var v = root.vertical
+    var spans = v
+      ? [["sun", root.showSolarOnBar ? barSunV : null, null], ["moon", root.showLunarOnBar ? barMoonV : null, null],
+         ["weather", root.showWeatherOnBar ? barWeatherV : null, barWeatherTextV.visible ? barWeatherTextV : null]]
+      : [["sun", root.showSolarOnBar ? barSolarGroup : null, null], ["moon", root.showLunarOnBar ? barLunarGroup : null, null],
+         ["weather", root.showWeatherOnBar ? barWeatherGroup : null, null]]
+    var best = "", bestD = 1e9
+    for (var i = 0; i < spans.length; i++) {
+      var a = spans[i][1]
+      if (!a || !a.visible) continue
+      var b = spans[i][2] || a
+      var p0 = a.mapToItem(barButton, 0, 0), p1 = b.mapToItem(barButton, b.width, b.height)
+      var lo = v ? p0.y : p0.x, hi = v ? p1.y : p1.x, at = v ? pos.y : pos.x
+      var d = at < lo ? lo - at : (at > hi ? at - hi : 0)
+      if (d < bestD) { bestD = d; best = spans[i][0] }
+    }
+    return best
+  }
   readonly property string barActiveSeg: !root.opened || root.settingsOpen ? ""
     : (root.weatherOpen ? "weather" : (root.moonOpen ? "moon" : "sun"))
   // The item's own tooltip: what it shows, then what a click opens
-  readonly property string barTooltip: {
+  readonly property string barTooltip: root.barTooltipFor(root.barHoverSeg)
+  // Built from the item passed in, so a hover change can show the new text at
+  // once (the binding above may not have caught up when the change fires)
+  function barTooltipFor(seg) {
     if (root.opened) return ""
     var foot = "\n" + strings.t("tip.footer")
     var S = root.solarData, L = root.lunarData
-    if (root.barHoverSeg === "sun") {
+    if (seg === "sun") {
       return (S.nextEventName !== ""
           ? strings.t("tip.sunNext").arg(S.nextEventName).arg(Model.formatTime(S.nextEventTime, root.timeFormatMode, root.formatLocale)) + "\n" : "")
         + strings.t("tip.sunNow").arg(S.phaseName).arg(Math.round(S.altitude)).arg(Model.azimuthToCompass(S.azimuth))
         + (root.reminderText !== "" ? "\n" + root.reminderText : "")
         + "\n" + strings.t("tip.clickSun") + foot
     }
-    if (root.barHoverSeg === "moon") {
+    if (seg === "moon") {
       return strings.t("tip.moonNow").arg(L.phaseName).arg(L.illuminationPct)
         + (root.nextMoonEventText !== "" ? "\n" + root.nextMoonEventText : "")
         + "\n" + strings.t("tip.clickMoon") + foot
     }
-    if (root.barHoverSeg === "weather") {
+    if (seg === "weather") {
       var details = root.weatherDetailParts.map(function(p) { return p.text }).join(" · ")
       return root.weatherTempText + " " + root.weatherConditionText
         + (details !== "" ? "\n" + details : "")
@@ -3720,7 +3774,7 @@ BarWidget {
   // Moving from one item to the next swaps the tooltip at once
   onBarHoverSegChanged: {
     if (root.barHoverSeg !== "") root.lastBarSeg = root.barHoverSeg
-    if (root.bar && barButton.tooltipHovered && !root.opened) root.bar.showTooltip(barButton, root.barTooltip)
+    if (root.bar && barButton.tooltipHovered && !root.opened && root.barHoverSeg !== "") root.bar.showTooltip(barButton, root.barTooltipFor(root.barHoverSeg))
   }
   // The item last under the pointer. While the popup is open it holds the
   // pointer grab, so the bar gets no hover update until the pointer moves; a
@@ -3765,6 +3819,11 @@ BarWidget {
     active: root.opened
     tooltipText: root.barTooltip
 
+    HoverHandler {
+      id: barHover
+      cursorShape: Qt.PointingHandCursor
+    }
+
     onPressed: function(b) {
       root.flashBarItem(root.barClickSeg !== "" ? root.barClickSeg : "sun")
       if (b === Qt.RightButton) {
@@ -3785,7 +3844,8 @@ BarWidget {
       id: barCapsule
       visible: root.barCapsuleOn
       readonly property Item content: root.vertical ? barContentCol : barContentRow
-      readonly property bool lit: barButton.active || barButton.tooltipHovered
+      // Lit while a view is open; hover is shown on the item itself
+      readonly property bool lit: barButton.active
       anchors.centerIn: parent
       width: root.vertical
         ? Math.min(parent.width - Style.space(4), content.implicitWidth + Style.space(10))
@@ -3833,6 +3893,7 @@ BarWidget {
         pw: target ? target.width : 0
       }
       BarSegPill {
+        id: hoverPill
         readonly property Item target: root.barSegItem(root.barHoverSeg)
         shown: target !== null && target.visible && !barTickerAnim.running
         px: target ? barContentRow.x + target.x : 0
@@ -3887,11 +3948,17 @@ BarWidget {
           visible: root.showSolarOnBar
           spacing: Style.space(4)
           anchors.verticalCenter: parent.verticalCenter
-          HoverHandler { id: barSunHover }
 
           BarWeatherIcon {
             anchors.verticalCenter: parent.verticalCenter
             kind: root.barSolarKind
+          }
+
+          // "Next:" as a drawn arrow, centred on the row (the font's → sits low)
+          BarArrow {
+            visible: root.barSolarText !== ""
+            anchors.verticalCenter: parent.verticalCenter
+            color: root.useThemeColors ? barButton.foreground : Color.foreground
           }
 
           Text {
@@ -3917,7 +3984,6 @@ BarWidget {
           visible: root.showLunarOnBar
           spacing: Style.space(4)
           anchors.verticalCenter: parent.verticalCenter
-          HoverHandler { id: barMoonHover }
 
           MoonDisc {
             renderStyle: root.moonStyle
@@ -3950,7 +4016,6 @@ BarWidget {
           visible: root.showWeatherOnBar
           spacing: Style.space(3)
           anchors.verticalCenter: parent.verticalCenter
-          HoverHandler { id: barWeatherHover }
 
           BarWeatherIcon { anchors.verticalCenter: parent.verticalCenter; outline: true }
           Text {
@@ -4002,7 +4067,6 @@ BarWidget {
         visible: root.showSolarOnBar
         anchors.horizontalCenter: parent.horizontalCenter
         kind: root.sunPhaseKind(root.solarData.phaseKey)
-        HoverHandler { id: barSunVHover }
       }
 
       Rectangle {
@@ -4018,7 +4082,6 @@ BarWidget {
       MoonDisc {
         id: barMoonV
         visible: root.showLunarOnBar
-        HoverHandler { id: barMoonVHover }
         renderStyle: root.moonStyle
         anchors.horizontalCenter: parent.horizontalCenter
         discSize: 13
@@ -4033,13 +4096,11 @@ BarWidget {
         outline: true
         visible: root.showWeatherOnBar
         anchors.horizontalCenter: parent.horizontalCenter
-        HoverHandler { id: barWeatherIconHover }
       }
       Text {
         id: barWeatherTextV
         visible: root.showWeatherOnBar && root.barValues
         anchors.horizontalCenter: parent.horizontalCenter
-        HoverHandler { id: barWeatherTextHover }
         textFormat: Text.PlainText
         text: root.barTempText
         color: root.useThemeColors ? barButton.foreground : Color.foreground

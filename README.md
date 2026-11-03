@@ -39,7 +39,7 @@ Pick what it shows in settings, under **Bar**:
 
 Every icon shows what is happening **now**: the Sun's is the sky's current phase (day, golden hour, blue hour, twilight or night), the Moon's its current phase. The weather icon is line-drawn in the theme's metal tone, so it never looks like one of the sky icons beside it.
 
-**Clicks:** click the Sun, Moon or weather to open its view; click the same item again to close it, or another item to switch views. Right-click opens settings, middle-click refreshes.
+**Hover and click:** every point on the capsule belongs to its nearest item (Sun, Moon or weather), so the highlight, the tooltip and a click always agree. Hovering lights that item; its tooltip says what it shows and which view a click opens. Click to open that view, click the same item again to close it, or another item to switch. The capsule itself lights up while a view is open, and the clicked item glows briefly. Right-click opens settings, middle-click refreshes.
 
 With weather on, the capsule also shows the current conditions as a small line-drawn icon and the temperature. Hover for a summary including the next moonrise or moonset and the full weather reading.
 
