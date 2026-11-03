@@ -652,12 +652,12 @@ BarWidget {
   // Opens paused on today; play is the option
   onLapseShownChanged: root.lapseToNow()
   Timer {
-    // 25 frames a second; a cycle takes 16.7 s (12 s slowed by 28%), a day 10 s. Played on request,
+    // 25 frames a second; a cycle takes 16.7 s (12 s slowed by 28%), a day 14.7 s (10 s slowed by 32%). Played on request,
     // so it runs even with Hyprland animations off.
     interval: 40
     running: root.lapseShown && root.lapsePlaying
     repeat: true
-    onTriggered: root.lapseT = (root.lapseT + 0.04 / (root.lapseMode === "cycle" ? 12 / 0.72 : 10)) % 1
+    onTriggered: root.lapseT = (root.lapseT + 0.04 / (root.lapseMode === "cycle" ? 12 / 0.72 : 10 / 0.68)) % 1
   }
   // Computed only while shown; currentDate refreshes them every minute
   // Every 15 minutes for 24 hours (96 samples): the rows use every 12th (3 h)
