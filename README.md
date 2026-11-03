@@ -167,11 +167,27 @@ Everything is in the right-click panel. The same keys can be set on the widget's
 | `seasons` | `astronomical` · `meteorological` | `astronomical` |
 | `lightPreset` | `standard` · `photographer` · `extended` golden/blue-hour windows | `standard` |
 | `elevation` | Your height above sea level in metres (0-9000) | `0` |
-| `latitude`, `longitude`, `locationName` | Manual location override | empty (automatic) |
+| `notify` | `on` · `off`: sky reminders scrolling on the bar (see below) | `off` |
+| `notifyDesktop` | `on` · `off`: also send each reminder as a desktop notification | `off` |
+| `notifyGolden`, `notifyBlue` | `on` · `off`: remind before golden hour / blue hour begins | `on`, `off` |
+| `notifyMoon`, `notifySeason` | `on` · `off`: remind of full and new moons / the next equinox, solstice or season start | `on` |
+| `notifyMornings` | `on` · `off`: morning golden and blue hours too, not only the evening ones | `off` |
+| `notifyLead` | `0` · `10` · `30` minutes before golden or blue hour begins | `10` |
+| `latitude`, `longitude`, `locationName` | Manual location override (set by **Search for a city** or **Set Lat/Lon**) | empty (automatic) |
 
 ```json
 { "id": "makehasteslowly.heliolune", "moonStyle": "deco", "colorMode": "bold", "barDetails": "icons" }
 ```
+
+**Location.** Heliolune follows Omarchy Weather's location, then your approximate location, then your time zone. To pick a place yourself, type its name under **Settings → Location → Search for a city**, press **Search** (or Enter) and click the right match; it is saved as `latitude`, `longitude` and `locationName`. **Set Lat/Lon** takes coordinates directly, and **Use Auto** goes back to the automatic location.
+
+**Sky reminders** are off until you turn them on under **Settings → Sky Reminders**. Then they scroll across the bar widget the same way weather alerts do, in the Sun's colour (weather alerts keep the urgent colour), and they also appear in the widget's tooltip:
+
+- **Golden** and **Blue:** from shortly before the evening golden or blue hour begins until 15 minutes after (the morning ones too with **Mornings too**). **Lead time** sets how early: at start, 10 or 30 minutes.
+- **Moon:** full moon and new moon, from 09:00 on the day, or from 18:00 the evening before when the moment falls in the morning.
+- **Season:** the next equinox or solstice (or 1 March, June, September or December with meteorological seasons), timed like the Moon.
+
+**Show on → Bar + desktop** also sends each reminder once as a desktop notification (through `notify-send`). Notifications missed while the computer was asleep are dropped, not sent late. **Test** scrolls a sample across the bar that names the next reminder.
 
 ---
 
@@ -209,7 +225,7 @@ python3 -I tests/fetch-usno.py     # refresh the reference data (public test cit
 
 ## Privacy & network
 
-Heliolune makes at most two kinds of request, both over HTTPS, both size-capped and validated before use:
+Every request goes over HTTPS, is size-capped, and is validated before use:
 
 | What | Where | When | Turn it off |
 |---|---|---|---|
@@ -217,9 +233,10 @@ Heliolune makes at most two kinds of request, both over HTTPS, both size-capped 
 | **Current weather and forecast** (one request) for your coordinates rounded to ~1 km | `api.open-meteo.com`, no account or key | At startup, every 30 minutes (15/30/60 in settings), and when your location changes | Set **Weather** to **Off** |
 | **Area map forecast** (one request) for 25 points around your coordinates, out to the chosen radius, each rounded to ~1 km | `api.open-meteo.com`, no account or key | Only while the **Map** tab is open: once when you open it or change the radius, then at most once per refresh interval | Don't open the Map tab, or set **Weather** to **Off** |
 | **Map tiles** (OpenStreetMap's standard map, 4 to 16 images of 256 px) for the area shown | `tile.openstreetmap.org`, sent with Heliolune's own User-Agent as the [OSM tile policy](https://operations.osmfoundation.org/policies/tiles/) asks | Only while the **Map** tab is open, and only tiles not already cached; each is kept 7 days in `~/.cache/heliolune/osm-tiles` (deleted after 30) | Don't open the Map tab |
+| **City search**: the place name you typed (cleaned, at most 60 characters), nothing else | `geocoding-api.open-meteo.com`, no account or key | Only when you press **Search** in Settings → Location | Don't use the search; enter coordinates with **Set Lat/Lon** instead |
 | **Rain radar** (the list of the last ~2 hours of frames, then up to 4 radar images per frame for the area shown) | `api.rainviewer.com` and `tilecache.rainviewer.com`, no account or key (free for personal use), sent with Heliolune's User-Agent | Only while the Map tab shows **Rain**: the frame list at most every 5 minutes, and only images not already cached; kept 3 hours in `~/.cache/heliolune/radar` | Don't pick **Rain** on the Map tab |
 
-With a location set and weather off, Heliolune makes no network requests at all. All astronomy is computed on your machine, and nothing else is sent anywhere.
+With a location set and weather off, Heliolune makes no network requests at all. All astronomy is computed on your machine, and nothing else is sent anywhere. Sky reminders are local too: they are computed on your machine, and the optional desktop notifications go through your own notification daemon.
 
 Omarchy does not share its weather with other plugins, which is why Heliolune fetches its own from the same provider.
 

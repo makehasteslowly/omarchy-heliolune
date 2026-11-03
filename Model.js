@@ -1152,6 +1152,85 @@ function formatSeasonCountdown(calendarDays) {
   return calendarDays + " days"
 }
 
+// ---- Notifications (opt-in). Which reminders are due around `now`.
+// cfg: { golden, blue, mornings, moon, season: bools; leadMin: minutes before sun events;
+//        astroOpts; nextFull, nextNew, seasonDate: Date|null; seasonName: string }
+// -> [{ id, kind, at: Date (the event), fireAt: Date, seasonName }], sorted by fireAt.
+// Sun events (golden / blue hour starts; evenings, plus mornings when asked) fire
+// leadMin before they begin, for today and tomorrow. Day events (full / new moon,
+// season change) fire at 09:00 on the day when they fall after noon, otherwise at
+// 18:00 the evening before, so the reminder never arrives after the moment itself.
+function dayEventFireAt(at) {
+  var f = new Date(at.getFullYear(), at.getMonth(), at.getDate(), 9, 0, 0, 0)
+  if (at.getHours() < 12) f = new Date(at.getFullYear(), at.getMonth(), at.getDate() - 1, 18, 0, 0, 0)
+  return f
+}
+
+function notificationPlan(now, lat, lon, cfg) {
+  var c = cfg || {}
+  var lead = Math.max(0, Math.min(120, Number(c.leadMin) || 0)) * 60000
+  var out = []
+  function valid(d) { return d instanceof Date && isFinite(d.getTime()) }
+  function add(kind, at, fireAt) {
+    if (!valid(at)) return
+    out.push({ id: kind + "@" + Math.round(at.getTime() / 60000), kind: kind, at: at, fireAt: fireAt || new Date(at.getTime() - lead),
+               seasonName: kind === "season" ? String(c.seasonName || "") : "" })
+  }
+  if (c.golden || c.blue) {
+    for (var k = 0; k < 2; k++) {
+      var day = new Date(now.getFullYear(), now.getMonth(), now.getDate() + k, 12, 0, 0, 0)
+      var t = getSunTimesForDay(day, lat, lon, c.astroOpts)
+      if (!t) continue
+      if (c.golden) {
+        add("goldenEvening", t.goldenHourStart)
+        if (c.mornings) add("goldenMorning", t.goldenMorningStart)
+      }
+      if (c.blue) {
+        add("blueEvening", t.blueHourEveningStart)
+        if (c.mornings) add("blueMorning", t.blueHourMorningStart)
+      }
+    }
+  }
+  if (c.moon) {
+    if (valid(c.nextFull)) add("fullMoon", c.nextFull, dayEventFireAt(c.nextFull))
+    if (valid(c.nextNew)) add("newMoon", c.nextNew, dayEventFireAt(c.nextNew))
+  }
+  if (c.season && valid(c.seasonDate)) add("season", c.seasonDate, dayEventFireAt(c.seasonDate))
+  out.sort(function(a, b) { return a.fireAt - b.fireAt })
+  return out
+}
+
+// The reminders to send now: fireAt has passed by less than graceMs (so a
+// reminder missed while asleep or suspended is dropped, not sent late), and the
+// id is not in `sent` ({ id: true }).
+function dueNotifications(plan, now, sent, graceMs) {
+  var g = graceMs || 180000, t = now.getTime(), due = []
+  for (var i = 0; i < (plan || []).length; i++) {
+    var e = plan[i], f = e.fireAt.getTime()
+    if (t >= f && t - f < g && !(sent && sent[e.id])) due.push(e)
+  }
+  return due
+}
+
+// The reminders to show on the bar now: from fireAt until a little after the
+// event (holdSunMs for golden / blue hour, holdDayMs for moon and season days).
+// Each gets `begun` (the moment has passed). Soonest first.
+function activeReminders(plan, now, holdSunMs, holdDayMs) {
+  var hs = holdSunMs === undefined ? 15 * 60000 : holdSunMs
+  var hd = holdDayMs === undefined ? 12 * 3600000 : holdDayMs
+  var t = now.getTime(), out = []
+  for (var i = 0; i < (plan || []).length; i++) {
+    var e = plan[i]
+    var day = e.kind === "fullMoon" || e.kind === "newMoon" || e.kind === "season"
+    var a = e.at.getTime()
+    if (t >= e.fireAt.getTime() && t < a + (day ? hd : hs)) {
+      out.push({ id: e.id, kind: e.kind, at: e.at, fireAt: e.fireAt, seasonName: e.seasonName || "", begun: t >= a })
+    }
+  }
+  out.sort(function(x, y) { return x.at - y.at })
+  return out
+}
+
 // mode: "astronomical" (equinoxes and solstices) or "meteorological" (seasons
 // begin on the first of March, June, September and December, local time).
 var SEASON_START_META = {
@@ -1352,6 +1431,55 @@ function weatherUrl(lat, lon) {
     + "&hourly=temperature_2m,weather_code,precipitation_probability,is_day&forecast_hours=24"
     + "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max&forecast_days=7"
     + "&wind_speed_unit=kmh&timezone=auto"
+}
+
+// ---- City search (Open-Meteo geocoding). Only sent when the user presses Search.
+var GEOCODE_MAX_BYTES = 32768
+var GEOCODE_MAX_RESULTS = 6
+
+// Clean a typed place name: plain text, 2..60 characters, or "" when unusable.
+function cleanCityQuery(raw) {
+  var q = sanitizeText(raw, 60)
+  return q.length >= 2 ? q : ""
+}
+
+// Fixed HTTPS endpoint; the query is cleaned and URL-encoded, nothing else is interpolated.
+function geocodeUrl(query) {
+  var q = cleanCityQuery(query)
+  if (q === "") return ""
+  return "https://geocoding-api.open-meteo.com/v1/search?name=" + encodeURIComponent(q)
+    + "&count=" + GEOCODE_MAX_RESULTS + "&language=en&format=json"
+}
+
+// Geocoding JSON -> [{ name, detail, label, latitude, longitude }] (at most
+// GEOCODE_MAX_RESULTS; bad entries dropped), [] for no matches, null for junk.
+function parseGeocode(raw) {
+  var text = String(raw === undefined || raw === null ? "" : raw)
+  if (text.length === 0 || text.length > GEOCODE_MAX_BYTES) return null
+  var data
+  try { data = JSON.parse(text) } catch (e) { return null }
+  if (!data || typeof data !== "object" || Array.isArray(data)) return null
+  var list = data.results
+  if (list === undefined) return []
+  if (!Array.isArray(list)) return null
+  var out = []
+  for (var i = 0; i < list.length && out.length < GEOCODE_MAX_RESULTS; i++) {
+    var r = list[i]
+    if (!r || typeof r !== "object") continue
+    if (typeof r.latitude !== "number" || typeof r.longitude !== "number") continue
+    var la = r.latitude, lo = r.longitude
+    if (!isFinite(la) || !isFinite(lo) || la < -90 || la > 90 || lo < -180 || lo > 180) continue
+    var name = sanitizeText(r.name, 60)
+    if (name === "") continue
+    var parts = []
+    var admin = sanitizeText(r.admin1, 40), country = sanitizeText(r.country, 40)
+    if (admin !== "" && admin !== name) parts.push(admin)
+    if (country !== "") parts.push(country)
+    var detail = parts.join(", ")
+    out.push({ name: name, detail: detail, label: detail === "" ? name : name + ", " + detail,
+               latitude: Math.round(la * 10000) / 10000, longitude: Math.round(lo * 10000) / 10000 })
+  }
+  return out
 }
 
 // "YYYY-MM-DDTHH:MM" or "YYYY-MM-DD" (local time at the location) -> parts, or null

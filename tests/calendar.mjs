@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const src = fs.readFileSync(path.join(here, "..", "Model.js"), "utf8").replace(/^\.pragma library.*$/m, "");
-const M = new Function(src + "\nreturn { isoWeek, weekNumber, computeSeasonSummary, getSunTimesForDay, getMoonTimes, computeSolarSummary, formatWind, parseCurrentWeather, WEATHER_MAX_BYTES, computeWeatherAlert, lunarDays, moonVisibility, firstWindow, getMoonPosition, lunarCycle, areaPoints, areaUrl, parseAreaForecast, compassPoint, AREA_MAX_BYTES, mapTiles, tileKey, compassFromDegrees, gridSample, gridSampleSmooth, windVector, radarColor, windColor, parseRadarFrames, radarTileKey, RADAR_HOST };")();
+const M = new Function(src + "\nreturn { isoWeek, weekNumber, computeSeasonSummary, getSunTimesForDay, getMoonTimes, computeSolarSummary, formatWind, parseCurrentWeather, WEATHER_MAX_BYTES, computeWeatherAlert, lunarDays, moonVisibility, firstWindow, getMoonPosition, lunarCycle, areaPoints, areaUrl, parseAreaForecast, compassPoint, AREA_MAX_BYTES, mapTiles, tileKey, compassFromDegrees, gridSample, gridSampleSmooth, windVector, radarColor, windColor, parseRadarFrames, radarTileKey, RADAR_HOST, cleanCityQuery, geocodeUrl, parseGeocode, GEOCODE_MAX_BYTES, notificationPlan, dueNotifications, dayEventFireAt, activeReminders };")();
 const cases = [
   ["2026-11-02", 45, 2026], ["2026-01-01", 1, 2026], ["2027-01-01", 53, 2026], ["2027-01-03", 53, 2026],
   ["2027-01-04", 1, 2027], ["2024-12-30", 1, 2025], ["2025-12-29", 1, 2026], ["2021-01-03", 53, 2020],
@@ -210,6 +210,56 @@ checks.push(["radar tiles: zoom 7, 512 px, cover the box", rt.zoom === 7 && rt.t
   && Math.min(...rt.tiles.map(t => t.left)) <= 0 && Math.max(...rt.tiles.map(t => t.left + t.size)) >= 500]);
 checks.push(["radarTileKey: id and zoom checked", M.radarTileKey("56c434a943f6", { z: 7, x: 60, y: 49 }) === "56c434a943f6/7/60/49"
   && M.radarTileKey("../x", { z: 7, x: 1, y: 1 }) === "" && M.radarTileKey("abcdef", { z: 8, x: 1, y: 1 }) === ""]);
+
+// City search
+checks.push(["cityQuery: cleaned, 2-60 chars", M.cleanCityQuery("  Lis\u0000bon  ") === "Lis bon" && M.cleanCityQuery("x") === ""
+  && M.cleanCityQuery("<b>") === "" && M.cleanCityQuery("a".repeat(90)).length === 60]);
+const gu = M.geocodeUrl("São Paulo & co?x=1");
+checks.push(["geocodeUrl: fixed host, query encoded, empty for junk", gu.startsWith("https://geocoding-api.open-meteo.com/v1/search?name=S%C3%A3o%20Paulo%20%26%20co%3Fx%3D1&count=")
+  && !/&x=1/.test(gu) && M.geocodeUrl(" ") === "" && M.geocodeUrl(null) === ""]);
+const geo = M.parseGeocode(JSON.stringify({ results: [
+  { name: "Lisbon", latitude: 38.71667, longitude: -9.13333, admin1: "Lisbon", country: "Portugal" },
+  { name: "Lisbon", latitude: 44.03, longitude: -70.10, admin1: "Maine", country: "United States" },
+  { name: "Bad", latitude: "38", longitude: -9 }, { name: "Far", latitude: 91, longitude: 0 }, { name: "", latitude: 1, longitude: 1 },
+  { name: "<script>x</script>", latitude: 1, longitude: 2 }] }));
+checks.push(["parseGeocode: valid entries only, labels, rounded", geo && geo.length === 3 && geo[0].label === "Lisbon, Portugal"
+  && geo[1].label === "Lisbon, Maine, United States" && geo[0].latitude === 38.7167 && geo[2].name === "scriptx/script"]);
+checks.push(["parseGeocode: no matches [], junk null, oversized null", Array.isArray(M.parseGeocode('{"generationtime_ms":0.2}'))
+  && M.parseGeocode('{"generationtime_ms":0.2}').length === 0 && M.parseGeocode("[1]") === null && M.parseGeocode("{") === null
+  && M.parseGeocode('{"results":5}') === null && M.parseGeocode(" ".repeat(M.GEOCODE_MAX_BYTES + 1)) === null
+  && M.parseGeocode(JSON.stringify({ results: Array.from({ length: 20 }, (_, i) => ({ name: "P" + i, latitude: 1, longitude: 1 })) })).length === 6]);
+
+// Notifications
+{
+  const now = new Date(2026, 10, 3, 8, 0);   // local time
+  const all = M.notificationPlan(now, 38.72, -9.14, { golden: true, blue: true, mornings: true, moon: true, season: true, leadMin: 10,
+    astroOpts: {}, nextFull: new Date(2026, 10, 24, 14, 53), nextNew: new Date(2026, 10, 9, 7, 2), seasonDate: new Date(2026, 11, 21, 20, 50) });
+  const kinds = all.map(e => e.kind);
+  const ge = all.find(e => e.kind === "goldenEvening");
+  const full = all.find(e => e.kind === "fullMoon"), nw = all.find(e => e.kind === "newMoon");
+  checks.push(["notify plan: sun events today and tomorrow, moon, season, sorted", kinds.filter(k => k === "goldenEvening").length === 2
+    && kinds.filter(k => k === "blueMorning").length === 2 && kinds.includes("season")
+    && all.every((e, i) => i === 0 || all[i - 1].fireAt <= e.fireAt) && ge.at - ge.fireAt === 600000]);
+  checks.push(["notify plan: day events at 09:00, or 18:00 the evening before a morning event", full.fireAt.getHours() === 9 && full.fireAt.getDate() === 24
+    && nw.fireAt.getHours() === 18 && nw.fireAt.getDate() === 8 && M.dayEventFireAt(new Date(2026, 0, 1, 3, 0)).getFullYear() === 2025]);
+  const evOnly = M.notificationPlan(now, 38.72, -9.14, { golden: true, leadMin: 0 });
+  checks.push(["notify plan: evenings only unless mornings, nothing when all off", evOnly.length === 2 && evOnly.every(e => e.kind === "goldenEvening")
+    && M.notificationPlan(now, 38.72, -9.14, {}).length === 0 && M.notificationPlan(now, 89.9, 0, { golden: true, blue: true }).every(e => isFinite(e.at.getTime()))]);
+  const e0 = evOnly[0];
+  checks.push(["due: inside the grace window once, lead 0 works, late or sent dropped",
+    M.dueNotifications(evOnly, new Date(e0.fireAt.getTime() + 30000), {}).length === 1
+    && M.dueNotifications(evOnly, new Date(e0.fireAt.getTime() - 1000), {}).length === 0
+    && M.dueNotifications(evOnly, new Date(e0.fireAt.getTime() + 600000), {}).length === 0
+    && M.dueNotifications(evOnly, new Date(e0.fireAt.getTime() + 30000), { [e0.id]: true }).length === 0]);
+  const led = evOnly.map(e => Object.assign({}, e, { fireAt: new Date(e.at.getTime() - 600000) }));
+  const ar = (ms) => M.activeReminders(led, new Date(e0.at.getTime() + ms));
+  const mp = [{ id: "m", kind: "fullMoon", at: new Date(2026, 10, 24, 9, 53), fireAt: new Date(2026, 10, 23, 18, 0) }];
+  checks.push(["activeReminders: from fire to 15 min after (sun), 12 h after (moon), begun flag",
+    ar(-60000).length === 1 && ar(-60000)[0].begun === false && ar(60000)[0].begun === true && ar(16 * 60000).length === 0
+    && M.activeReminders(led, new Date(e0.at.getTime() - 600001)).length === 0
+    && M.activeReminders(mp, new Date(2026, 10, 23, 17, 59)).length === 0 && M.activeReminders(mp, new Date(2026, 10, 23, 20, 0)).length === 1
+    && M.activeReminders(mp, new Date(2026, 10, 24, 21, 0)).length === 1 && M.activeReminders(mp, new Date(2026, 10, 24, 22, 0)).length === 0]);
+}
 
 for (const [label, ok] of checks) { if (!ok) { failed++; console.log("FAIL " + label); } else if (process.argv.includes("--verbose")) console.log("ok   " + label); }
 console.log(`Options: ${checks.filter(c => c[1]).length}/${checks.length} checks pass`);

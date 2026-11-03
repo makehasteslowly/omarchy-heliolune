@@ -1129,7 +1129,8 @@ BarWidget {
       barSun: "on", barMoon: "on", barDetails: "values", colorMode: "celestial", moonStyle: "atomic", timeFormat: "auto",
       weather: "auto", barWeather: "on", weatherAlerts: "on", windUnit: "auto", weatherRefresh: "30",
       cardSky: "on", cardSun: "on", cardMoon: "on", cardYear: "on",
-      weekScheme: "auto", seasons: "astronomical", lightPreset: "standard", elevation: "0"
+      weekScheme: "auto", seasons: "astronomical", lightPreset: "standard", elevation: "0",
+      notify: "off", notifyDesktop: "off", notifyGolden: "on", notifyBlue: "off", notifyMoon: "on", notifySeason: "on", notifyMornings: "off", notifyLead: "10"
     }
     var cmds = []
     var local = {}
@@ -1164,6 +1165,200 @@ BarWidget {
     root.saveBarSetting("locationName", cleanName)
     root.editingCustomCoords = false
     return true
+  }
+
+  // ---- City search (Settings > Location): Open-Meteo geocoding, sent only when the
+  // user presses Search. Query cleaned and URL-encoded in Model.js; curl gets argv.
+  property string citySearchState: ""   // "" | "searching" | "done" | "none" | "failed"
+  property var cityResults: []
+
+  function searchCity(text) {
+    var url = Model.geocodeUrl(text)
+    if (url === "" || cityProc.running) return
+    root.cityResults = []
+    root.citySearchState = "searching"
+    cityProc.command = ["curl", "-fsS", "--max-time", "6", "--max-filesize", String(Model.GEOCODE_MAX_BYTES), url]
+    cityProc.running = true
+  }
+
+  function pickCity(r) {
+    if (!r || !root.applyCustomCoords(String(r.latitude), String(r.longitude), r.name)) return
+    root.cityResults = []
+    root.citySearchState = ""
+  }
+
+  Process {
+    id: cityProc
+    onExited: function(code) {
+      if (code !== 0) {
+        console.warn("heliolune: city search failed (curl exit " + code + ")")
+        if (root.citySearchState === "searching") root.citySearchState = "failed"
+      }
+    }
+    stdout: StdioCollector {
+      onStreamFinished: {
+        if (root.citySearchState !== "searching") return
+        var list = Model.parseGeocode(text)
+        root.cityResults = list || []
+        root.citySearchState = list === null ? "failed" : (list.length === 0 ? "none" : "done")
+      }
+    }
+  }
+
+  // ---- Sky reminders (opt-in, off by default): golden / blue hour, full / new moon,
+  // season change. They scroll across the bar like weather alerts; a desktop
+  // notification (notify-send, argv) is optional on top. Nothing leaves the machine.
+  readonly property bool notifyOn: root.opt("notify", ["on", "off"], "off") === "on"
+  readonly property bool notifyDesktop: root.opt("notifyDesktop", ["on", "off"], "off") === "on"
+  readonly property bool notifyGolden: root.opt("notifyGolden", ["on", "off"], "on") === "on"
+  readonly property bool notifyBlue: root.opt("notifyBlue", ["on", "off"], "off") === "on"
+  readonly property bool notifyMoon: root.opt("notifyMoon", ["on", "off"], "on") === "on"
+  readonly property bool notifySeason: root.opt("notifySeason", ["on", "off"], "on") === "on"
+  readonly property bool notifyMornings: root.opt("notifyMornings", ["on", "off"], "off") === "on"
+  readonly property string notifyLead: root.opt("notifyLead", ["0", "10", "30"], "10")
+  property var notifySent: ({})
+  property var notifyQueue: []
+
+  // Moon and season for the real present, even while time travelling
+  function liveSky(now) {
+    if (root.viewOffsetDays === 0 && root.lunarData && root.seasonData) return { lunar: root.lunarData, season: root.seasonData }
+    return { lunar: Model.computeLunarSummary(now, root.activeLat, root.activeLon, root.astroOpts),
+             season: Model.computeSeasonSummary(now, root.activeLat, root.seasonMode) }
+  }
+
+  function notifyPlan(now) {
+    var sky = root.liveSky(now)
+    return Model.notificationPlan(now, root.activeLat, root.activeLon, {
+      golden: root.notifyGolden, blue: root.notifyBlue, mornings: root.notifyMornings,
+      moon: root.notifyMoon, season: root.notifySeason, leadMin: parseInt(root.notifyLead),
+      astroOpts: root.astroOpts,
+      nextFull: sky.lunar ? sky.lunar.nextFullDate : null,
+      nextNew: sky.lunar ? sky.lunar.nextNewDate : null,
+      seasonDate: sky.season ? sky.season.nextDate : null,
+      seasonName: sky.season ? Model.sanitizeText(sky.season.nextEventName, 60) : ""
+    })
+  }
+
+  function notifyTitle(e) {
+    if (e.kind === "season") return e.seasonName || ""
+    return strings.t("notify." + e.kind)
+  }
+
+  // "Begins at 4:56 PM", "Today at 2:53 PM", "Tomorrow at 7:02 AM", relative to `ref`
+  function notifyWhen(e, ref) {
+    var time = Model.formatTime(e.at, root.timeFormatMode, root.formatLocale)
+    if (e.kind === "fullMoon" || e.kind === "newMoon" || e.kind === "season") {
+      return strings.t(e.at.toDateString() === ref.toDateString() ? "notify.today" : "notify.tomorrow").arg(time)
+    }
+    return strings.t("notify.begins").arg(time)
+  }
+
+  // What scrolls on the bar: "✦ Golden hour at 4:42 PM", "✦ Golden hour now",
+  // "☾ Full Moon tomorrow at 9:53 AM", "☾ Full Moon today"
+  readonly property string reminderText: {
+    var _tick = root.currentDate
+    if (!root.notifyOn) return ""
+    var now = new Date()
+    var act = Model.activeReminders(root.notifyPlan(now), now)
+    var parts = []
+    for (var i = 0; i < act.length; i++) {
+      var e = act[i]
+      var moonish = e.kind === "fullMoon" || e.kind === "newMoon"
+      var glyph = moonish ? "☾ " : (e.kind === "season" ? "❋ " : "✦ ")
+      var title = root.notifyTitle(e)
+      var text
+      if (e.begun) {
+        text = moonish || e.kind === "season" ? strings.t("bar.reminderToday").arg(title) : strings.t("bar.reminderNow").arg(title)
+      } else {
+        var time = Model.formatTime(e.at, root.timeFormatMode, root.formatLocale)
+        var day = moonish || e.kind === "season"
+          ? (e.at.toDateString() === now.toDateString() ? strings.t("bar.today") : strings.t("bar.tomorrow")) + " " : ""
+        text = strings.t("bar.reminderAt").arg(title).arg(day + time)
+      }
+      parts.push(glyph + text)
+    }
+    return parts.join("   ")
+  }
+  readonly property color reminderColor: root.barSolarColor
+
+  function sendNotification(title, body) {
+    var t = Model.sanitizeText(title, 80), b = Model.sanitizeText(body, 200)
+    if (t === "") return
+    root.notifyQueue = root.notifyQueue.concat([["notify-send", "-a", "Heliolune", "--", t, b]])
+    root.pumpNotify()
+  }
+
+  function pumpNotify() {
+    if (notifyProc.running || root.notifyQueue.length === 0) return
+    notifyProc.command = root.notifyQueue[0]
+    root.notifyQueue = root.notifyQueue.slice(1)
+    notifyProc.running = true
+  }
+
+  // Desktop notifications (only with "Bar + desktop"): each reminder once, at fireAt
+  function checkNotifications() {
+    if (!root.notifyOn || !root.notifyDesktop) return
+    var now = new Date()
+    var plan = root.notifyPlan(now)
+    var due = Model.dueNotifications(plan, now, root.notifySent)
+    // Keep only ids still in the plan, so the record cannot grow without bound
+    var keep = {}
+    for (var i = 0; i < plan.length; i++) if (root.notifySent[plan[i].id]) keep[plan[i].id] = true
+    for (var j = 0; j < due.length; j++) {
+      keep[due[j].id] = true
+      var place = root.activeLocationName ? " · " + root.activeLocationName : ""
+      root.sendNotification(root.notifyTitle(due[j]), root.notifyWhen(due[j], due[j].fireAt) + place)
+    }
+    root.notifySent = keep
+  }
+
+  // The next reminder, for the settings line and the Test button
+  readonly property string notifyNextText: {
+    var _tick = root.currentDate
+    if (!root.notifyOn) return ""
+    var now = new Date()
+    var plan = root.notifyPlan(now)
+    for (var i = 0; i < plan.length; i++) {
+      var f = plan[i].fireAt
+      if (f.getTime() > now.getTime()) {
+        var time = Model.formatTime(f, root.timeFormatMode, root.formatLocale)
+        var when = f.toDateString() === now.toDateString() ? time
+          : root.formatLocale.toString(f, "ddd d MMM") + " " + time
+        return strings.t("notify.next").arg(root.notifyTitle(plan[i])).arg(when)
+      }
+    }
+    return strings.t("notify.none")
+  }
+
+  // Test: the bar scrolls a sample now; with desktop on, a sample notification too
+  property string reminderTestText: ""
+  readonly property string barReminderText: root.reminderTestText !== "" ? root.reminderTestText : root.reminderText
+  Timer {
+    id: reminderTestClear
+    interval: 25000
+    onTriggered: root.reminderTestText = ""
+  }
+  function testNotification() {
+    var body = root.notifyOn ? root.notifyNextText : strings.t("notify.testOff")
+    root.reminderTestText = "✦ " + strings.t("notify.testTitle") + " · " + body
+    reminderTestClear.restart()
+    if (root.notifyDesktop) root.sendNotification(strings.t("notify.testTitle"), body)
+  }
+
+  Timer {
+    interval: 30000
+    running: root.notifyOn && root.notifyDesktop
+    repeat: true
+    triggeredOnStart: true
+    onTriggered: root.checkNotifications()
+  }
+
+  Process {
+    id: notifyProc
+    onExited: function(code) {
+      if (code !== 0) console.warn("heliolune: notify-send failed (exit " + code + ")")
+      root.pumpNotify()
+    }
   }
 
   function clearCustomCoords() {
@@ -3298,7 +3493,8 @@ BarWidget {
     return "⚠ " + text
   }
   readonly property color alertColor: Color.urgent
-  readonly property bool barAlerting: root.weatherAlertText !== "" && !root.vertical
+  // Weather alerts and sky reminders share the ticker
+  readonly property bool barAlerting: (root.weatherAlertText !== "" || root.barReminderText !== "") && !root.vertical
   readonly property real barRowWidth: barContentRow.implicitWidth
   readonly property real barTickerSpeed: 90   // px per second; opt-in, so fixed even with animations off
   // A new or changed alert scrolls at once (after a short beat); none, and the bar is still
@@ -3311,6 +3507,7 @@ BarWidget {
     }
   }
   onWeatherAlertTextChanged: if (root.weatherAlertText !== "" && !root.vertical) barAlertDelay.restart()
+  onBarReminderTextChanged: if (root.barReminderText !== "" && !root.vertical) barAlertDelay.restart()
 
   Timer {
     id: barAlertDelay
@@ -3362,6 +3559,7 @@ BarWidget {
       return (S.nextEventName !== ""
           ? strings.t("tip.sunNext").arg(S.nextEventName).arg(Model.formatTime(S.nextEventTime, root.timeFormatMode, root.formatLocale)) + "\n" : "")
         + strings.t("tip.sunNow").arg(S.phaseName).arg(Math.round(S.altitude)).arg(Model.azimuthToCompass(S.azimuth))
+        + (root.reminderText !== "" ? "\n" + root.reminderText : "")
         + "\n" + strings.t("tip.clickSun") + foot
     }
     if (root.barHoverSeg === "moon") {
@@ -3379,6 +3577,7 @@ BarWidget {
     return S.phaseName + " (" + Math.round(S.altitude) + "°) · " + L.phaseName + " (" + L.illuminationPct + "%)"
       + (root.weatherNow && root.weatherEnabled ? " · " + root.weatherTempText + " " + root.weatherConditionText : "")
       + (root.weatherAlertText !== "" ? "\n" + root.weatherAlertText : "")
+      + (root.reminderText !== "" ? "\n" + root.reminderText : "")
       + foot
   }
   // Moving from one item to the next swaps the tooltip at once
@@ -3474,18 +3673,33 @@ BarWidget {
         pw: target ? target.width : 0
       }
 
-      // The alert, parked off to the right until it scrolls through
-      Text {
+      // The alert and any sky reminder, parked off to the right until they scroll through
+      Row {
         id: barAlertLabel
         x: barViewport.width
         anchors.verticalCenter: parent.verticalCenter
         visible: root.barAlerting && barTickerAnim.running
-        textFormat: Text.PlainText
-        text: root.weatherAlertText
-        color: root.alertColor
-        font.family: root.bar ? root.bar.fontFamily : Style.font.family
-        font.pixelSize: Style.font.body
-        font.bold: true
+        spacing: Style.space(24)
+
+        Text {
+          visible: root.weatherAlertText !== ""
+          textFormat: Text.PlainText
+          text: root.weatherAlertText
+          color: root.alertColor
+          font.family: root.bar ? root.bar.fontFamily : Style.font.family
+          font.pixelSize: Style.font.body
+          font.bold: true
+        }
+
+        Text {
+          visible: root.barReminderText !== ""
+          textFormat: Text.PlainText
+          text: root.barReminderText
+          color: root.reminderColor
+          font.family: root.bar ? root.bar.fontFamily : Style.font.family
+          font.pixelSize: Style.font.body
+          font.bold: true
+        }
       }
 
       Row {
@@ -7289,6 +7503,105 @@ Text {
             onPicked: key => root.setOpt("seasons", key)
           }
 
+          // ---- Notifications (opt-in)
+          SectionHeading {
+            text: strings.t("settings.section.notifications")
+          }
+
+          OptionRow {
+            label: strings.t("settings.notify")
+            choices: [
+              { key: "off", label: "Off" },
+              { key: "on",  label: "On" }
+            ]
+            current: root.notifyOn ? "on" : "off"
+            onPicked: key => root.setOpt("notify", key)
+          }
+
+          RowLayout {
+            visible: root.notifyOn
+            Layout.fillWidth: true
+            spacing: Style.space(4)
+
+            RowLabel {
+              text: strings.t("settings.notifyAbout")
+            }
+
+            Repeater {
+              model: [
+                { key: "notifyGolden", label: strings.t("settings.notify.golden"), on: root.notifyGolden },
+                { key: "notifyBlue",   label: strings.t("settings.notify.blue"),   on: root.notifyBlue },
+                { key: "notifyMoon",   label: strings.t("settings.notify.moon"),   on: root.notifyMoon },
+                { key: "notifySeason", label: strings.t("settings.notify.season"), on: root.notifySeason }
+              ]
+
+              ChoiceButton {
+                required property var modelData
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                Layout.preferredHeight: Style.space(28)
+                selected: modelData.on
+                text: modelData.label
+                onClicked: root.setOpt(modelData.key, modelData.on ? "off" : "on")
+              }
+            }
+          }
+
+          OptionRow {
+            visible: root.notifyOn
+            label: strings.t("settings.notifyWhere")
+            choices: [
+              { key: "off", label: "Bar" },
+              { key: "on",  label: "Bar + desktop" }
+            ]
+            current: root.notifyDesktop ? "on" : "off"
+            onPicked: key => root.setOpt("notifyDesktop", key)
+          }
+
+          OptionRow {
+            visible: root.notifyOn
+            label: strings.t("settings.notifyMornings")
+            choices: [
+              { key: "off", label: "Evenings" },
+              { key: "on",  label: "Mornings too" }
+            ]
+            current: root.notifyMornings ? "on" : "off"
+            onPicked: key => root.setOpt("notifyMornings", key)
+          }
+
+          OptionRow {
+            visible: root.notifyOn
+            label: strings.t("settings.notifyLead")
+            choices: [
+              { key: "0",  label: "At start" },
+              { key: "10", label: "10 min" },
+              { key: "30", label: "30 min" }
+            ]
+            current: root.notifyLead
+            onPicked: key => root.setOpt("notifyLead", key)
+          }
+
+          RowLayout {
+            Layout.fillWidth: true
+            spacing: Style.space(6)
+
+            Text {
+              Layout.fillWidth: true
+              textFormat: Text.PlainText
+              text: root.notifyOn ? root.notifyNextText : strings.t("settings.notifyOffNote")
+              color: Qt.alpha(Color.foreground, 0.7)
+              font.family: Style.font.family
+              font.pixelSize: Style.font.caption
+              wrapMode: Text.Wrap
+            }
+
+            ChoiceButton {
+              Layout.preferredHeight: Style.space(28)
+              text: strings.t("settings.notifyTest")
+              onClicked: root.testNotification()
+            }
+          }
+
           // ---- Location source & override
           SectionHeading {
             text: strings.t("settings.section.location")
@@ -7335,6 +7648,51 @@ Text {
                 }
                 root.editingCustomCoords = !root.editingCustomCoords
               }
+            }
+          }
+
+          // City search: type a place, press Search or Enter, pick a match
+          RowLayout {
+            Layout.fillWidth: true
+            spacing: Style.space(6)
+
+            TextField {
+              id: cityField
+              accent: root.ornate ? root.ornMetal : Color.accent
+              Layout.fillWidth: true
+              placeholderText: strings.t("settings.citySearch")
+              maximumLength: 60
+              onAccepted: root.searchCity(text)
+            }
+
+            ChoiceButton {
+              Layout.preferredHeight: Style.space(28)
+              selected: root.citySearchState === "searching"
+              text: root.citySearchState === "searching" ? strings.t("settings.citySearching") : strings.t("settings.citySearchGo")
+              onClicked: root.searchCity(cityField.text)
+            }
+          }
+
+          Text {
+            visible: root.citySearchState === "none" || root.citySearchState === "failed"
+            Layout.fillWidth: true
+            textFormat: Text.PlainText
+            text: root.citySearchState === "none" ? strings.t("settings.cityNone") : strings.t("settings.cityFailed")
+            color: Qt.alpha(Color.foreground, 0.7)
+            font.family: Style.font.family
+            font.pixelSize: Style.font.caption
+            wrapMode: Text.Wrap
+          }
+
+          Repeater {
+            model: root.cityResults
+
+            ChoiceButton {
+              required property var modelData
+              Layout.fillWidth: true
+              Layout.preferredHeight: Style.space(28)
+              text: modelData.label + "  (" + modelData.latitude.toFixed(2) + ", " + modelData.longitude.toFixed(2) + ")"
+              onClicked: root.pickCity(modelData)
             }
           }
 

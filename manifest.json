@@ -406,6 +406,146 @@
         "defaultValue": "0"
       },
       {
+        "key": "notify",
+        "type": "enum",
+        "label": "Sky Reminders",
+        "description": "Golden and blue hour, full and new moon, and season changes scroll across the bar like weather alerts. Off by default; computed locally, nothing is sent over the network.",
+        "defaultValue": "off",
+        "options": [
+          {
+            "value": "on",
+            "label": "On"
+          },
+          {
+            "value": "off",
+            "label": "Off"
+          }
+        ]
+      },
+      {
+        "key": "notifyDesktop",
+        "type": "enum",
+        "label": "Reminders on the Desktop",
+        "description": "Also send each reminder once as a desktop notification (notify-send), besides scrolling it on the bar.",
+        "defaultValue": "off",
+        "options": [
+          {
+            "value": "on",
+            "label": "Bar + desktop"
+          },
+          {
+            "value": "off",
+            "label": "Bar only"
+          }
+        ]
+      },
+      {
+        "key": "notifyGolden",
+        "type": "enum",
+        "label": "Remind: Golden Hour",
+        "description": "Remind before golden hour begins.",
+        "defaultValue": "on",
+        "options": [
+          {
+            "value": "on",
+            "label": "On"
+          },
+          {
+            "value": "off",
+            "label": "Off"
+          }
+        ]
+      },
+      {
+        "key": "notifyBlue",
+        "type": "enum",
+        "label": "Remind: Blue Hour",
+        "description": "Remind before blue hour begins.",
+        "defaultValue": "off",
+        "options": [
+          {
+            "value": "on",
+            "label": "On"
+          },
+          {
+            "value": "off",
+            "label": "Off"
+          }
+        ]
+      },
+      {
+        "key": "notifyMoon",
+        "type": "enum",
+        "label": "Remind: Full & New Moon",
+        "description": "Remind on the day of a full or new moon (the evening before when it falls in the morning).",
+        "defaultValue": "on",
+        "options": [
+          {
+            "value": "on",
+            "label": "On"
+          },
+          {
+            "value": "off",
+            "label": "Off"
+          }
+        ]
+      },
+      {
+        "key": "notifySeason",
+        "type": "enum",
+        "label": "Remind: Season Change",
+        "description": "Remind on the day a new season begins (the evening before when it falls in the morning).",
+        "defaultValue": "on",
+        "options": [
+          {
+            "value": "on",
+            "label": "On"
+          },
+          {
+            "value": "off",
+            "label": "Off"
+          }
+        ]
+      },
+      {
+        "key": "notifyMornings",
+        "type": "enum",
+        "label": "Morning Sun Reminders",
+        "description": "Also remind for the morning golden and blue hour, not only the evening ones.",
+        "defaultValue": "off",
+        "options": [
+          {
+            "value": "on",
+            "label": "Mornings too"
+          },
+          {
+            "value": "off",
+            "label": "Evenings only"
+          }
+        ]
+      },
+      {
+        "key": "notifyLead",
+        "type": "enum",
+        "label": "Reminder Lead Time",
+        "description": "How long before golden or blue hour begins the reminder arrives.",
+        "defaultValue": "10",
+        "options": [
+          {
+            "value": "0",
+            "label": "When it begins"
+          },
+          {
+            "value": "10",
+            "label": "10 minutes before"
+          },
+          {
+            "value": "30",
+            "label": "30 minutes before"
+          }
+        ]
+      },
+      {
         "key": "latitude",
         "type": "string",
         "label": "Manual Latitude Override",
