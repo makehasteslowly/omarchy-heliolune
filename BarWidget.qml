@@ -2291,16 +2291,15 @@ BarWidget {
             }
           }
 
-          // Location and date as an aligned grid:
-          //   [icon] city         coordinates ............ weather
-          //   [icon] date         week
-          // The icon column has a fixed width, the city and date share a left
-          // edge, and the coordinates and week share another. Only the city
-          // name gives way (elides) if it is very long.
+          // Location and date, each row flowing naturally:
+          //   [icon] city  coordinates ................. weather
+          //   [icon] date  ·  week
+          // A fixed-width icon column gives the city and the date one left edge;
+          // only the city name gives way (elides) if it is very long.
           GridLayout {
             id: infoGrid
             Layout.fillWidth: true
-            columns: 5
+            columns: 3
             columnSpacing: Style.space(8)
             rowSpacing: Style.space(3)
 
@@ -2319,31 +2318,43 @@ BarWidget {
               font.family: Style.font.family
               font.pixelSize: infoGrid.textSize
             }
-            Text {
+            RowLayout {
               Layout.fillWidth: true
-              Layout.minimumWidth: Style.space(40)
-              Layout.maximumWidth: Math.min(implicitWidth, Style.space(190))
-              textFormat: Text.PlainText
-              text: root.activeLocationName
-              color: Color.foreground
-              opacity: 0.8
-              font.family: Style.font.family
-              font.pixelSize: infoGrid.textSize
-              font.bold: true
-              elide: Text.ElideRight
+              spacing: Style.space(8)
+              // Natural width of the city name, measured apart from the elided Text
+              // (binding the Text's size to its own implicitWidth feeds back on itself).
+              TextMetrics {
+                id: cityMetrics
+                font: cityText.font
+                text: root.activeLocationName
+              }
+              Text {
+                id: cityText
+                Layout.fillWidth: true
+                Layout.minimumWidth: Style.space(40)
+                Layout.preferredWidth: Math.ceil(cityMetrics.advanceWidth) + 1
+                Layout.maximumWidth: Math.ceil(cityMetrics.advanceWidth) + 1
+                textFormat: Text.PlainText
+                text: root.activeLocationName
+                color: Color.foreground
+                opacity: 0.8
+                font.family: Style.font.family
+                font.pixelSize: infoGrid.textSize
+                font.bold: true
+                elide: Text.ElideRight
+              }
+              Text {
+                textFormat: Text.PlainText
+                text: (root.activeLat >= 0 ? root.activeLat.toFixed(2) + "°N" : Math.abs(root.activeLat).toFixed(2) + "°S")
+                  + "  " + (root.activeLon >= 0 ? root.activeLon.toFixed(2) + "°E" : Math.abs(root.activeLon).toFixed(2) + "°W")
+                color: Color.foreground
+                opacity: 0.5
+                font.family: Style.font.family
+                font.pixelSize: infoGrid.textSize
+              }
+              Item { Layout.fillWidth: true; Layout.preferredHeight: 1 }
             }
-            Text {
-              textFormat: Text.PlainText
-              text: (root.activeLat >= 0 ? root.activeLat.toFixed(2) + "°N" : Math.abs(root.activeLat).toFixed(2) + "°S")
-                + "  " + (root.activeLon >= 0 ? root.activeLon.toFixed(2) + "°E" : Math.abs(root.activeLon).toFixed(2) + "°W")
-              color: Color.foreground
-              opacity: 0.5
-              font.family: Style.font.family
-              font.pixelSize: infoGrid.textSize
-            }
-            Item { Layout.fillWidth: true; Layout.preferredHeight: 1 }
-            // GridLayout skips invisible cells, which would shift every later
-            // cell; so this cell stays in place and only its content hides.
+            // Always present so the grid never shifts; only the content hides
             Row {
               Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
               spacing: Style.space(4)
@@ -2380,27 +2391,17 @@ BarWidget {
             }
             Text {
               Layout.fillWidth: true
-              Layout.minimumWidth: implicitWidth
-              Layout.maximumWidth: implicitWidth
+              Layout.columnSpan: 2
               textFormat: Text.PlainText
               text: root.currentDate.toLocaleDateString(root.formatLocale, "ddd, MMM d, yyyy")
+                + "  ·  " + strings.t("header.week").arg(Model.isoWeek(root.currentDate).week)
               color: infoGrid.dateColor
               opacity: root.browsing ? 1.0 : 0.62
               font.family: Style.font.family
               font.pixelSize: infoGrid.textSize
               font.bold: root.browsing
+              elide: Text.ElideRight
             }
-            Text {
-              textFormat: Text.PlainText
-              text: strings.t("header.week").arg(Model.isoWeek(root.currentDate).week)
-              color: infoGrid.dateColor
-              opacity: root.browsing ? 1.0 : 0.62
-              font.family: Style.font.family
-              font.pixelSize: infoGrid.textSize
-              font.bold: root.browsing
-            }
-            Item { Layout.fillWidth: true; Layout.preferredHeight: 1 }
-            Item { Layout.preferredWidth: 1; Layout.preferredHeight: 1 }
           }
         }
         // ---- Time-travel chip: shown while the popup is on another date
