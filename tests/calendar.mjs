@@ -83,6 +83,19 @@ delete bad.hourly; delete bad.daily;
 const wxNone = M.parseCurrentWeather(JSON.stringify(bad));
 checks.push(["forecast: missing blocks give empty lists, current weather still parsed", wxNone && wxNone.tempC !== undefined && wxNone.forecast.hourly.length === 0 && wxNone.forecast.daily.length === 0]);
 
+// Every WMO weather code maps to the drawn icon the bar and popup show
+const wxFor = (code, isDay) => M.parseCurrentWeather(JSON.stringify({ current: { temperature_2m: 8, weather_code: code, is_day: isDay ? 1 : 0 } }));
+const expectKind = [
+  [0, 1, "clear"], [0, 0, "clearNight"], [1, 1, "clear"], [2, 1, "partly"], [2, 0, "partlyNight"], [3, 1, "cloudy"], [3, 0, "cloudy"],
+  [45, 1, "fog"], [48, 1, "fog"], [51, 1, "drizzle"], [53, 1, "drizzle"], [55, 1, "drizzle"], [56, 1, "freezing"], [57, 1, "freezing"],
+  [61, 1, "rain"], [63, 1, "rain"], [65, 1, "heavyRain"], [66, 1, "freezing"], [67, 1, "freezing"],
+  [71, 1, "snow"], [73, 1, "snow"], [75, 1, "snow"], [77, 1, "snow"], [80, 1, "rain"], [81, 1, "rain"], [82, 1, "heavyRain"],
+  [85, 1, "snow"], [86, 1, "snow"], [95, 1, "thunder"], [96, 1, "hail"], [99, 1, "hail"], [61, 0, "rain"], [95, 0, "thunder"],
+];
+const wrongKinds = expectKind.filter(([c, day, k]) => { const w = wxFor(c, day); return !w || w.kind !== k; });
+checks.push([`weather icons: ${expectKind.length} code/day-night cases map to the right icon` + (wrongKinds.length ? " (wrong: " + wrongKinds.map(x => x[0] + (x[1] ? "d" : "n")).join(", ") + ")" : ""), wrongKinds.length === 0]);
+checks.push(["weather icons: unknown code is rejected, not shown as clear", wxFor(42, 1) === null]);
+
 for (const [label, ok] of checks) { if (!ok) { failed++; console.log("FAIL " + label); } else if (process.argv.includes("--verbose")) console.log("ok   " + label); }
 console.log(`Options: ${checks.filter(c => c[1]).length}/${checks.length} checks pass`);
 process.exit(failed ? 1 : 0);
