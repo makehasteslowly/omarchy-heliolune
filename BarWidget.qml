@@ -2361,6 +2361,74 @@ BarWidget {
     Behavior on height { NumberAnimation { duration: Style.duration(120); easing.type: Easing.OutCubic } }
   }
 
+  // Popup title: a quiet "Heliolune ·" wordmark, then the open view's name
+  component HeaderTitle: Row {
+    spacing: Style.space(5)
+    readonly property bool deco: root.decoStyle
+    readonly property real tracking: deco ? 3.0 : (root.nouveauStyle ? 1.2 : (root.atomicStyle ? 0.8 : 0))
+
+    Text {
+      anchors.baseline: viewName.baseline
+      textFormat: Text.PlainText
+      text: "Heliolune ·"
+      color: root.ornate ? root.ornMetal : Color.foreground
+      opacity: 0.55
+      font.family: Style.font.family
+      font.pixelSize: Style.font.caption
+      font.capitalization: parent.deco ? Font.AllUppercase : Font.MixedCase
+      font.letterSpacing: parent.tracking * 0.7
+      font.italic: root.atomicStyle
+    }
+
+    Text {
+      id: viewName
+      textFormat: Text.PlainText
+      text: root.settingsOpen ? strings.t("section.settings") : (root.weatherOpen ? strings.t("section.forecast") : (root.moonOpen ? strings.t("section.moon") : strings.t("section.sun")))
+      color: root.ornate ? root.ornMetal : Color.foreground
+      font.family: Style.font.family
+      font.pixelSize: Style.font.body
+      font.bold: true
+      font.capitalization: parent.deco ? Font.AllUppercase : Font.MixedCase
+      font.letterSpacing: parent.tracking
+      font.italic: root.atomicStyle
+    }
+  }
+
+  // Click feedback: the item glows and fades (the bar itself holds still)
+  component BarGlow: Item {
+    property bool vertical: false
+    property real px: 0
+    property real pw: 0
+    property real py: 0
+    property real ph: 0
+    property real level: 0
+    readonly property real pad: Style.space(4)
+    readonly property color tone: root.ornate ? root.barMetal : Color.accent
+    visible: level > 0.01
+    x: vertical ? (parent.width - width) / 2 : px - pad
+    y: vertical ? py - pad : (parent.height - height) / 2
+    width: vertical ? Math.min(parent.width - Style.space(4), Style.space(26)) : pw + 2 * pad
+    height: vertical ? ph + 2 * pad : Math.min(parent.height - Style.space(10), Style.space(18))
+
+    Rectangle {
+      anchors.fill: parent
+      radius: root.decoStyle ? 0 : Math.min(width, height) / 2
+      color: Qt.alpha(parent.tone, 0.22 * parent.level)
+      border.width: 1
+      border.color: Qt.alpha(parent.tone, parent.level)
+      layer.enabled: parent.visible
+      layer.effect: MultiEffect {
+        shadowEnabled: true
+        shadowColor: root.ornate ? root.barMetal : Color.accent
+        shadowBlur: 1.0
+        blurMax: 12
+        shadowHorizontalOffset: 0
+        shadowVerticalOffset: 0
+        shadowScale: 1.08
+      }
+    }
+  }
+
   component RowLabel: Text {
     Layout.preferredWidth: root.ornate ? Style.space(124) : Style.space(98)
     textFormat: Text.PlainText
@@ -3641,6 +3709,21 @@ BarWidget {
     if (seg === "weather" && !root.showWeatherOnBar) return ""
     return seg
   }
+  // The item that was clicked glows for a moment
+  property string barGlowSeg: ""
+  property real barGlowLevel: 0
+  function flashBarItem(seg) {
+    root.barGlowSeg = seg
+    barGlowAnim.restart()
+  }
+  SequentialAnimation {
+    id: barGlowAnim
+    // With shell animations off it still shows: a plain highlight that holds, then goes
+    NumberAnimation { target: root; property: "barGlowLevel"; to: 1; duration: Style.duration(80); easing.type: Easing.OutCubic }
+    PauseAnimation { duration: Style.duration(650) > 0 ? 120 : 380 }
+    NumberAnimation { target: root; property: "barGlowLevel"; to: 0; duration: Style.duration(650); easing.type: Easing.InOutQuad }
+  }
+
   function barSegItem(seg) {
     return seg === "sun" ? barSolarGroup : (seg === "moon" ? barLunarGroup : (seg === "weather" ? barWeatherGroup : null))
   }
@@ -3659,6 +3742,7 @@ BarWidget {
     tooltipText: root.barTooltip
 
     onPressed: function(b) {
+      root.flashBarItem(root.barClickSeg !== "" ? root.barClickSeg : "sun")
       if (b === Qt.RightButton) {
         root.toggleSettings()
       } else if (b === Qt.MiddleButton) {
@@ -3691,7 +3775,6 @@ BarWidget {
         : Qt.alpha(root.barMetal, lit ? 0.12 : 0.06)
       border.width: 1
       border.color: Qt.alpha(root.barMetal, lit ? 1.0 : root.ornA(0.5, 0.85))
-      scale: barButton.pressScale
 
       Behavior on color { ColorAnimation { duration: Style.duration(120); easing.type: Easing.OutCubic } }
       Behavior on border.color { ColorAnimation { duration: Style.duration(120); easing.type: Easing.OutCubic } }
@@ -3731,6 +3814,12 @@ BarWidget {
         px: target ? barContentRow.x + target.x : 0
         pw: target ? target.width : 0
       }
+      BarGlow {
+        readonly property Item target: root.barSegItem(root.barGlowSeg)
+        level: target !== null && target.visible && !barTickerAnim.running ? root.barGlowLevel : 0
+        px: target ? barContentRow.x + target.x : 0
+        pw: target ? target.width : 0
+      }
 
       // The alert and any sky reminder, parked off to the right until they scroll through
       Row {
@@ -3766,7 +3855,6 @@ BarWidget {
         visible: !root.vertical
         anchors.centerIn: parent
         spacing: Style.space(6)
-        scale: barButton.pressScale
         transform: Translate { id: barTickerShift }
 
         // Solar group
@@ -3869,13 +3957,21 @@ BarWidget {
       }
     }
 
+    BarGlow {
+      readonly property Item firstItem: root.barGlowSeg === "sun" ? barSunV : (root.barGlowSeg === "moon" ? barMoonV : (root.barGlowSeg === "weather" ? barWeatherV : null))
+      readonly property Item lastItem: root.barGlowSeg === "weather" && barWeatherTextV.visible ? barWeatherTextV : firstItem
+      vertical: true
+      level: root.vertical && firstItem !== null && firstItem.visible ? root.barGlowLevel : 0
+      py: firstItem ? barContentCol.y + firstItem.y : 0
+      ph: firstItem ? lastItem.y + lastItem.height - firstItem.y : 0
+    }
+
     // Vertical bar layout
     Column {
       id: barContentCol
       visible: root.vertical
       anchors.centerIn: parent
       spacing: Style.space(4)
-      scale: barButton.pressScale
 
       BarWeatherIcon {
         id: barSunV
@@ -4172,18 +4268,8 @@ BarWidget {
               spacing: Style.space(6)
 
               // Title on its own row so the wide Deco/Nouveau lettering never elides
-              Text {
+              HeaderTitle {
                 Layout.alignment: Qt.AlignRight
-                textFormat: Text.PlainText
-                readonly property bool deco: root.decoStyle
-                text: root.settingsOpen ? strings.t("section.settings") : (root.weatherOpen ? strings.t("section.forecast") : (root.moonOpen ? strings.t("section.moon") : strings.t("section.sun")))
-                color: root.ornate ? root.ornMetal : Color.foreground
-                font.family: Style.font.family
-                font.pixelSize: Style.font.body
-                font.bold: true
-                font.capitalization: deco ? Font.AllUppercase : Font.MixedCase
-                font.letterSpacing: deco ? 3.0 : (root.nouveauStyle ? 1.2 : (root.atomicStyle ? 0.8 : 0))
-                font.italic: root.atomicStyle
               }
 
               HeaderButtons {
@@ -4197,22 +4283,7 @@ BarWidget {
             visible: !root.weatherHeroShown
             Layout.fillWidth: true
             spacing: Style.space(6)
-Text {
-              textFormat: Text.PlainText
-              readonly property bool deco: root.decoStyle
-              text: root.settingsOpen ? strings.t("section.settings") : (root.weatherOpen ? strings.t("section.forecast") : (root.moonOpen ? strings.t("section.moon") : strings.t("section.sun")))
-              elide: Text.ElideRight
-              // Its full width first; the spacer after it takes what is left
-              Layout.preferredWidth: implicitWidth
-              Layout.minimumWidth: Math.min(implicitWidth, Style.space(60))
-              color: root.ornate ? root.ornMetal : Color.foreground
-              font.family: Style.font.family
-              font.pixelSize: Style.font.body
-              font.bold: true
-              font.capitalization: deco ? Font.AllUppercase : Font.MixedCase
-              font.letterSpacing: deco ? 3.0 : (root.nouveauStyle ? 1.2 : (root.atomicStyle ? 0.8 : 0))
-              font.italic: root.atomicStyle
-            }
+            HeaderTitle {}
             Item { Layout.fillWidth: true }
             HeaderButtons {}
           }
