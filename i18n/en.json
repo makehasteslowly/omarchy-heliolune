@@ -69,5 +69,6 @@
   "weather.thunderstorm": "Thunderstorm",
   "weather.thunderHail": "Thunderstorm with hail",
   "header.week": "Week %1",
-  "weather.feels": "Feels %1"
+  "weather.feels": "Feels %1",
+  "settings.barWeather": "Bar Weather"
 }

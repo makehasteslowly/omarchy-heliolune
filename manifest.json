@@ -46,7 +46,8 @@
       "latitude": "",
       "longitude": "",
       "locationName": "",
-      "weather": "auto"
+      "weather": "auto",
+      "barWeather": "on"
     },
     "schema": [
       {
@@ -167,6 +168,23 @@
           {
             "value": "off",
             "label": "Off (no weather requests)"
+          }
+        ]
+      },
+      {
+        "key": "barWeather",
+        "type": "enum",
+        "label": "Weather on the Bar",
+        "description": "Show a themed weather icon and the temperature on the bar widget. Needs Current Weather to be on.",
+        "defaultValue": "on",
+        "options": [
+          {
+            "value": "on",
+            "label": "On"
+          },
+          {
+            "value": "off",
+            "label": "Off"
           }
         ]
       },

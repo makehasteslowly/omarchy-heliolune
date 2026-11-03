@@ -42,7 +42,7 @@ Pick what it shows from six modes:
 | `solar` | Sun phase · next sun event |
 | `lunar` | Moon disc · illumination % |
 
-Hover for a summary that includes the next moonrise or moonset.
+With weather on, the capsule also shows the current conditions as a small themed icon and the temperature (`barWeather: off` hides it). Hover for a summary including the next moonrise or moonset and the full weather reading.
 
 ### In the popup
 
@@ -153,6 +153,7 @@ Everything is in the right-click panel. The same keys can be set on the widget's
 | `colorMode` | `celestial` (Soft) · `bold` · `theme` | `celestial` |
 | `timeFormat` | `auto` · `12` · `24` | `auto` |
 | `weather` | `auto` (°F for US locales, °C elsewhere) · `c` · `f` · `off` | `auto` |
+| `barWeather` | `on` · `off`: the themed weather icon and temperature on the bar | `on` |
 | `latitude`, `longitude`, `locationName` | Manual location override | empty (automatic) |
 
 ```json

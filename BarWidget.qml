@@ -63,6 +63,12 @@ BarWidget {
     || (root.weatherMode === "auto" && Qt.locale().measurementSystem === Locale.ImperialUSSystem)
   onConfiguredWeatherChanged: root.localWeatherOverride = ""
 
+  // Weather segment on the bar capsule: "on" or "off" (needs Weather enabled)
+  property string localBarWeatherOverride: ""
+  readonly property string configuredBarWeather: String(setting("barWeather", "on")).toLowerCase() === "off" ? "off" : "on"
+  readonly property string barWeatherMode: root.localBarWeatherOverride !== "" ? root.localBarWeatherOverride : root.configuredBarWeather
+  onConfiguredBarWeatherChanged: root.localBarWeatherOverride = ""
+
   property string localTimeFormatOverride: ""
   readonly property string configuredTimeFormat: {
     var v = String(setting("timeFormat", "auto")).toLowerCase()
@@ -585,6 +591,12 @@ BarWidget {
     root.localWeatherOverride = m
     root.saveBarSetting("weather", m)
     if (m !== "off") root.fetchWeather(false)
+  }
+
+  function selectBarWeather(mode) {
+    var m = mode === "off" ? "off" : "on"
+    root.localBarWeatherOverride = m
+    root.saveBarSetting("barWeather", m)
   }
 
   function selectTimeFormat(fmt) {
@@ -1933,6 +1945,62 @@ BarWidget {
     }
   }
 
+  // Theme mark between the groups on the bar capsule: plain dot, diamond (deco),
+  // leaf sprig with a bud (nouveau) or four-point sparkle (atomic)
+  component BarMark: Item {
+    width: root.ornate ? 7 : 3
+    height: 7
+
+    Rectangle {
+      visible: !root.ornate
+      anchors.centerIn: parent
+      width: 3; height: 3; radius: 1.5
+      color: Color.foreground
+      opacity: 0.32
+    }
+    // Deco: diamond
+    Rectangle {
+      visible: root.decoStyle
+      anchors.centerIn: parent
+      width: 5; height: 5; rotation: 45
+      color: root.barMetal
+    }
+    // Nouveau: a leaf sprig with a rose bud
+    Rectangle {
+      visible: root.nouveauStyle
+      x: -1; y: 2
+      width: 7; height: 3; radius: 1.5
+      rotation: -40
+      color: Qt.alpha(root.barPrimary, 0.9)
+    }
+    Rectangle {
+      visible: root.nouveauStyle
+      x: 4.5; y: -0.5
+      width: 3.2; height: 3.2; radius: 1.6
+      color: root.ornatePalette ? root.ornPick("flower", root.isLightBar, root.effectiveBarBg) : root.barMetal
+    }
+    // Atomic: four-point sparkle
+    Rectangle { visible: root.atomicStyle; anchors.centerIn: parent; width: 7; height: 1.4; radius: 0.7; color: root.barMetal }
+    Rectangle { visible: root.atomicStyle; anchors.centerIn: parent; width: 1.4; height: 7; radius: 0.7; color: root.barMetal }
+  }
+
+  // The weather icon at bar size, coloured against the bar background
+  component BarWeatherIcon: WeatherIcon {
+    implicitWidth: Style.space(18)
+    implicitHeight: Style.space(18)
+    kind: root.weatherNow ? root.weatherNow.kind : "clear"
+    iconStyle: root.moonStyle
+    sunColor: root.ornatePalette ? root.ornPick("sun", root.isLightBar, root.effectiveBarBg) : root.barSolarColor
+    moonColor: root.barLunarLitColor
+    rainColor: root.resolveBlueHourColor(false)
+    cloudColor: root.isLightBar ? Qt.rgba(0.55, 0.6, 0.67, 1) : Qt.rgba(0.86, 0.89, 0.94, 1)
+    edgeColor: root.decoStyle ? root.barMetal
+      : (root.nouveauStyle ? Qt.alpha(root.barMetal, 0.85)
+      : (root.isLightBar ? Qt.rgba(0.2, 0.18, 0.16, 1) : Qt.rgba(0.08, 0.06, 0.05, 1)))
+    snowColor: root.isLightBar ? "#7F93A8" : "#F4F7FB"
+    boltColor: root.nouveauStyle ? root.ornPick("sun", root.isLightBar, root.effectiveBarBg) : root.barMetal
+  }
+
   // ---- Weather icons: drawn vector art (crisp at any size), one set per theme.
   // kind:      clear, clearNight, partly, partlyNight, cloudy, fog, drizzle, rain,
   //            heavyRain, freezing, snow, thunder, hail
@@ -2296,6 +2364,10 @@ BarWidget {
   }
 
   readonly property color barSolarColor: root.resolveSolarColor(false, root.solarData.isDay)
+  readonly property bool showWeatherOnBar: root.barWeatherMode === "on" && root.weatherEnabled && root.weatherNow !== null
+  readonly property string barTempText: root.weatherNow
+    ? Model.formatTemperature(root.weatherNow.tempC, root.weatherImperial).replace(/°[CF]$/, "°")
+    : ""
   readonly property color barLunarColor: root.resolveLunarColor(false)
   readonly property color barLunarLitColor: root.resolveLunarLitColor(false)
 
@@ -2319,6 +2391,7 @@ BarWidget {
       root.solarData.phaseName + " (" + Math.round(root.solarData.altitude) + "°) · "
       + root.lunarData.phaseName + " (" + root.lunarData.illuminationPct + "%)"
       + (root.nextMoonEventText !== "" ? " · " + root.nextMoonEventText : "")
+      + (root.weatherNow && root.weatherEnabled ? " · " + root.weatherTempText + " " + root.weatherConditionText : "")
       + " · Right-click: settings"
     )
 
@@ -2403,44 +2476,10 @@ BarWidget {
         }
       }
 
-      // Separator between sun and moon: plain dot, or the theme's mark
-      Item {
+      // Separator between sun and moon
+      BarMark {
         visible: root.showSolarOnBar && root.showLunarOnBar
-        width: root.ornate ? 7 : 3
-        height: 7
         anchors.verticalCenter: parent.verticalCenter
-
-        Rectangle {
-          visible: !root.ornate
-          anchors.centerIn: parent
-          width: 3; height: 3; radius: 1.5
-          color: Color.foreground
-          opacity: 0.32
-        }
-        // Deco: diamond
-        Rectangle {
-          visible: root.decoStyle
-          anchors.centerIn: parent
-          width: 5; height: 5; rotation: 45
-          color: root.barMetal
-        }
-        // Nouveau: a leaf sprig with a rose bud
-        Rectangle {
-          visible: root.nouveauStyle
-          x: -1; y: 2
-          width: 7; height: 3; radius: 1.5
-          rotation: -40
-          color: Qt.alpha(root.barPrimary, 0.9)
-        }
-        Rectangle {
-          visible: root.nouveauStyle
-          x: 4.5; y: -0.5
-          width: 3.2; height: 3.2; radius: 1.6
-          color: root.ornatePalette ? root.ornPick("flower", root.isLightBar, root.effectiveBarBg) : root.barMetal
-        }
-        // Atomic: four-point sparkle
-        Rectangle { visible: root.atomicStyle; anchors.centerIn: parent; width: 7; height: 1.4; radius: 0.7; color: root.barMetal }
-        Rectangle { visible: root.atomicStyle; anchors.centerIn: parent; width: 1.4; height: 7; radius: 0.7; color: root.barMetal }
       }
 
       // Lunar group
@@ -2464,6 +2503,27 @@ BarWidget {
           anchors.verticalCenter: parent.verticalCenter
           textFormat: Text.PlainText
           text: root.barLunarText
+          color: root.useThemeColors ? barButton.foreground : Color.foreground
+          font.family: root.bar ? root.bar.fontFamily : Style.font.family
+          font.pixelSize: Style.font.body
+        }
+      }
+
+      // Weather group: themed icon + temperature
+      BarMark {
+        visible: root.showWeatherOnBar && (root.showSolarOnBar || root.showLunarOnBar)
+        anchors.verticalCenter: parent.verticalCenter
+      }
+      Row {
+        visible: root.showWeatherOnBar
+        spacing: Style.space(3)
+        anchors.verticalCenter: parent.verticalCenter
+
+        BarWeatherIcon { anchors.verticalCenter: parent.verticalCenter }
+        Text {
+          anchors.verticalCenter: parent.verticalCenter
+          textFormat: Text.PlainText
+          text: root.barTempText
           color: root.useThemeColors ? barButton.foreground : Color.foreground
           font.family: root.bar ? root.bar.fontFamily : Style.font.family
           font.pixelSize: Style.font.body
@@ -2508,6 +2568,20 @@ BarWidget {
         litColor: root.barLunarLitColor
         darkColor: root.ornatePalette ? root.ornMoonShadow(root.isLightBar, 0.22) : (root.isLightBar ? Qt.rgba(0.15, 0.2, 0.3, 0.22) : Qt.rgba(0.06, 0.09, 0.16, 0.72))
         rimColor: Qt.alpha(root.barLunarColor, 0.48)
+      }
+
+      BarWeatherIcon {
+        visible: root.showWeatherOnBar
+        anchors.horizontalCenter: parent.horizontalCenter
+      }
+      Text {
+        visible: root.showWeatherOnBar
+        anchors.horizontalCenter: parent.horizontalCenter
+        textFormat: Text.PlainText
+        text: root.barTempText
+        color: root.useThemeColors ? barButton.foreground : Color.foreground
+        font.family: root.bar ? root.bar.fontFamily : Style.font.family
+        font.pixelSize: Math.round(Style.font.body * 0.9)
       }
     }
   }
@@ -4150,6 +4224,32 @@ Text {
                 selected: root.weatherMode === modelData.key
                 text: modelData.label
                 onClicked: root.selectWeather(modelData.key)
+              }
+            }
+          }
+
+          // Weather segment on the bar capsule
+          RowLayout {
+            Layout.fillWidth: true
+            spacing: Style.space(4)
+
+            RowLabel {
+              text: strings.t("settings.barWeather")
+            }
+
+            Repeater {
+              model: [
+                { key: "on",  label: "On" },
+                { key: "off", label: "Off" }
+              ]
+
+              ChoiceButton {
+                required property var modelData
+                Layout.fillWidth: true
+                Layout.preferredHeight: Style.space(28)
+                selected: root.barWeatherMode === modelData.key
+                text: modelData.label
+                onClicked: root.selectBarWeather(modelData.key)
               }
             }
           }
