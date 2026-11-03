@@ -1219,6 +1219,17 @@ function formatTemperature(tempC, imperial) {
   return Math.round(imperial ? v * 9 / 5 + 32 : v) + (imperial ? "°F" : "°C")
 }
 
+// ISO 8601 week number of a local calendar date: weeks start on Monday and
+// week 1 is the one containing the year's first Thursday (so Jan 1-3 can fall
+// in week 52/53 of the previous year, and Dec 29-31 in week 1 of the next).
+function isoWeek(date) {
+  var d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
+  var day = d.getUTCDay() || 7                 // Monday = 1 ... Sunday = 7
+  d.setUTCDate(d.getUTCDate() + 4 - day)       // Thursday of this week
+  var yearStart = Date.UTC(d.getUTCFullYear(), 0, 1)
+  return { week: Math.ceil(((d.getTime() - yearStart) / DAY_MS + 1) / 7), year: d.getUTCFullYear() }
+}
+
 function formatCountdownDays(daysFloat) {
   var d = Math.max(0, Number(daysFloat) || 0)
   if (d < 0.04) return "Now"

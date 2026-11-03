@@ -2281,6 +2281,18 @@ BarWidget {
                 Layout.maximumWidth: Style.space(170)
               }
 
+              // Date and ISO week of the day shown (follows time travel)
+              Text {
+                textFormat: Text.PlainText
+                text: root.currentDate.toLocaleDateString(root.formatLocale, "ddd, MMM d")
+                  + " · " + strings.t("header.week").arg(Model.isoWeek(root.currentDate).week)
+                color: root.browsing ? trackerPopup.popupSolarColor : Color.foreground
+                opacity: root.browsing ? 1.0 : 0.62
+                font.family: Style.font.family
+                font.pixelSize: Style.font.small || 11
+                font.bold: root.browsing
+              }
+
               Row {
                 visible: root.weatherText !== "" && !root.browsing
                 spacing: Style.space(4)

@@ -67,5 +67,6 @@
   "weather.heavyShowers": "Heavy showers",
   "weather.snowShowers": "Snow showers",
   "weather.thunderstorm": "Thunderstorm",
-  "weather.thunderHail": "Thunderstorm with hail"
+  "weather.thunderHail": "Thunderstorm with hail",
+  "header.week": "W%1"
 }
