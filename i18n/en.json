@@ -78,7 +78,6 @@
   "settings.seasons": "Seasons",
   "settings.light": "Light windows",
   "settings.elevation": "Elevation",
-  "settings.elevationHint": "Meters above sea level",
   "settings.reset": "Reset display settings",
   "settings.resetConfirm": "Reset display settings?",
   "section.forecast": "Forecast",
@@ -191,7 +190,7 @@
   "settings.on": "On",
   "settings.off": "Off",
   "settings.notifyEvenings": "Evenings",
-  "settings.notifyBoth": "Mornings & evenings",
+  "settings.notifyBoth": "Both",
   "settings.loc.manual": "Using the place you chose",
   "settings.loc.weather": "Using Omarchy Weather's location",
   "settings.loc.geo": "Using your approximate location (from your IP address)",
@@ -199,5 +198,9 @@
   "settings.loc.offset": "Estimated from your clock's UTC offset",
   "settings.useAuto": "Use automatic",
   "settings.cancel": "Cancel",
-  "settings.enterCoords": "Enter coordinates"
+  "settings.enterCoords": "Enter coordinates",
+  "settings.forecast": "Forecast",
+  "settings.units": "Units",
+  "settings.elevationHintM": "Meters above sea level",
+  "settings.elevationHintFt": "Feet above sea level"
 }

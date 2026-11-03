@@ -171,7 +171,7 @@ Everything is in the right-click panel. The same keys can be set on the widget's
 | `weekScheme` | `auto` (from locale) · `iso` · `us` | `auto` |
 | `seasons` | `astronomical` · `meteorological` | `astronomical` |
 | `lightPreset` | `standard` · `photographer` · `extended` golden/blue-hour windows | `standard` |
-| `elevation` | Your height above sea level in meters (0-9000) | `0` |
+| `elevation` | Your height above sea level in meters (0-9000); the settings field shows feet with imperial units | `0` |
 | `notify` | `on` · `off`: sky reminders scrolling on the bar (see below) | `on` |
 | `notifyDesktop` | `on` · `off`: also send each reminder as a desktop notification | `off` |
 | `notifyGolden`, `notifyBlue` | `on` · `off`: remind before golden hour / blue hour begins | `on`, `off` |
@@ -188,7 +188,7 @@ Everything is in the right-click panel. The same keys can be set on the widget's
 
 **Sky reminders** scroll across the bar widget the same way weather alerts do (both switch on and off under **Settings → Bar → Scrolling**; the reminder options appear in **Sky Reminders** below while they are on), in the Sun's color (weather alerts keep the urgent color), and they also appear in the widget's tooltip:
 
-- **Golden** and **Blue:** from shortly before the evening golden or blue hour begins until 15 minutes after (the morning ones too with **Golden & blue → Mornings & evenings**). **Lead time** sets how early: at start, 10 or 30 minutes.
+- **Golden** and **Blue:** from shortly before the evening golden or blue hour begins until 15 minutes after (the morning ones too with **Golden & blue → Both**). **Lead time** sets how early: at start, 10 or 30 minutes.
 - **Moon:** full moon and new moon, from 09:00 on the day, or from 18:00 the evening before when the moment falls in the morning.
 - **Season:** the next equinox or solstice (or 1 March, June, September or December with meteorological seasons), timed like the Moon.
 
@@ -235,8 +235,8 @@ Every request goes over HTTPS, is size-capped, and is validated before use:
 | What | Where | When | Turn it off |
 |---|---|---|---|
 | **Your approximate location**, only if Omarchy Weather has no location and you set none | `geo.omarchy.org`, Omarchy's own geolocation service | At startup, then every 3 hours; cached for offline use | Set a location in Omarchy Weather or in Heliolune's settings |
-| **Current weather and forecast** (one request) for your coordinates rounded to ~1 km | `api.open-meteo.com`, no account or key | At startup, every 30 minutes (15/30/60 in settings), and when your location changes | Set **Weather** to **Off** |
-| **Area map forecast** (one request) for 25 points around your coordinates, out to the chosen radius, each rounded to ~1 km | `api.open-meteo.com`, no account or key | Only while the **Map** tab is open: once when you open it or change the radius, then at most once per refresh interval | Don't open the Map tab, or set **Weather** to **Off** |
+| **Current weather and forecast** (one request) for your coordinates rounded to ~1 km | `api.open-meteo.com`, no account or key | At startup, every 30 minutes (15/30/60 in settings), and when your location changes | Set **Forecast** to **Off** (Settings → Weather) |
+| **Area map forecast** (one request) for 25 points around your coordinates, out to the chosen radius, each rounded to ~1 km | `api.open-meteo.com`, no account or key | Only while the **Map** tab is open: once when you open it or change the radius, then at most once per refresh interval | Don't open the Map tab, or set **Forecast** to **Off** |
 | **Map tiles** (OpenStreetMap's standard map, 4 to 16 images of 256 px) for the area shown | `tile.openstreetmap.org`, sent with Heliolune's own User-Agent as the [OSM tile policy](https://operations.osmfoundation.org/policies/tiles/) asks | Only while the **Map** tab is open, and only tiles not already cached; each is kept 7 days in `~/.cache/heliolune/osm-tiles` (deleted after 30) | Don't open the Map tab |
 | **City search**: the place name you typed (cleaned, at most 60 characters), nothing else | `geocoding-api.open-meteo.com`, no account or key | Only when you press **Search** in Settings → Location | Don't use the search; enter coordinates with **Enter coordinates** instead |
 | **Rain radar** (the list of the last ~2 hours of frames, then up to 4 radar images per frame for the area shown) | `api.rainviewer.com` and `tilecache.rainviewer.com`, no account or key (free for personal use), sent with Heliolune's User-Agent | Only while the Map tab shows **Rain**: the frame list at most every 5 minutes, and only images not already cached; kept 3 hours in `~/.cache/heliolune/radar` | Don't pick **Rain** on the Map tab |

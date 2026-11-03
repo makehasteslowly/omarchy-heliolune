@@ -57,6 +57,12 @@ BarWidget {
   readonly property bool weatherImperial: root.weatherMode === "f"
     || (root.weatherMode === "auto" && Qt.locale().measurementSystem === Locale.ImperialUSSystem)
   onConfiguredWeatherChanged: root.localWeatherOverride = ""
+  // The unit to come back to when the forecast is switched on again
+  property string lastWeatherUnit: "auto"
+  onWeatherModeChanged: if (root.weatherMode !== "off") root.lastWeatherUnit = root.weatherMode
+  // Feet for elevation where people use °F / imperial units
+  readonly property bool imperialUnits: root.weatherMode === "f"
+    || (root.weatherMode !== "c" && Qt.locale().measurementSystem === Locale.ImperialUSSystem)
 
   // Weather segment on the bar capsule: "on" or "off" (needs Weather enabled)
   property string localBarWeatherOverride: ""
@@ -891,6 +897,7 @@ BarWidget {
   }
 
   Component.onCompleted: {
+    if (root.weatherMode !== "off") root.lastWeatherUnit = root.weatherMode
     weatherLocationFile.reload()
     root.recalculate()
   }
@@ -7444,6 +7451,140 @@ BarWidget {
             visible: root.ornate
           }
 
+          // ---- Location source & override
+          SectionHeading {
+            text: strings.t("settings.section.location")
+          }
+
+          RowLayout {
+            Layout.fillWidth: true
+            spacing: Style.space(6)
+
+            Text {
+              textFormat: Text.PlainText
+              text: root.effectiveLocation.source === "manual" ? strings.t("settings.loc.manual")
+                : (root.effectiveLocation.source === "weather" ? strings.t("settings.loc.weather")
+                : (root.effectiveLocation.source === "geo" ? strings.t("settings.loc.geo")
+                : (root.effectiveLocation.source === "timezone" ? strings.t("settings.loc.timezone").arg(root.systemTimezone) : strings.t("settings.loc.offset"))))
+              color: Qt.alpha(Color.foreground, 0.75)
+              font.family: Style.font.family
+              font.pixelSize: Style.font.caption
+              wrapMode: Text.Wrap
+              Layout.fillWidth: true
+            }
+
+            ChoiceButton {
+              visible: root.effectiveLocation.source === "manual"
+              Layout.preferredHeight: Style.space(28)
+              text: strings.t("settings.useAuto")
+              onClicked: root.clearCustomCoords()
+            }
+
+            ChoiceButton {
+              Layout.preferredHeight: Style.space(28)
+              selected: root.editingCustomCoords
+              text: root.editingCustomCoords ? strings.t("settings.cancel") : strings.t("settings.enterCoords")
+              onClicked: {
+                if (!root.editingCustomCoords) {
+                  latField.text = String(setting("latitude", "")) || String(root.activeLat.toFixed(4))
+                  lonField.text = String(setting("longitude", "")) || String(root.activeLon.toFixed(4))
+                  nameField.text = String(setting("locationName", "")) || root.activeLocationName
+                }
+                root.editingCustomCoords = !root.editingCustomCoords
+              }
+            }
+          }
+
+          // City search: type a place, press Search or Enter, pick a match
+          RowLayout {
+            Layout.fillWidth: true
+            spacing: Style.space(6)
+
+            TextField {
+              id: cityField
+              accent: root.ornate ? root.ornMetal : Color.accent
+              Layout.fillWidth: true
+              placeholderText: strings.t("settings.citySearch")
+              maximumLength: 60
+              onAccepted: root.searchCity(text)
+            }
+
+            ChoiceButton {
+              Layout.preferredHeight: Style.space(28)
+              selected: root.citySearchState === "searching"
+              text: root.citySearchState === "searching" ? strings.t("settings.citySearching") : strings.t("settings.citySearchGo")
+              onClicked: root.searchCity(cityField.text)
+            }
+          }
+
+          Text {
+            visible: root.citySearchState === "none" || root.citySearchState === "failed"
+            Layout.fillWidth: true
+            textFormat: Text.PlainText
+            text: root.citySearchState === "none" ? strings.t("settings.cityNone") : strings.t("settings.cityFailed")
+            color: Qt.alpha(Color.foreground, 0.7)
+            font.family: Style.font.family
+            font.pixelSize: Style.font.caption
+            wrapMode: Text.Wrap
+          }
+
+          Repeater {
+            model: root.cityResults
+
+            ChoiceButton {
+              required property var modelData
+              Layout.fillWidth: true
+              Layout.preferredHeight: Style.space(28)
+              text: modelData.label + "  (" + modelData.latitude.toFixed(2) + ", " + modelData.longitude.toFixed(2) + ")"
+              onClicked: root.pickCity(modelData)
+            }
+          }
+
+          // Manual Coordinate Input Row
+          ColumnLayout {
+            visible: root.editingCustomCoords
+            Layout.fillWidth: true
+            spacing: Style.space(6)
+
+            RowLayout {
+              Layout.fillWidth: true
+              spacing: Style.space(6)
+
+              TextField {
+                id: nameField
+                onAccepted: root.applyCustomCoords(latField.text, lonField.text, nameField.text)
+                accent: root.ornate ? root.ornMetal : Color.accent
+                Layout.fillWidth: true
+                placeholderText: "Label (e.g. Lisbon)"
+              }
+
+              TextField {
+                id: latField
+                onAccepted: root.applyCustomCoords(latField.text, lonField.text, nameField.text)
+                accent: root.ornate ? root.ornMetal : Color.accent
+                Layout.preferredWidth: Style.space(92)
+                placeholderText: "Lat (38.72)"
+              }
+
+              TextField {
+                id: lonField
+                onAccepted: root.applyCustomCoords(latField.text, lonField.text, nameField.text)
+                accent: root.ornate ? root.ornMetal : Color.accent
+                Layout.preferredWidth: Style.space(92)
+                placeholderText: "Lon (-9.14)"
+              }
+
+              ChoiceButton {
+                Layout.preferredHeight: Style.space(28)
+                selected: true
+                text: "Save"
+                onClicked: {
+                  root.applyCustomCoords(latField.text, lonField.text, nameField.text)
+                }
+              }
+            }
+          }
+
           // ---- Appearance
           SectionHeading {
             text: strings.t("settings.section.appearance")
@@ -7559,13 +7700,25 @@ BarWidget {
             text: strings.t("settings.section.weather")
           }
 
+          // Forecast: whether weather is fetched at all (the network switch);
+          // Units only while it is on. Hiding it from the bar is Bar > Show.
           OptionRow {
-            label: strings.t("settings.weather")
+            label: strings.t("settings.forecast")
+            choices: [
+              { key: "on",  label: strings.t("settings.on") },
+              { key: "off", label: strings.t("settings.off") }
+            ]
+            current: root.weatherEnabled ? "on" : "off"
+            onPicked: key => root.selectWeather(key === "off" ? "off" : root.lastWeatherUnit)
+          }
+
+          OptionRow {
+            visible: root.weatherEnabled
+            label: strings.t("settings.units")
             choices: [
               { key: "auto", label: "Auto" },
               { key: "c",    label: "°C" },
-              { key: "f",    label: "°F" },
-              { key: "off",  label: "Off" }
+              { key: "f",    label: "°F" }
             ]
             current: root.weatherMode
             onPicked: key => root.selectWeather(key)
@@ -7747,137 +7900,6 @@ BarWidget {
             }
           }
 
-          // ---- Location source & override
-          SectionHeading {
-            text: strings.t("settings.section.location")
-          }
-
-          RowLayout {
-            Layout.fillWidth: true
-            spacing: Style.space(6)
-
-            Text {
-              textFormat: Text.PlainText
-              text: root.effectiveLocation.source === "manual" ? strings.t("settings.loc.manual")
-                : (root.effectiveLocation.source === "weather" ? strings.t("settings.loc.weather")
-                : (root.effectiveLocation.source === "geo" ? strings.t("settings.loc.geo")
-                : (root.effectiveLocation.source === "timezone" ? strings.t("settings.loc.timezone").arg(root.systemTimezone) : strings.t("settings.loc.offset"))))
-              color: Qt.alpha(Color.foreground, 0.75)
-              font.family: Style.font.family
-              font.pixelSize: Style.font.caption
-              wrapMode: Text.Wrap
-              Layout.fillWidth: true
-            }
-
-            ChoiceButton {
-              visible: root.effectiveLocation.source === "manual"
-              Layout.preferredHeight: Style.space(28)
-              text: strings.t("settings.useAuto")
-              onClicked: root.clearCustomCoords()
-            }
-
-            ChoiceButton {
-              Layout.preferredHeight: Style.space(28)
-              selected: root.editingCustomCoords
-              text: root.editingCustomCoords ? strings.t("settings.cancel") : strings.t("settings.enterCoords")
-              onClicked: {
-                if (!root.editingCustomCoords) {
-                  latField.text = String(setting("latitude", "")) || String(root.activeLat.toFixed(4))
-                  lonField.text = String(setting("longitude", "")) || String(root.activeLon.toFixed(4))
-                  nameField.text = String(setting("locationName", "")) || root.activeLocationName
-                }
-                root.editingCustomCoords = !root.editingCustomCoords
-              }
-            }
-          }
-
-          // City search: type a place, press Search or Enter, pick a match
-          RowLayout {
-            Layout.fillWidth: true
-            spacing: Style.space(6)
-
-            TextField {
-              id: cityField
-              accent: root.ornate ? root.ornMetal : Color.accent
-              Layout.fillWidth: true
-              placeholderText: strings.t("settings.citySearch")
-              maximumLength: 60
-              onAccepted: root.searchCity(text)
-            }
-
-            ChoiceButton {
-              Layout.preferredHeight: Style.space(28)
-              selected: root.citySearchState === "searching"
-              text: root.citySearchState === "searching" ? strings.t("settings.citySearching") : strings.t("settings.citySearchGo")
-              onClicked: root.searchCity(cityField.text)
-            }
-          }
-
-          Text {
-            visible: root.citySearchState === "none" || root.citySearchState === "failed"
-            Layout.fillWidth: true
-            textFormat: Text.PlainText
-            text: root.citySearchState === "none" ? strings.t("settings.cityNone") : strings.t("settings.cityFailed")
-            color: Qt.alpha(Color.foreground, 0.7)
-            font.family: Style.font.family
-            font.pixelSize: Style.font.caption
-            wrapMode: Text.Wrap
-          }
-
-          Repeater {
-            model: root.cityResults
-
-            ChoiceButton {
-              required property var modelData
-              Layout.fillWidth: true
-              Layout.preferredHeight: Style.space(28)
-              text: modelData.label + "  (" + modelData.latitude.toFixed(2) + ", " + modelData.longitude.toFixed(2) + ")"
-              onClicked: root.pickCity(modelData)
-            }
-          }
-
-          // Manual Coordinate Input Row
-          ColumnLayout {
-            visible: root.editingCustomCoords
-            Layout.fillWidth: true
-            spacing: Style.space(6)
-
-            RowLayout {
-              Layout.fillWidth: true
-              spacing: Style.space(6)
-
-              TextField {
-                id: nameField
-                accent: root.ornate ? root.ornMetal : Color.accent
-                Layout.fillWidth: true
-                placeholderText: "Label (e.g. Lisbon)"
-              }
-
-              TextField {
-                id: latField
-                accent: root.ornate ? root.ornMetal : Color.accent
-                Layout.preferredWidth: Style.space(92)
-                placeholderText: "Lat (38.72)"
-              }
-
-              TextField {
-                id: lonField
-                accent: root.ornate ? root.ornMetal : Color.accent
-                Layout.preferredWidth: Style.space(92)
-                placeholderText: "Lon (-9.14)"
-              }
-
-              ChoiceButton {
-                Layout.preferredHeight: Style.space(28)
-                selected: true
-                text: "Save"
-                onClicked: {
-                  root.applyCustomCoords(latField.text, lonField.text, nameField.text)
-                }
-              }
-            }
-          }
-
           // ---- Advanced
           SectionHeading {
             text: strings.t("settings.section.advanced")
@@ -7906,16 +7928,24 @@ BarWidget {
               id: elevationField
               accent: root.ornate ? root.ornMetal : Color.accent
               Layout.fillWidth: true
-              placeholderText: strings.t("settings.elevationHint")
-              text: root.elevationM > 0 ? String(root.elevationM) : ""
-              validator: IntValidator { bottom: 0; top: 9000 }
-              onAccepted: root.applyElevation(text === "" ? "0" : text)
+              placeholderText: strings.t(root.imperialUnits ? "settings.elevationHintFt" : "settings.elevationHintM")
+              text: root.elevationM > 0 ? String(root.imperialUnits ? Math.round(root.elevationM * 3.28084) : root.elevationM) : ""
+              validator: IntValidator { bottom: 0; top: root.imperialUnits ? 29528 : 9000 }
+              // Applied on Enter or when the field is left, like every other setting
+              function commit() {
+                var n = text === "" ? 0 : parseInt(text)
+                if (isFinite(n)) root.applyElevation(String(root.imperialUnits ? Math.round(n / 3.28084) : n))
+              }
+              onAccepted: commit()
+              onEditingFinished: commit()
             }
 
-            ChoiceButton {
-              Layout.preferredHeight: Style.space(28)
-              text: "Save"
-              onClicked: root.applyElevation(elevationField.text === "" ? "0" : elevationField.text)
+            Text {
+              textFormat: Text.PlainText
+              text: root.imperialUnits ? "ft" : "m"
+              color: Qt.alpha(Color.foreground, 0.7)
+              font.family: Style.font.family
+              font.pixelSize: Style.font.bodySmall
             }
           }
 

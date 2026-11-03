@@ -516,7 +516,7 @@
         "options": [
           {
             "value": "on",
-            "label": "Mornings & evenings"
+            "label": "Mornings and evenings"
           },
           {
             "value": "off",
