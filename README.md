@@ -34,9 +34,14 @@ The Sun and Moon share one themed capsule (here with values: Atomic, Art Deco an
 Pick what it shows in settings, under **Bar**:
 
 - **Show:** Sun, Moon and Weather, each on or off (at least one stays on).
-- **Details:** *Icons only*, or *With values*: the time of the Sun's next event (its icon matches: blue hour, sunrise, golden hour, noon, sunset), the Moon's illumination and the temperature.
+- **Details:** *Icons only*, or *With values*: an arrow and the time of the Sun's next event (hover to see which), the Moon's illumination and the temperature.
+- **Scrolling:** *Weather alerts* and *Sky reminders*, each on or off.
 
-With weather on, the capsule also shows the current conditions as a small themed icon and the temperature. Hover for a summary including the next moonrise or moonset and the full weather reading.
+Every icon shows what is happening **now**: the Sun's is the sky's current phase (day, golden hour, blue hour, twilight or night), the Moon's its current phase. The weather icon is line-drawn in the theme's metal tone, so it never looks like one of the sky icons beside it.
+
+**Clicks:** click the Sun, Moon or weather to open its view; click the same item again to close it, or another item to switch views. Right-click opens settings, middle-click refreshes.
+
+With weather on, the capsule also shows the current conditions as a small line-drawn icon and the temperature. Hover for a summary including the next moonrise or moonset and the full weather reading.
 
 ### In the popup
 

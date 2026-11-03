@@ -2890,6 +2890,10 @@ BarWidget {
     property color boltColor: "#FFD23F"
     property color lineColor: edgeColor          // horizons, arrows, outlines of sky icons
     property color accentColor: "#E88AA0"        // blossoms
+    // Line-drawn: every filled shape is stroked instead (weather on the bar,
+    // so it never reads as one of the filled sky-phase icons beside it)
+    property bool outline: false
+    onOutlineChanged: requestPaint()
     implicitWidth: iconSize
     implicitHeight: iconSize
     antialiasing: true
@@ -3200,11 +3204,40 @@ BarWidget {
       }
     }
 
+    // A stand-in for the 2D context for outline mode: one tone (lineColor),
+    // thin lines, and every filled shape stroked instead
+    function outlineContext(raw, S) {
+      var w = Math.max(1.3, S * 0.075)
+      var tone = String(wx.lineColor)
+      function strokeAsFill(t) {
+        var keepWidth = t.lineWidth
+        t.lineWidth = w
+        t.strokeStyle = tone
+        t.stroke()
+        t.lineWidth = keepWidth
+      }
+      return new Proxy(raw, {
+        get: function(t, name) {
+          if (name === "fill") return function() { strokeAsFill(t) }
+          if (name === "fillRect") return function(x, y, rw, rh) { t.beginPath(); t.rect(x, y, rw, rh); strokeAsFill(t) }
+          var v = t[name]
+          return typeof v === "function" ? v.bind(t) : v
+        },
+        set: function(t, name, value) {
+          if (name === "strokeStyle" || name === "fillStyle") value = tone
+          else if (name === "lineWidth") value = Math.min(Number(value) || w, w)
+          t[name] = value
+          return true
+        }
+      })
+    }
+
     onPaint: {
-      var ctx = getContext("2d")
-      ctx.reset()
+      var raw = getContext("2d")
+      raw.reset()
       var S = Math.min(width, height)
       if (S < 8) return
+      var ctx = outline ? outlineContext(raw, S) : raw
       var c = cloudColor
       var hy, r, k
       switch (kind) {
@@ -3460,15 +3493,14 @@ BarWidget {
   // on but off or not loaded yet), so the bar is never empty
   readonly property bool showLunarOnBar: root.barMoonOn || (!root.barSunOn && !root.showWeatherOnBar)
 
+  // Like the Moon and the weather beside it, the Sun's icon is what the sky is
+  // doing now (day, golden hour, blue hour, twilight, night); the arrow and
+  // time after it are the next event's. The tooltip names that event.
   readonly property string barSolarText: {
-    return root.barValues ? Model.formatTime(root.solarData.nextEventTime, root.timeFormatMode, root.formatLocale) : ""
+    return root.barValues && root.solarData.nextEventTime
+      ? "→ " + Model.formatTime(root.solarData.nextEventTime, root.timeFormatMode, root.formatLocale) : ""
   }
-
-  // With a time on the bar it is the next event's, so the icon is that event's
-  // (the same drawn icon as its row in the popup); otherwise the current phase.
-  readonly property string barSolarKind: root.barSolarText !== "" && root.solarData.nextEventKind
-    ? root.solarData.nextEventKind
-    : root.sunPhaseKind(root.solarData.phaseKey)
+  readonly property string barSolarKind: root.sunPhaseKind(root.solarData.phaseKey)
 
   readonly property string barLunarText: {
     if (!root.barValues) return ""
@@ -3594,7 +3626,21 @@ BarWidget {
       + foot
   }
   // Moving from one item to the next swaps the tooltip at once
-  onBarHoverSegChanged: if (root.bar && barButton.tooltipHovered && !root.opened) root.bar.showTooltip(barButton, root.barTooltip)
+  onBarHoverSegChanged: {
+    if (root.barHoverSeg !== "") root.lastBarSeg = root.barHoverSeg
+    if (root.bar && barButton.tooltipHovered && !root.opened) root.bar.showTooltip(barButton, root.barTooltip)
+  }
+  // The item last under the pointer. While the popup is open it holds the
+  // pointer grab, so the bar gets no hover update until the pointer moves; a
+  // second click on the same spot would otherwise count as "no item" and fall
+  // back to the Sun view instead of closing.
+  property string lastBarSeg: ""
+  readonly property string barClickSeg: {
+    var seg = root.barHoverSeg !== "" ? root.barHoverSeg : root.lastBarSeg
+    if (seg === "moon" && !root.showLunarOnBar) return ""
+    if (seg === "weather" && !root.showWeatherOnBar) return ""
+    return seg
+  }
   function barSegItem(seg) {
     return seg === "sun" ? barSolarGroup : (seg === "moon" ? barLunarGroup : (seg === "weather" ? barWeatherGroup : null))
   }
@@ -3617,9 +3663,9 @@ BarWidget {
         root.toggleSettings()
       } else if (b === Qt.MiddleButton) {
         root.refresh()
-      } else if (root.barHoverSeg === "weather") {
+      } else if (root.barClickSeg === "weather") {
         root.toggleWeather()
-      } else if (root.barHoverSeg === "moon") {
+      } else if (root.barClickSeg === "moon") {
         root.toggleMoon()
       } else {
         root.togglePanel()
@@ -3794,7 +3840,7 @@ BarWidget {
           anchors.verticalCenter: parent.verticalCenter
           HoverHandler { id: barWeatherHover }
 
-          BarWeatherIcon { anchors.verticalCenter: parent.verticalCenter }
+          BarWeatherIcon { anchors.verticalCenter: parent.verticalCenter; outline: true }
           Text {
             visible: root.barValues
             anchors.verticalCenter: parent.verticalCenter
@@ -3864,6 +3910,7 @@ BarWidget {
 
       BarWeatherIcon {
         id: barWeatherV
+        outline: true
         visible: root.showWeatherOnBar
         anchors.horizontalCenter: parent.horizontalCenter
         HoverHandler { id: barWeatherIconHover }
