@@ -610,7 +610,55 @@ BarWidget {
 
   // Moon view (click the moon on the bar, or M): Today with visibility, 7 Days, 30 Days
   property bool moonOpen: false
-  property string moonRange: "today"   // "today" | "7" | "30"
+  property string moonRange: "cycle"   // "cycle" | "today" | "7" | "30"
+
+  // ---- Cycle tab: the current lunation (last new Moon to the next) with the
+  // Moon where it is now; play time-lapses through it ("cycle") or through
+  // the next 24 hours of sky ("sky"). lapseT runs 0..1 and loops.
+  property string lapseMode: "cycle"
+  property bool lapsePlaying: false
+  property real lapseT: 0
+  readonly property bool lapseShown: root.opened && root.moonOpen && root.moonRange === "cycle"
+  readonly property var lunarCycle: root.moonOpen ? Model.lunarCycle(root.currentDate) : null
+  readonly property real lapseStartMs: root.lapseMode === "cycle"
+    ? (root.lunarCycle ? root.lunarCycle.start.getTime() : root.currentDate.getTime())
+    : new Date(root.currentDate.getFullYear(), root.currentDate.getMonth(), root.currentDate.getDate(), root.currentDate.getHours()).getTime()
+  readonly property real lapseSpanMs: root.lapseMode === "cycle"
+    ? (root.lunarCycle ? root.lunarCycle.end.getTime() - root.lunarCycle.start.getTime() : 29.530588853 * 86400000)
+    : 24 * 3600000
+  // Where "now" sits on the track
+  readonly property real lapseNowT: Math.max(0, Math.min(1, (root.currentDate.getTime() - root.lapseStartMs) / root.lapseSpanMs))
+  readonly property date lapseDate: new Date(root.lapseStartMs + root.lapseT * root.lapseSpanMs)
+  readonly property var lapseMoon: root.lapseShown ? Model.getMoonIllumination(root.lapseDate) : null
+  readonly property var lapseMoonPos: root.lapseShown && root.lapseMode === "sky" ? Model.getMoonPosition(root.lapseDate, root.activeLat, root.activeLon) : null
+  readonly property var lapseSunPos: root.lapseShown && root.lapseMode === "sky" ? Model.getSunPosition(root.lapseDate, root.activeLat, root.activeLon) : null
+  readonly property var lapseSky: root.lapseShown && root.lapseMode === "sky"
+    ? Model.moonVisibility(root.currentDate, root.activeLat, root.activeLon, 24, 15) : []
+  // The cycle's phases along the track: [{ key, pos 0..1 }]
+  readonly property var lapseMarks: {
+    if (!root.lunarCycle || root.lapseMode !== "cycle") return []
+    var start = root.lapseStartMs, span = root.lapseSpanMs
+    return root.lunarCycle.events.map(function(e) { return { key: e.key, pos: (e.at.getTime() - start) / span } })
+  }
+  readonly property bool lapseAtNow: Math.abs(root.lapseT - root.lapseNowT) * root.lapseSpanMs < 3600000
+  function lapseToNow() {
+    root.lapsePlaying = false
+    root.lapseT = root.lapseNowT
+  }
+  function setLapseMode(mode) {
+    root.lapseMode = mode
+    root.lapseToNow()
+  }
+  // Opens paused on today; play is the option
+  onLapseShownChanged: root.lapseToNow()
+  Timer {
+    // 25 frames a second; a cycle takes 12 s, a day 10 s. Played on request,
+    // so it runs even with Hyprland animations off.
+    interval: 40
+    running: root.lapseShown && root.lapsePlaying
+    repeat: true
+    onTriggered: root.lapseT = (root.lapseT + 0.04 / (root.lapseMode === "cycle" ? 12 : 10)) % 1
+  }
   // Computed only while shown; currentDate refreshes them every minute
   // Every 15 minutes for 24 hours (96 samples): the rows use every 12th (3 h)
   readonly property var moonHours: root.moonOpen && root.moonRange === "today"
@@ -651,6 +699,7 @@ BarWidget {
       root.close()
       return
     }
+    root.moonRange = "cycle"
     if (!root.opened) root.open()
     if (root.viewOffsetDays !== 0) root.setViewOffset(0)
     root.moonOpen = true
@@ -3304,11 +3353,13 @@ BarWidget {
         } else if (k === Qt.Key_M) {
           root.moonOpen = !root.moonOpen
         } else if (root.moonOpen && (k === Qt.Key_Left || k === Qt.Key_Right)) {
-          var mr = ["today", "7", "30"]
+          var mr = ["cycle", "today", "7", "30"]
           var mi = mr.indexOf(root.moonRange) + (k === Qt.Key_Right ? 1 : -1)
           root.moonRange = mr[(mi + mr.length) % mr.length]
-        } else if (root.moonOpen && k >= Qt.Key_1 && k <= Qt.Key_3) {
-          root.moonRange = ["today", "7", "30"][k - Qt.Key_1]
+        } else if (root.moonOpen && k >= Qt.Key_1 && k <= Qt.Key_4) {
+          root.moonRange = ["cycle", "today", "7", "30"][k - Qt.Key_1]
+        } else if (root.lapseShown && k === Qt.Key_Space) {
+          root.lapsePlaying = !root.lapsePlaying
         } else if (k === Qt.Key_Left && !root.settingsOpen) {
           root.stepView(shift ? -7 : -1)
         } else if (k === Qt.Key_Right && !root.settingsOpen) {
@@ -3670,7 +3721,7 @@ Text {
             spacing: Style.space(4)
 
             Repeater {
-              model: ["today", "7", "30"]
+              model: ["cycle", "today", "7", "30"]
 
               ChoiceButton {
                 required property string modelData
@@ -3684,9 +3735,322 @@ Text {
             }
           }
 
-          // ---- Today: the Moon card (moved here from the old all-in-one popup)
+          // ---- Cycle (the default tab): the current lunation with the Moon as
+          // it is now; play time-lapses through the cycle, or (Sky) through the
+          // next 24 hours of sky. Pause, scrub, Now; it loops.
+          ColumnLayout {
+            visible: root.moonRange === "cycle"
+            Layout.fillWidth: true
+            spacing: Style.space(8)
+
+            RowLayout {
+              Layout.fillWidth: true
+              spacing: Style.space(4)
+              Repeater {
+                model: ["cycle", "sky"]
+                ChoiceButton {
+                  required property string modelData
+                  Layout.fillWidth: true
+                  Layout.preferredWidth: 1
+                  Layout.preferredHeight: Style.space(26)
+                  selected: root.lapseMode === modelData
+                  text: strings.t("lapse." + modelData)
+                  onClicked: root.setLapseMode(modelData)
+                }
+              }
+            }
+
+            Rectangle {
+              Layout.fillWidth: true
+              implicitHeight: lapseCol.implicitHeight + Style.space(16) + root.cardFootPad
+              radius: trackerPopup.cardRadius
+              color: trackerPopup.cardSurfaceColor
+              border.width: 1
+              border.color: trackerPopup.cardBorderColor
+              OrnCardFrame {}
+
+              ColumnLayout {
+                id: lapseCol
+                anchors.fill: parent
+                anchors.margins: Style.space(8)
+                anchors.bottomMargin: Style.space(8) + root.cardFootPad
+                spacing: Style.space(8)
+
+                // Cycle: one big Moon, waxing and waning as it plays
+                ColumnLayout {
+                  visible: root.lapseMode === "cycle"
+                  Layout.fillWidth: true
+                  spacing: Style.space(4)
+
+                  // A full-width row with the disc centred in it
+                  Item {
+                    Layout.fillWidth: true
+                    Layout.topMargin: Style.space(4)
+                    Layout.preferredHeight: 100
+                  MoonDisc {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    width: 100
+                    height: 100
+                    discSize: 96
+                    phase: root.lapseMoon ? root.lapseMoon.phase : 0.5
+                    litColor: trackerPopup.popupLunarLitColor
+                    darkColor: root.ornatePalette ? root.ornMoonShadow(root.isLightPopup, 0.22) : (root.isLightPopup ? Qt.rgba(0.14, 0.19, 0.28, 0.22) : Qt.rgba(0.05, 0.08, 0.14, 0.82))
+                    rimColor: Qt.alpha(trackerPopup.popupLunarColor, 0.5)
+                    renderStyle: root.moonStyle
+                  }
+                  }
+                  Text {
+                    Layout.fillWidth: true
+                    horizontalAlignment: Text.AlignHCenter
+                    textFormat: Text.PlainText
+                    text: root.lapseMoon
+                      ? Model.phaseInfoFromValue(root.lapseMoon.phase).name + " · " + Math.round(root.lapseMoon.fraction * 100) + "%"
+                      : ""
+                    color: trackerPopup.popupLunarColor
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.body
+                    font.bold: true
+                  }
+                  Text {
+                    Layout.fillWidth: true
+                    horizontalAlignment: Text.AlignHCenter
+                    textFormat: Text.PlainText
+                    text: (root.lapseAtNow ? strings.t("view.today") : root.lapseDate.toLocaleDateString(root.formatLocale, "ddd, MMM d"))
+                      + " · " + strings.t("lapse.dayOf")
+                        .arg(Math.floor((root.lapseDate.getTime() - root.lapseStartMs) / 86400000) + 1)
+                        .arg((root.lapseSpanMs / 86400000).toFixed(1))
+                    color: Color.foreground
+                    opacity: 0.8
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.bodySmall
+                  }
+                }
+
+                // Sky: the Moon (and the Sun) across a compass horizon, the sky
+                // darkening and brightening with the Sun
+                Item {
+                  id: lapseSky
+                  visible: root.lapseMode === "sky"
+                  Layout.fillWidth: true
+                  Layout.preferredHeight: Style.space(150)
+                  readonly property real horizonY: height * 0.76
+                  // Centre on the meridian the Moon crosses: south in the northern hemisphere
+                  readonly property real centerAz: root.activeLat >= 0 ? 180 : 0
+                  function azToX(az) { return ((az - centerAz + 540) % 360) / 360 * width }
+                  function altToY(alt) { return alt >= 0 ? horizonY - alt / 90 * (horizonY - 6) : horizonY + Math.min(12, -alt) / 12 * (height - horizonY - 4) }
+
+                  Rectangle {
+                    anchors.fill: parent
+                    radius: trackerPopup.chipRadius
+                    color: {
+                      var s = root.lapseSunPos ? root.lapseSunPos.altitude : -20
+                      if (s > 0) return Qt.alpha(trackerPopup.popupSolarColor, root.isLightPopup ? 0.10 : 0.14)
+                      if (s > -6) return Qt.alpha(trackerPopup.popupBlueHourColor, root.isLightPopup ? 0.12 : 0.18)
+                      return Qt.alpha(Color.foreground, root.isLightPopup ? 0.03 : 0.03)
+                    }
+                    Behavior on color { ColorAnimation { duration: 300 } }
+                  }
+
+                  Canvas {
+                    id: lapseSkyCanvas
+                    anchors.fill: parent
+                    antialiasing: true
+                    property var samples: root.lapseSky
+                    property color lineColor: root.ornate ? root.ornMetal : Color.foreground
+                    property color moonLine: trackerPopup.popupLunarColor
+                    property color sunLine: trackerPopup.popupSolarColor
+                    onSamplesChanged: requestPaint()
+                    onLineColorChanged: requestPaint()
+                    onWidthChanged: requestPaint()
+                    onHeightChanged: requestPaint()
+                    onVisibleChanged: if (visible) requestPaint()
+                    onPaint: {
+                      var ctx = getContext("2d")
+                      ctx.reset()
+                      var w = width, hy = lapseSky.horizonY
+                      // horizon and compass points
+                      ctx.strokeStyle = String(lineColor)
+                      ctx.globalAlpha = 0.5
+                      ctx.lineWidth = 1
+                      ctx.beginPath(); ctx.moveTo(0, hy); ctx.lineTo(w, hy); ctx.stroke()
+                      ctx.globalAlpha = 0.75
+                      ctx.fillStyle = String(lineColor)
+                      ctx.font = root.canvasFont(Style.font.caption)
+                      ctx.textAlign = "center"
+                      var points = [[0, "N"], [90, "E"], [180, "S"], [270, "W"]]
+                      for (var p = 0; p < points.length; p++) {
+                        var px = lapseSky.azToX(points[p][0])
+                        if (px < 8 || px > w - 8) continue
+                        ctx.fillText(points[p][1], px, hy + 14)
+                      }
+                      // paths: the Moon solid, the Sun faint; break at the edges
+                      function path(altKey, azKey, color, alpha, dash) {
+                        ctx.strokeStyle = String(color)
+                        ctx.globalAlpha = alpha
+                        ctx.lineWidth = 1.6
+                        ctx.setLineDash(dash)
+                        ctx.beginPath()
+                        var drawing = false, lastX = 0
+                        for (var i = 0; i < samples.length; i++) {
+                          var a = samples[i][altKey]
+                          var x = lapseSky.azToX(samples[i][azKey]), y = lapseSky.altToY(a)
+                          if (a < 0 || (drawing && Math.abs(x - lastX) > w / 2)) { drawing = false; lastX = x; if (a < 0) continue }
+                          if (!drawing) { ctx.moveTo(x, y); drawing = true } else ctx.lineTo(x, y)
+                          lastX = x
+                        }
+                        ctx.stroke()
+                        ctx.setLineDash([])
+                      }
+                      if (samples && samples.length) {
+                        path("sunAlt", "sunAz", sunLine, 0.35, [3, 4])
+                        path("moonAlt", "moonAz", moonLine, 0.8, [])
+                      }
+                      ctx.globalAlpha = 1
+                    }
+                  }
+
+                  SkyIcon {
+                    visible: root.lapseSunPos !== null
+                    width: Style.space(18); height: Style.space(18)
+                    kind: "clear"
+                    opacity: root.lapseSunPos && root.lapseSunPos.altitude >= 0 ? 1.0 : 0.3
+                    x: root.lapseSunPos ? lapseSky.azToX(root.lapseSunPos.azimuth) - width / 2 : 0
+                    y: root.lapseSunPos ? lapseSky.altToY(root.lapseSunPos.altitude) - height / 2 : 0
+                  }
+
+                  MoonDisc {
+                    visible: root.lapseMoonPos !== null
+                    width: 24; height: 24
+                    discSize: 22
+                    phase: root.lapseMoon ? root.lapseMoon.phase : 0.5
+                    opacity: root.lapseMoonPos && root.lapseMoonPos.altitude >= 0 ? 1.0 : 0.3
+                    x: root.lapseMoonPos ? lapseSky.azToX(root.lapseMoonPos.azimuth) - width / 2 : 0
+                    y: root.lapseMoonPos ? lapseSky.altToY(root.lapseMoonPos.altitude) - height / 2 : 0
+                    litColor: trackerPopup.popupLunarLitColor
+                    darkColor: root.ornatePalette ? root.ornMoonShadow(root.isLightPopup, 0.22) : (root.isLightPopup ? Qt.rgba(0.14, 0.19, 0.28, 0.22) : Qt.rgba(0.05, 0.08, 0.14, 0.82))
+                    rimColor: Qt.alpha(trackerPopup.popupLunarColor, 0.6)
+                    renderStyle: root.moonStyle
+                  }
+                }
+
+                Text {
+                  visible: root.lapseMode === "sky"
+                  Layout.alignment: Qt.AlignHCenter
+                  textFormat: Text.PlainText
+                  text: {
+                    var m = root.lapseMoonPos
+                    var when = root.lapseDate.toLocaleDateString(root.formatLocale, "ddd") + " "
+                      + Model.formatTime(root.lapseDate, root.timeFormatMode, root.formatLocale)
+                    if (!m) return when
+                    return when + " · " + (m.altitude > -0.8
+                      ? strings.t("lapse.moonAt").arg(Math.max(0, Math.round(m.altitude))).arg(Model.azimuthToCompass(m.azimuth))
+                      : strings.t("moon.state.below"))
+                  }
+                  color: trackerPopup.popupLunarColor
+                  font.family: Style.font.family
+                  font.pixelSize: Style.font.bodySmall
+                  font.bold: true
+                }
+
+                // Controls: play / pause, a scrub bar (the cycle marks its phases and
+                // today) and Now
+                RowLayout {
+                  Layout.fillWidth: true
+                  spacing: Style.space(8)
+
+                  ChoiceButton {
+                    Layout.preferredWidth: Style.space(30)
+                    Layout.preferredHeight: Style.space(26)
+                    selected: root.lapsePlaying
+                    text: root.lapsePlaying ? "󰏤" : "󰐊"
+                    onClicked: root.lapsePlaying = !root.lapsePlaying
+                  }
+
+                  Item {
+                    id: lapseScrub
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: Style.space(30)
+
+                    Rectangle {
+                      id: lapseTrack
+                      anchors.left: parent.left
+                      anchors.right: parent.right
+                      y: Style.space(6)
+                      height: Style.space(4)
+                      radius: height / 2
+                      color: Qt.alpha(Color.foreground, root.isLightPopup ? 0.1 : 0.12)
+                    }
+                    Rectangle {
+                      anchors.left: lapseTrack.left
+                      y: lapseTrack.y
+                      height: lapseTrack.height
+                      width: lapseTrack.width * root.lapseT
+                      radius: height / 2
+                      color: trackerPopup.popupLunarColor
+                    }
+                    Repeater {
+                      model: root.lapseMarks
+                      Item {
+                        required property var modelData
+                        x: lapseTrack.width * modelData.pos
+                        y: 0
+                        Rectangle {
+                          x: -1; y: Style.space(3)
+                          width: 2; height: Style.space(10)
+                          color: trackerPopup.popupLunarColor
+                          opacity: 0.8
+                        }
+                        Text {
+                          x: -implicitWidth / 2
+                          y: Style.space(15)
+                          textFormat: Text.PlainText
+                          text: strings.t("moon.event." + modelData.key)
+                          color: Color.foreground
+                          opacity: 0.7
+                          font.family: Style.font.family
+                          font.pixelSize: Style.font.caption
+                        }
+                      }
+                    }
+                    Rectangle {
+                      x: lapseTrack.width * root.lapseNowT - 1
+                      y: lapseTrack.y - Style.space(3)
+                      width: 2; height: lapseTrack.height + Style.space(6)
+                      color: trackerPopup.popupSolarColor
+                    }
+                    Rectangle {
+                      x: lapseTrack.width * root.lapseT - width / 2
+                      y: lapseTrack.y + lapseTrack.height / 2 - height / 2
+                      width: Style.space(12); height: Style.space(12)
+                      radius: width / 2
+                      color: trackerPopup.popupLunarLitColor
+                      border.width: 1
+                      border.color: trackerPopup.popupLunarColor
+                    }
+                    MouseArea {
+                      anchors.fill: parent
+                      cursorShape: Qt.PointingHandCursor
+                      function seek(mx) { root.lapseT = Math.max(0, Math.min(0.999, mx / width)) }
+                      onPressed: function(mouse) { root.lapsePlaying = false; seek(mouse.x) }
+                      onPositionChanged: function(mouse) { if (pressed) seek(mouse.x) }
+                    }
+                  }
+
+                  ChoiceButton {
+                    Layout.preferredHeight: Style.space(26)
+                    enabled: !root.lapseAtNow || root.lapsePlaying
+                    opacity: enabled ? 1.0 : 0.45
+                    text: strings.t("lapse.now")
+                    onClicked: root.lapseToNow()
+                  }
+                }
+              }
+            }
+          }
+
+          // ---- Cycle: the Moon card under the cycle (it was the old popup's Moon card)
           Rectangle {
-            visible: root.showMoon && root.moonRange === "today"
+            visible: root.showMoon && root.moonRange === "cycle"
             Layout.fillWidth: true
             implicitHeight: lunarCardCol.implicitHeight + Style.space(16) + root.cardFootPad
             radius: trackerPopup.cardRadius

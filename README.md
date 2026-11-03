@@ -49,7 +49,7 @@ Each item on the bar opens its own view; the header buttons and **W** / **M** sw
   - **24-hour sky path:** the Sun's and Moon's altitude through the day against your horizon, and where they are right now.
   - **The Sun:** sky phase (from astronomical night through blue hour, golden hour and solar noon), altitude and compass bearing, day length, and the day's timetable: blue hour, sunrise, golden hour, solar noon, sunset, blue hour.
   - **The Sun's yearly path:** the analemma, then the countdown to the next equinox or solstice with the current season's progress (*Autumn · day 41 of 90*). Hemisphere-aware: in Sydney, June brings the Winter Solstice.
-- **Moon** (click the moon): **Today** (the Moon card: phase, illumination, age, moonrise and moonset, altitude, distance, ecliptic sign, the next quarter, full and new Moon; then when it is up in a dark sky, hour by hour, with the weather's clouds taken into account), **7 Days** (a row per day: phase, moonrise, illumination) and **30 Days** (a month of Moons with the new, quarter and full Moons marked).
+- **Moon** (click the moon): opens on **Cycle**: the current lunation from the last new Moon to the next, with today's Moon large and marked on a track with the quarters and the full Moon. Press play for a **time lapse** through the cycle, or switch to **Sky** to watch the Moon (and the Sun) cross a compass horizon over the next 24 hours; scrub, pause, or jump back to **Now**. Below it, the Moon card: phase, illumination, age, moonrise and moonset, altitude, distance, ecliptic sign, the next quarter, full and new Moon. Then **Today** (when the Moon is up in a dark sky, hour by hour, with the weather's clouds taken into account), **7 Days** (a row per day: phase, moonrise, illumination) and **30 Days** (a month of Moons with the new, quarter and full Moons marked).
 - **Weather** (click the weather): **Today** (the next 24 hours, every three hours, with chance of rain), **3 Days** (conditions, high and low, rain chance, wind per day) or **7 Days** (one row per day with the week's temperature range).
 
 Any card can be hidden in settings, under **Popup Cards**.
@@ -131,7 +131,8 @@ omarchy plugin remove makehasteslowly.heliolune
 | **Esc** | Close (from the forecast: back to the tracker) |
 | **1 / 2 / 3** (in settings) | Art Nouveau / Art Deco / Atomic |
 | **1 / 2 / 3** or **← / →** (in the forecast) | Today / 3 Days / 7 Days |
-| **1 / 2 / 3** or **← / →** (in the Moon view) | Today / 7 Days / 30 Days |
+| **1 / 2 / 3 / 4** or **← / →** (in the Moon view) | Cycle / Today / 7 Days / 30 Days |
+| **Space** (on Cycle) | Play / pause the time lapse |
 
 From a script or keybinding:
 

@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const src = fs.readFileSync(path.join(here, "..", "Model.js"), "utf8").replace(/^\.pragma library.*$/m, "");
-const M = new Function(src + "\nreturn { isoWeek, weekNumber, computeSeasonSummary, getSunTimesForDay, getMoonTimes, computeSolarSummary, formatWind, parseCurrentWeather, WEATHER_MAX_BYTES, computeWeatherAlert, lunarDays, moonVisibility, firstWindow, getMoonPosition };")();
+const M = new Function(src + "\nreturn { isoWeek, weekNumber, computeSeasonSummary, getSunTimesForDay, getMoonTimes, computeSolarSummary, formatWind, parseCurrentWeather, WEATHER_MAX_BYTES, computeWeatherAlert, lunarDays, moonVisibility, firstWindow, getMoonPosition, lunarCycle };")();
 const cases = [
   ["2026-11-02", 45, 2026], ["2026-01-01", 1, 2026], ["2027-01-01", 53, 2026], ["2027-01-03", 53, 2026],
   ["2027-01-04", 1, 2027], ["2024-12-30", 1, 2025], ["2025-12-29", 1, 2026], ["2021-01-03", 53, 2020],
@@ -128,6 +128,13 @@ checks.push(["visibility: never visible with the Sun up", vis.every(v => !v.visi
 checks.push(["visibility: altitude matches getMoonPosition", Math.abs(vis[5].moonAlt - M.getMoonPosition(vis[5].t, 40.71, -74.0).altitude) < 1e-9]);
 const win = M.firstWindow(vis, v => v.visible);
 checks.push(["visibility: waning crescent rises after midnight and is visible before dawn", win && win.from.getHours() <= 3 && win.to.getHours() <= 7]);
+
+// Current lunation: Nov 3 2026 lies between the new Moons of Oct 10 and Nov 9 (USNO)
+const cyc = M.lunarCycle(new Date(2026, 10, 3, 2, 0));
+const md = d => [d.getMonth() + 1, d.getDate()].join("/");
+checks.push(["cycle: Oct 10 -> Nov 9, now inside", md(cyc.start) === "10/10" && md(cyc.end) === "11/9" && cyc.start < new Date(2026, 10, 3) && cyc.end > new Date(2026, 10, 3)]);
+checks.push(["cycle: first quarter, full, last quarter in order inside it", cyc.events.length === 5 && cyc.events.every((e, i) => i === 0 || e.at > cyc.events[i - 1].at) && cyc.events[2].key === "full"]);
+checks.push(["cycle: about 29.5 days long", Math.abs((cyc.end - cyc.start) / 86400000 - 29.53) < 0.5]);
 
 for (const [label, ok] of checks) { if (!ok) { failed++; console.log("FAIL " + label); } else if (process.argv.includes("--verbose")) console.log("ok   " + label); }
 console.log(`Options: ${checks.filter(c => c[1]).length}/${checks.length} checks pass`);

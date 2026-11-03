@@ -829,8 +829,28 @@ function lunarDays(now, n) {
   return out
 }
 
+// The lunation `now` falls in: from the last new Moon to the next, with the
+// quarters and the full Moon -> { start, end, events: [{ key, at }] }
+// (events include the new Moons at both ends)
+function lunarCycle(now) {
+  var start = findNextLunarPhaseDate(new Date(now.getTime() - 31 * DAY_MS), 0.0)
+  for (var guard = 0; guard < 3; guard++) {
+    var following = findNextLunarPhaseDate(new Date(start.getTime() + DAY_MS), 0.0)
+    if (following > now) break
+    start = following
+  }
+  var end = findNextLunarPhaseDate(new Date(start.getTime() + DAY_MS), 0.0)
+  var events = [{ key: "new", at: start }]
+  var marks = [[0.25, "first"], [0.5, "full"], [0.75, "last"]]
+  for (var k = 0; k < marks.length; k++) {
+    events.push({ key: marks[k][1], at: findNextLunarPhaseDate(new Date(start.getTime() + DAY_MS), marks[k][0]) })
+  }
+  events.push({ key: "new", at: end })
+  return { start: start, end: end, events: events }
+}
+
 // Moon visibility from the start of the current hour, every `stepMin` minutes
-// (default 60) for `hours` hours: [{ t, h, moonAlt, sunAlt, up, visible }].
+// (default 60) for `hours` hours: [{ t, h, moonAlt, moonAz, sunAlt, sunAz, up, visible }].
 // Up uses the moonrise horizon (upper limb with refraction, about -0.8 deg for
 // the Moon's centre), so "up" agrees with the moonrise time; visible = up with
 // the Sun down (sunAlt < 0). Clouds are judged by the caller from the weather.
@@ -842,9 +862,10 @@ function moonVisibility(now, lat, lon, hours, stepMin) {
   for (var i = 0; i < n; i++) {
     var t = new Date(t0.getTime() + i * step)
     var m = getMoonPosition(t, lat, lon)
-    var sAlt = getSunPosition(t, lat, lon).altitude
+    var sp = getSunPosition(t, lat, lon)
+    var sAlt = sp.altitude
     var up = m.altitude > -0.8
-    out.push({ t: t, h: t.getHours(), moonAlt: m.altitude, sunAlt: sAlt, up: up, visible: up && sAlt < 0 })
+    out.push({ t: t, h: t.getHours(), moonAlt: m.altitude, moonAz: m.azimuth, sunAlt: sAlt, sunAz: sp.azimuth, up: up, visible: up && sAlt < 0 })
   }
   return out
 }
