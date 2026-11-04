@@ -1932,13 +1932,14 @@ BarWidget {
       flower:   ["#D98C8C", "#A84F5A", "#FF8FA3", "#C2304A"],
       light: "#F6EEDB", dark: "#17140C",
       shadow: [0.07, 0.07, 0.04], shadowLight: [0.30, 0.28, 0.12], card: [0.07, 0.07, 0.04],
-      // Soft = warm olive-grey, Bold = deep moss
-      cardSoft: ["#302D24", 0.62], cardBold: ["#1B3010", 0.9]
+      // Soft = moss, Bold = deep moss (green, so it never reads as Atomic's brown)
+      cardSoft: ["#262C1F", 0.66], cardBold: ["#1B3010", 0.9]
     },
-    // "Atomic Age": 1950s teal, atomic orange, mustard and cream on walnut
+    // "Atomic Age": 1950s turquoise lettering, atomic coral, mustard and cream on
+    // teal-charcoal (turquoise, not gold, is the metal: no family likeness with Nouveau)
     atomic: {
-      metal:    ["#E9C46A", "#9A7414", "#FFC93C", "#A87C00"],
-      primary:  ["#2A9D8F", "#1E7A70", "#1FC7B4", "#138A7C"],
+      metal:    ["#5CC8BA", "#127A6E", "#2FE3CC", "#0B7A6C"],
+      primary:  ["#E9C46A", "#9A7414", "#FFC93C", "#A87C00"],
       sun:      ["#E76F51", "#C2492E", "#FF6B3D", "#D9461F"],
       nightSun: ["#C8553D", "#A23E2D", "#FF4F6D", "#C0294A"],
       moonlit:  ["#F4EBD0", "#7A5A2E", "#FFF4DA", "#8A5B12"],
@@ -1946,8 +1947,8 @@ BarWidget {
       flower:   ["#F4A261", "#C2632A", "#FF9F43", "#D2691E"],
       light: "#F4EBD0", dark: "#1E1712",
       shadow: [0.10, 0.08, 0.06], shadowLight: [0.24, 0.17, 0.12], card: [0.12, 0.09, 0.07],
-      // Soft = warm walnut-grey, Bold = deep atomic teal
-      cardSoft: ["#332B25", 0.62], cardBold: ["#04332F", 0.9]
+      // Soft = teal-charcoal, Bold = deep atomic teal
+      cardSoft: ["#1F2D2B", 0.66], cardBold: ["#04332F", 0.9]
     }
   })
   readonly property var ornPal: root.atomicStyle ? root.ornPalettes.atomic
@@ -3070,8 +3071,9 @@ BarWidget {
       : (root.isLightPopup ? Qt.rgba(0.2, 0.18, 0.16, 1) : Qt.rgba(0.08, 0.06, 0.05, 1)))
     lineColor: root.ornate ? root.ornMetal : Color.foreground
     accentColor: root.ornFlower
+    tintColor: !root.ornatePalette ? Color.accent : (root.atomicStyle ? root.ornMetal : root.ornPrimaryFor(root.isLightPopup))
     snowColor: root.isLightPopup ? "#7F93A8" : "#F4F7FB"
-    boltColor: root.nouveauStyle ? root.ornSunFor(root.isLightPopup) : root.ornMetal
+    boltColor: root.decoStyle ? root.ornMetal : root.ornSunFor(root.isLightPopup)
   }
 
   // The weather icon at bar size, coloured against the bar background
@@ -3091,6 +3093,7 @@ BarWidget {
     boltColor: root.nouveauStyle ? root.ornPick("sun", root.isLightBar, root.effectiveBarBg) : root.barMetal
     lineColor: root.ornate ? root.barMetal : Color.foreground
     accentColor: root.ornatePalette ? root.ornPick("flower", root.isLightBar, root.effectiveBarBg) : root.barMetal
+    tintColor: !root.ornatePalette ? root.barMetal : (root.atomicStyle ? root.barMetal : root.ornPick("primary", root.isLightBar, root.effectiveBarBg))
   }
 
   // ---- Weather icons: drawn vector art (crisp at any size), one set per theme.
@@ -3114,6 +3117,8 @@ BarWidget {
     property color boltColor: "#FFD23F"
     property color lineColor: edgeColor          // horizons, arrows, outlines of sky icons
     property color accentColor: "#E88AA0"        // blossoms
+    property color tintColor: "#2A9D8F"          // the theme's primary: atomic turquoise, nouveau sage
+    onTintColorChanged: requestPaint()
     // Line-drawn: every filled shape is stroked instead (weather on the bar,
     // so it never reads as one of the filled sky-phase icons beside it)
     property bool outline: false
@@ -3157,37 +3162,56 @@ BarWidget {
         ctx.strokeStyle = String(Qt.darker(sunColor, 1.35)); ctx.lineWidth = Math.max(1, r * 0.07)
         ctx.beginPath(); ctx.arc(cx, cy, r * 0.62, 0, Math.PI * 2); ctx.stroke()
       } else if (nouveau) {
-        // wavy flame rays and a softly shaded disc
-        ctx.strokeStyle = String(sunColor); ctx.lineWidth = Math.max(1.4, r * 0.16)
-        for (i = 0; i < 10; i++) {
-          a = i * Math.PI / 5
-          var nx = -Math.sin(a), ny = Math.cos(a)
-          var x0 = cx + Math.cos(a) * r * 1.3, y0 = cy + Math.sin(a) * r * 1.3
-          var x1 = cx + Math.cos(a) * r * 2.0, y1 = cy + Math.sin(a) * r * 2.0
+        // Mucha: whiplash rays, a beaded halo, a softly shaded disc with a bronze rim
+        ctx.strokeStyle = String(sunColor); ctx.lineWidth = Math.max(1.3, r * 0.14)
+        for (i = 0; i < 12; i++) {
+          a = i * Math.PI / 6 + 0.12
+          var nx = -Math.sin(a), ny = Math.cos(a), sw = (i % 2 ? -1 : 1) * r * 0.26
+          var x0 = cx + Math.cos(a) * r * 1.42, y0 = cy + Math.sin(a) * r * 1.42
+          var x1 = cx + Math.cos(a) * r * (i % 2 ? 1.85 : 2.1), y1 = cy + Math.sin(a) * r * (i % 2 ? 1.85 : 2.1)
           ctx.beginPath(); ctx.moveTo(x0, y0)
-          ctx.bezierCurveTo(x0 + Math.cos(a) * r * 0.25 + nx * r * 0.22, y0 + Math.sin(a) * r * 0.25 + ny * r * 0.22,
-                            x1 - Math.cos(a) * r * 0.25 - nx * r * 0.22, y1 - Math.sin(a) * r * 0.25 - ny * r * 0.22, x1, y1)
+          ctx.bezierCurveTo(x0 + Math.cos(a) * r * 0.2 + nx * sw, y0 + Math.sin(a) * r * 0.2 + ny * sw,
+                            x1 - Math.cos(a) * r * 0.2 - nx * sw, y1 - Math.sin(a) * r * 0.2 - ny * sw, x1, y1)
           ctx.stroke()
         }
-        var g = ctx.createRadialGradient(cx - r * 0.35, cy - r * 0.35, r * 0.1, cx, cy, r)
-        g.addColorStop(0, String(Qt.lighter(sunColor, 1.3))); g.addColorStop(1, String(sunColor))
+        // halo: a fine ring studded with beads
+        ctx.strokeStyle = String(edgeColor); ctx.lineWidth = Math.max(0.8, r * 0.07)
+        ctx.beginPath(); ctx.arc(cx, cy, r * 1.24, 0, Math.PI * 2); ctx.stroke()
+        ctx.fillStyle = String(edgeColor)
+        for (i = 0; i < 12; i++) { a = i * Math.PI / 6; ctx.beginPath(); ctx.arc(cx + Math.cos(a) * r * 1.24, cy + Math.sin(a) * r * 1.24, Math.max(0.9, r * 0.09), 0, Math.PI * 2); ctx.fill() }
+        var g = ctx.createRadialGradient(cx - r * 0.35, cy - r * 0.4, r * 0.1, cx, cy, r)
+        g.addColorStop(0, String(Qt.lighter(sunColor, 1.35))); g.addColorStop(0.7, String(sunColor)); g.addColorStop(1, String(Qt.darker(sunColor, 1.15)))
         ctx.fillStyle = g
         ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill()
+        ctx.strokeStyle = String(edgeColor); ctx.lineWidth = Math.max(0.8, r * 0.06)
+        ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke()
       } else {
-        // atomic starburst: alternating long and short spikes, flat disc, bold edge
-        ctx.fillStyle = String(sunColor)
-        ctx.beginPath()
-        for (i = 0; i < 16; i++) {
-          a = i * Math.PI / 8 - Math.PI / 2
-          var rr = (i % 2 === 0) ? r * 1.95 : r * 1.25
-          if (i === 0) ctx.moveTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr)
-          else ctx.lineTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr)
+        // Googie: a long four-point star behind a shorter one turned 45 degrees,
+        // a cream-hearted disc, and a turquoise orbit with its electron
+        function spark(rad, rot, wid, col) {
+          ctx.fillStyle = String(col)
+          ctx.beginPath()
+          for (var k = 0; k < 8; k++) {
+            var aa = rot + k * Math.PI / 4, rr2 = k % 2 ? rad * wid : rad
+            if (k === 0) ctx.moveTo(cx + Math.cos(aa) * rr2, cy + Math.sin(aa) * rr2)
+            else ctx.lineTo(cx + Math.cos(aa) * rr2, cy + Math.sin(aa) * rr2)
+          }
+          ctx.closePath(); ctx.fill()
+          ctx.strokeStyle = String(edgeColor); ctx.lineWidth = Math.max(0.9, r * 0.07); ctx.stroke()
         }
-        ctx.closePath(); ctx.fill()
+        spark(r * 2.15, -Math.PI / 2, 0.22, sunColor)
+        spark(r * 1.6, -Math.PI / 4, 0.26, lineColor)
+        ctx.fillStyle = String(sunColor)
+        ctx.beginPath(); ctx.arc(cx, cy, r * 0.92, 0, Math.PI * 2); ctx.fill()
         ctx.strokeStyle = String(edgeColor); ctx.lineWidth = Math.max(1, r * 0.1); ctx.stroke()
-        ctx.fillStyle = String(Qt.lighter(sunColor, 1.15))
-        ctx.beginPath(); ctx.arc(cx, cy, r * 0.95, 0, Math.PI * 2); ctx.fill()
-        ctx.stroke()
+        ctx.fillStyle = String(Qt.lighter(sunColor, 1.45))
+        ctx.beginPath(); ctx.arc(cx - r * 0.22, cy - r * 0.24, r * 0.34, 0, Math.PI * 2); ctx.fill()
+        ctx.save(); ctx.translate(cx, cy); ctx.rotate(-0.45)
+        ctx.strokeStyle = String(tintColor); ctx.lineWidth = Math.max(1, r * 0.11)
+        ctx.beginPath(); ctx.ellipse(-r * 1.55, -r * 0.55, r * 3.1, r * 1.1); ctx.stroke()
+        ctx.fillStyle = String(tintColor)
+        ctx.beginPath(); ctx.arc(r * 1.42, -r * 0.22, Math.max(1.4, r * 0.2), 0, Math.PI * 2); ctx.fill()
+        ctx.restore()
       }
     }
 
@@ -3199,10 +3223,30 @@ BarWidget {
       ctx.globalCompositeOperation = "destination-out"
       ctx.beginPath(); ctx.arc(cx + r * 0.55, cy - r * 0.35, r * 0.85, 0, Math.PI * 2); ctx.fill()
       ctx.restore()
-      if (deco || !nouveau) {
-        // gilded (deco) or bold (atomic) rim on the outer limb
+      if (deco) {
+        // gilded rim on the outer limb
         ctx.strokeStyle = String(edgeColor); ctx.lineWidth = Math.max(1, r * 0.08)
         ctx.beginPath(); ctx.arc(cx, cy, r, Math.PI * 0.35, Math.PI * 1.55); ctx.stroke()
+      } else if (nouveau) {
+        // a beaded arc cradling the crescent, and a blossom at its tip
+        ctx.strokeStyle = String(edgeColor); ctx.lineWidth = Math.max(0.8, r * 0.06)
+        ctx.beginPath(); ctx.arc(cx, cy, r * 1.22, Math.PI * 0.45, Math.PI * 1.45); ctx.stroke()
+        ctx.fillStyle = String(edgeColor)
+        for (var bk = 0; bk < 6; bk++) { var ba = Math.PI * (0.5 + bk * 0.18); ctx.beginPath(); ctx.arc(cx + Math.cos(ba) * r * 1.22, cy + Math.sin(ba) * r * 1.22, Math.max(0.8, r * 0.08), 0, Math.PI * 2); ctx.fill() }
+        var fx = cx + Math.cos(Math.PI * 0.45) * r * 1.22, fy = cy + Math.sin(Math.PI * 0.45) * r * 1.22
+        ctx.fillStyle = String(accentColor)
+        for (var pk = 0; pk < 5; pk++) { var pa = pk * Math.PI * 2 / 5; ctx.beginPath(); ctx.arc(fx + Math.cos(pa) * r * 0.14, fy + Math.sin(pa) * r * 0.14, r * 0.12, 0, Math.PI * 2); ctx.fill() }
+        ctx.fillStyle = String(sunColor); ctx.beginPath(); ctx.arc(fx, fy, r * 0.08, 0, Math.PI * 2); ctx.fill()
+      } else {
+        // bold rim, then a tilted turquoise orbit with its electron
+        ctx.strokeStyle = String(edgeColor); ctx.lineWidth = Math.max(1, r * 0.1)
+        ctx.beginPath(); ctx.arc(cx, cy, r, Math.PI * 0.35, Math.PI * 1.55); ctx.stroke()
+        ctx.save(); ctx.translate(cx, cy); ctx.rotate(0.5)
+        ctx.strokeStyle = String(tintColor); ctx.lineWidth = Math.max(1, r * 0.1)
+        ctx.beginPath(); ctx.ellipse(-r * 1.5, -r * 0.42, r * 3.0, r * 0.84); ctx.stroke()
+        ctx.fillStyle = String(tintColor)
+        ctx.beginPath(); ctx.arc(-r * 1.38, r * 0.16, Math.max(1.3, r * 0.17), 0, Math.PI * 2); ctx.fill()
+        ctx.restore()
       }
     }
     function star(ctx, x, y, r) {
@@ -3254,8 +3298,11 @@ BarWidget {
       ctx.arc(x + w - h * 0.3, y - h * 0.3, h * 0.3, Math.PI * 1.6, Math.PI * 0.5)
       ctx.closePath()
       if (nouveau) {
+        // ivory scroll cloud shaded toward sage, bronze-edged, with curling ends
         var g = ctx.createLinearGradient(0, y - h, 0, y)
-        g.addColorStop(0, String(Qt.lighter(fill, 1.1))); g.addColorStop(1, String(Qt.darker(fill, 1.1)))
+        g.addColorStop(0, String(Qt.lighter(fill, 1.12)))
+        g.addColorStop(0.6, String(fill))
+        g.addColorStop(1, String(Qt.tint(fill, Qt.alpha(tintColor, 0.55))))
         ctx.fillStyle = g; ctx.fill()
         ctx.strokeStyle = String(edgeColor); ctx.lineWidth = Math.max(1, w * 0.02); ctx.stroke()
         // curling scroll ends
@@ -3263,12 +3310,18 @@ BarWidget {
         root.ornCurl(ctx, x + h * 0.1, y - h * 0.05, h * 0.22, Math.PI, 0.85, false)
         root.ornCurl(ctx, x + w - h * 0.05, y - h * 0.08, h * 0.2, 0, 0.85, true)
       } else {
-        // atomic: flat fill, a flat shading band along the base, bold outline
+        // atomic: a cream poster cloud with a turquoise boomerang underside,
+        // a highlight dash and a bold outline
         ctx.fillStyle = String(fill); ctx.fill()
         ctx.save(); ctx.clip()
-        ctx.fillStyle = String(Qt.darker(fill, 1.18))
-        ctx.fillRect(x - 2, y - h * 0.3, w + 4, h * 0.3 + 2)
+        ctx.fillStyle = String(tintColor)
+        ctx.beginPath()
+        ctx.moveTo(x - 2, y - h * 0.22)
+        ctx.bezierCurveTo(x + w * 0.3, y - h * 0.42, x + w * 0.62, y - h * 0.12, x + w + 2, y - h * 0.34)
+        ctx.lineTo(x + w + 2, y + 2); ctx.lineTo(x - 2, y + 2); ctx.closePath(); ctx.fill()
         ctx.restore()
+        ctx.strokeStyle = String(Qt.lighter(fill, 1.25)); ctx.lineWidth = Math.max(1, w * 0.035); ctx.lineCap = "round"
+        ctx.beginPath(); ctx.arc(x + w * 0.42, y - h * 0.62, h * 0.36, Math.PI * 1.2, Math.PI * 1.55); ctx.stroke()
         ctx.strokeStyle = String(edgeColor); ctx.lineWidth = Math.max(1.2, w * 0.04); ctx.stroke()
       }
     }
@@ -4486,8 +4539,6 @@ BarWidget {
               Layout.preferredHeight: Style.space(58)
               Layout.alignment: Qt.AlignVCenter
               kind: root.weatherNow ? root.weatherNow.kind : "clear"
-              // Line-drawn in the metal tone, the same as the weather on the bar
-              outline: true
               // Clicking the current weather opens (or leaves) the forecast
               HoverHandler { cursorShape: Qt.PointingHandCursor }
               TapHandler { onTapped: root.showView(root.weatherOpen ? "sun" : "weather") }
