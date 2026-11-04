@@ -37,7 +37,7 @@ Pick what it shows in settings, under **Bar**:
 - **Details:** *Icons only*, or *With values*: an arrow and the time of the Sun's next event (hover to see which), the Moon's illumination and the temperature.
 - **Scrolling:** *Weather alerts* and *Sky reminders*, each on or off. **Test alert** scrolls a sample of each across the bar once, so you can see how they look without waiting for a storm.
 
-Every icon shows what is happening **now**: the Sun's is the sky's current phase (day, golden hour, blue hour, twilight or night), the Moon's its current phase. The weather icon is line-drawn in the theme's metal tone, so it never looks like one of the sky icons beside it.
+Every icon shows what is happening **now**: the Sun's is the sky's current phase (day, golden hour, blue hour, twilight or night), the Moon's its current phase. The weather icon is the same artwork in a single tone, the theme's metal, so it never looks like the full-color sky icon beside it.
 
 **Hover and click:** every point on the capsule belongs to its nearest item (Sun, Moon or weather), so the highlight, the tooltip and a click always agree. Hovering lights that item; its tooltip says what it shows and which view a click opens. Click to open that view, click the same item again to close it, or another item to switch. The capsule itself lights up while a view is open, and the clicked item glows briefly. Right-click opens settings, middle-click refreshes.
 
@@ -49,7 +49,7 @@ Every icon shows what is happening **now**: the Sun's is the sky's current phase
 
 ![A weather warning and a sky reminder scroll across the bar](docs/screenshots/alerts.gif)
 
-With weather on, the capsule also shows the current conditions as a small line-drawn icon and the temperature. Hover for a summary including the next moonrise or moonset and the full weather reading.
+With weather on, the capsule also shows the current conditions as a small one-tone icon and the temperature. Hover for a summary including the next moonrise or moonset and the full weather reading.
 
 ### In the popup
 

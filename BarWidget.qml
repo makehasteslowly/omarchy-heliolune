@@ -3093,6 +3093,15 @@ BarWidget {
     boltColor: root.nouveauStyle ? root.ornPick("sun", root.isLightBar, root.effectiveBarBg) : root.barMetal
     lineColor: root.ornate ? root.barMetal : Color.foreground
     accentColor: root.ornatePalette ? root.ornPick("flower", root.isLightBar, root.effectiveBarBg) : root.barMetal
+    // tone: the full art as one-tone silhouette in the bar's metal (the weather
+    // item), so it shows the real shapes yet never reads as the colored Sun item
+    property bool tone: false
+    layer.enabled: tone
+    layer.effect: MultiEffect {
+      colorization: 1.0
+      colorizationColor: root.barMetal
+      brightness: 0.12
+    }
     tintColor: !root.ornatePalette ? root.barMetal : (root.atomicStyle ? root.barMetal : root.ornPick("primary", root.isLightBar, root.effectiveBarBg))
   }
 
@@ -4238,7 +4247,7 @@ BarWidget {
           spacing: Style.space(3)
           anchors.verticalCenter: parent.verticalCenter
 
-          BarWeatherIcon { anchors.verticalCenter: parent.verticalCenter; outline: true }
+          BarWeatherIcon { anchors.verticalCenter: parent.verticalCenter; tone: true }
           Text {
             visible: root.barValues
             anchors.verticalCenter: parent.verticalCenter
@@ -4314,7 +4323,7 @@ BarWidget {
 
       BarWeatherIcon {
         id: barWeatherV
-        outline: true
+        tone: true
         visible: root.showWeatherOnBar
         anchors.horizontalCenter: parent.horizontalCenter
       }
