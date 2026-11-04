@@ -43,6 +43,12 @@ Every icon shows what is happening **now**: the Sun's is the sky's current phase
 
 **Sky light.** The capsule and the popup carry the light of the sky outside: warm gold at golden hour, blue at blue hour, a faint cool tint at night, and nothing at midday. When a new phase begins, a soft band of its light sweeps once across the capsule. The popup follows the date you are viewing, so stepping to an evening shows that evening's light. Turn it off under **Settings → Appearance → Sky light**; `omarchy-shell makehasteslowly.heliolune testSky` plays a whole evening in 16 seconds.
 
+![Sky light: the capsule glows gold at golden hour, blue at blue hour and dims at night, with a sweep of light at each change](docs/screenshots/sky-light.gif)
+
+**Alerts on the bar.** Severe weather and sky reminders (golden hour, full moon, season changes) scroll across the bar instead of popping up as notifications: weather warnings in red, reminders in the theme's metal. **Settings → Bar → Test alert** plays a sample.
+
+![A weather warning and a sky reminder scroll across the bar](docs/screenshots/alerts.gif)
+
 With weather on, the capsule also shows the current conditions as a small line-drawn icon and the temperature. Hover for a summary including the next moonrise or moonset and the full weather reading.
 
 ### In the popup
@@ -61,7 +67,7 @@ Each item on the bar opens its own view. The header shows the same three in the 
 
 | Moon | Forecast | Map |
 |---|---|---|
-| ![The Moon view: this cycle with a time lapse, and the Moon card](docs/screenshots/moon.png) | ![The 7-day forecast](docs/screenshots/forecast.png) | ![The area map: forecast points over OpenStreetMap, with a 24-hour timeline](docs/screenshots/map.png) |
+| ![The Moon view: the lunar cycle playing as a time lapse](docs/screenshots/moon-cycle.gif) | ![The 7-day forecast](docs/screenshots/forecast.png) | ![The area map: wind streams flowing over OpenStreetMap as the 24-hour timeline plays](docs/screenshots/wind-map.gif) |
 
 Any card can be hidden in settings, under **View Cards**.
 
