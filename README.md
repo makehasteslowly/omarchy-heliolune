@@ -57,7 +57,7 @@ With weather on, the capsule also shows the current conditions as a small one-to
 
 Each item on the bar opens its own view. The header shows the same three in the same order, **Sun · Moon · Weather**, with the one on screen highlighted, then **Refresh** and **Settings**; **M** and **W** switch too.
 
-- **Header (every view):** the **current weather**: a large line-drawn icon for the conditions, the temperature, the sky, and feels-like, wind and humidity (optional, see [Privacy](#privacy--network)). Below it, your city and coordinates, the **date and week number** (e.g. `Mon, Nov 2, 2026 · Week 45`), and the daylight gained or lost since yesterday. During severe weather an alert banner sits under it.
+- **Header (every view):** the **current weather**: a large full-color icon for the conditions, in the theme's artwork, the temperature, the sky, and feels-like, wind and humidity (optional, see [Privacy](#privacy--network)). Below it, your city and coordinates, the **date and week number** (e.g. `Mon, Nov 2, 2026 · Week 45`), and the daylight gained or lost since yesterday. Under it sits the theme's crest; during severe weather an alert banner follows.
 - **Sun** (click the sun, or anywhere else on the capsule):
   - **24-hour sky path:** the Sun's and Moon's altitude through the day against your horizon, and where they are right now.
   - **The Sun:** sky phase (from astronomical night through blue hour, golden hour and solar noon), altitude and compass bearing, day length, and the day's timetable: blue hour, sunrise, golden hour, solar noon, sunset, blue hour.
