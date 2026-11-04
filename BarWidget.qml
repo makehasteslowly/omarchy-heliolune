@@ -4723,6 +4723,12 @@ BarWidget {
           }
         }
 
+        // The theme's crest under the header, in every view (sunburst in Deco,
+        // halo and blossom in Nouveau, starburst in Atomic)
+        OrnCrest {
+          visible: root.ornate
+        }
+
         // Weather alert banner: the same alert that scrolls on the bar; opens Today
         Rectangle {
           visible: root.weatherAlertText !== "" && !root.settingsOpen
@@ -7754,10 +7760,6 @@ BarWidget {
           visible: root.settingsOpen
           Layout.fillWidth: true
           spacing: Style.space(8)
-
-          OrnCrest {
-            visible: root.ornate
-          }
 
           // ---- Location source & override
           SectionHeading {
