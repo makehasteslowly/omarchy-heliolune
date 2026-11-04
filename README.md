@@ -245,6 +245,7 @@ node tests/accuracy.mjs            # summary; exits non-zero on any regression
 node tests/accuracy.mjs --verbose  # every comparison
 node tests/calendar.mjs            # week numbers, options, weather, map, city search, reminders
 node tests/strings.mjs             # every string the code names exists in i18n/en.json
+tests/live.sh                      # on the running bar: every view in every theme and color mode draws, alerts run, log clean
 python3 -I tests/fetch-usno.py     # refresh the reference data (public test cities only)
 ```
 
