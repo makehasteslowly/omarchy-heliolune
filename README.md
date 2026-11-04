@@ -91,9 +91,9 @@ Right-click the widget and pick a **Style**: the choice restyles the whole widge
 | | Art Nouveau | Art Deco | Atomic (default) |
 |---|---|---|---|
 | **The Moon** | Softly shaded disc in a beaded halo, with a vine and leaves | Streamline bands with a stepped terminator, double rim and diamond studs | Flat poster disc circled by orbiting electrons |
-| **Palette** | *Mucha Botanical:* sage, amber, dusty rose, bronze, cream | *Emerald & Ruby:* emerald, ruby red, gold on onyx | *Atomic Age:* teal, atomic orange, mustard, cream on walnut |
-| **Ornament** | Halo-and-blossom crest, vine dividers, curling corner tendrils, pill buttons | Sunburst crest, gilded double frames, ziggurat steps, spaced capitals | Starbursts, boomerangs, atom dots, rounded tabs |
-| **Weather icons** | Organic forms: flame-ray sun, scroll-curl clouds, teardrops, blossom snowflakes | Stepped gilded geometry: sunburst-fan sun, ziggurat clouds, straight rain, diamond snow | Flat poster shapes: starburst sun, bold-outlined clouds, teardrop rain, sparkle snow |
+| **Palette** | *Mucha Botanical:* sage, amber, dusty rose, bronze and cream on moss | *Emerald & Ruby:* emerald, ruby red, gold on onyx | *Atomic Age:* turquoise, atomic coral, mustard and cream on teal-charcoal |
+| **Ornament** | Halo-and-blossom crest under the header, vine dividers, curling corner tendrils, pill buttons | Sunburst crest under the header, gilded double frames, ziggurat steps, spaced capitals | Atom crest under the header, starbursts, boomerangs, rounded tabs |
+| **Weather icons** | Mucha artwork: whiplash rays in a beaded halo, a crescent cradled by a beaded arc with a rose blossom, ivory scroll clouds shaded to sage, blossom snowflakes | Stepped gilded geometry: sunburst-fan sun, ziggurat clouds, straight rain, diamond snow | Googie artwork: a layered starburst sun and a crescent, each with a turquoise orbit and electron, cream clouds with a turquoise boomerang underside, coral lightning |
 
 **Celestial Colors** sets the intensity:
 
