@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "makehasteslowly.heliolune",
   "name": "Heliolune — Sun, Moon & Seasons",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "author": "makehasteslowly",
   "license": "MIT",
   "homepage": "https://github.com/makehasteslowly/omarchy-heliolune",
@@ -163,6 +163,23 @@
           {
             "value": "24",
             "label": "24-Hour (e.g. 18:42)"
+          }
+        ]
+      },
+      {
+        "key": "skyLight",
+        "type": "enum",
+        "label": "Sky Light",
+        "description": "The bar capsule and the popup carry the light of the sky for the moment shown: gold at golden hour, blue at blue hour, moonlight at night, almost nothing at midday.",
+        "defaultValue": "on",
+        "options": [
+          {
+            "value": "on",
+            "label": "On"
+          },
+          {
+            "value": "off",
+            "label": "Off"
           }
         ]
       },

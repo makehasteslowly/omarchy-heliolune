@@ -125,6 +125,54 @@ BarWidget {
     ? (root.formatLocale.firstDayOfWeek === Locale.Sunday ? "us" : "iso")
     : root.weekSetting
   readonly property string seasonMode: root.opt("seasons", ["astronomical", "meteorological"], "astronomical")
+  // Sky light: the popup carries the light of the sky (gold at golden hour, blue
+  // at blue hour, moonlight at night) for the moment it shows, time travel included
+  readonly property bool skyLightOn: root.opt("skyLight", ["on", "off"], "on") === "on"
+  property real skyTestAlt: NaN
+  readonly property var skyGlow: isFinite(root.skyTestAlt) || root.skyLightOn
+    ? Model.skyLight(isFinite(root.skyTestAlt) ? root.skyTestAlt : root.solarData.altitude) : null
+  // testSky: a whole evening in 16 seconds (day, golden, blue, twilight, night)
+  NumberAnimation {
+    id: skyTestRun
+    target: root
+    property: "skyTestAlt"
+    from: 20
+    to: -24
+    duration: 16000
+    onStopped: root.skyTestAlt = NaN
+  }
+  // Plays on the bar, and in the popup if it is open; it never opens it
+  function testSky() { skyTestRun.restart() }
+
+  // The moment a new phase begins (golden hour, blue hour, twilight, night,
+  // day), a soft band of its light sweeps once across the capsule; then the
+  // capsule rests in that phase's hue. A deliberate cue, so it plays at a fixed
+  // pace even with shell animations off. Not on startup.
+  readonly property string skyPhase: root.skyGlow ? root.skyGlow.key : ""
+  property string lastSkyPhase: ""
+  property real skySweep: -1
+  property var sweepLight: null
+  onSkyPhaseChanged: {
+    if (root.lastSkyPhase !== "" && root.skyPhase !== "" && root.skyPhase !== root.lastSkyPhase) {
+      // the sweep shows the new phase at its full color (day: a warm white)
+      var key = root.skyPhase
+      var full = key === "golden" ? Model.skyLight(3) : key === "blue" ? Model.skyLight(-5)
+        : key === "twilight" ? Model.skyLight(-10) : key === "night" ? Model.skyLight(-25) : { rgb: [255, 240, 215], strength: 0.18 }
+      root.sweepLight = full
+      skySweepRun.restart()
+    }
+    root.lastSkyPhase = root.skyPhase
+  }
+  NumberAnimation {
+    id: skySweepRun
+    target: root
+    property: "skySweep"
+    from: 0
+    to: 1
+    duration: 1800
+    easing.type: Easing.InOutSine
+    onStopped: root.skySweep = -1
+  }
   readonly property string lightPreset: root.opt("lightPreset", ["standard", "photographer", "extended"], "standard")
   // Observer elevation in metres (0-9000) for the horizon dip
   readonly property int elevationM: {
@@ -1159,7 +1207,7 @@ BarWidget {
       barSun: "on", barMoon: "on", barDetails: "values", colorMode: "celestial", moonStyle: "atomic", timeFormat: "auto",
       weather: "auto", barWeather: "on", weatherAlerts: "on", windUnit: "auto", weatherRefresh: "30",
       cardSky: "on", cardSun: "on", cardMoon: "on", cardYear: "on",
-      weekScheme: "auto", seasons: "astronomical", lightPreset: "standard", elevation: "0",
+      weekScheme: "auto", seasons: "astronomical", lightPreset: "standard", elevation: "0", skyLight: "on",
       notify: "on", notifyDesktop: "off", notifyGolden: "on", notifyBlue: "off", notifyMoon: "on", notifySeason: "on", notifyMornings: "off", notifyLead: "10"
     }
     var cmds = []
@@ -1446,14 +1494,16 @@ BarWidget {
     // Time travel from scripts and keybindings: move the popup's date by n days
     // (negative goes back), or return it to today.
     function stepDays(n: int): void { root.stepView(n) }
+    function testSky(): void { root.testSky() }
     function testAlert(): void { root.testAlert() }
     function today(): void { root.setViewOffset(0) }
     // Open the popup straight on its settings view (toggles like right-click)
     function settings(): void { root.toggleSettings() }
-    // Open the popup on the weather forecast (toggles like clicking the weather)
-    function forecast(): void { root.toggleWeather() }
-    // Open the popup on the 7-day Moon (toggles like clicking the moon)
+    // The three views, in the bar's order; each toggles like clicking its item
+    function sun(): void { root.togglePanel() }
     function moon(): void { root.toggleMoon() }
+    function weather(): void { root.toggleWeather() }
+    function forecast(): void { root.toggleWeather() }   // older name, kept for existing keybindings
   }
 
   // ============================================================================
@@ -2914,25 +2964,36 @@ BarWidget {
   }
 
   // Refresh and settings buttons (popup header)
+  // Switch the popup to a view: "sun" | "moon" | "weather" (Settings closes)
+  function showView(v) {
+    root.settingsOpen = false
+    root.weatherOpen = v === "weather"
+    root.moonOpen = v === "moon"
+  }
+  readonly property string openView: root.settingsOpen ? "settings" : (root.weatherOpen ? "weather" : (root.moonOpen ? "moon" : "sun"))
+
   component HeaderButtons: RowLayout {
     spacing: Style.space(6)
-    // Forecast view toggle (only while weather is on)
-    ChoiceButton {
-      visible: root.weatherEnabled
-      Layout.preferredWidth: Style.space(28)
-      Layout.preferredHeight: Style.space(28)
-      selected: root.weatherOpen
-      text: root.weatherOpen ? "󰅖" : "󰖕"
-      onClicked: root.weatherOpen = !root.weatherOpen
+    // The three views, in the same order as on the bar: Sun, Moon, Weather.
+    // The one on screen is highlighted (a segmented control, not toggles).
+    Repeater {
+      model: [
+        { view: "sun",     icon: "󰖙", show: true },
+        { view: "moon",    icon: "󰖔", show: true },
+        { view: "weather", icon: "󰖕", show: root.weatherEnabled }
+      ]
+      ChoiceButton {
+        required property var modelData
+        visible: modelData.show
+        Layout.preferredWidth: Style.space(28)
+        Layout.preferredHeight: Style.space(28)
+        selected: root.openView === modelData.view
+        text: modelData.icon
+        onClicked: root.showView(modelData.view)
+      }
     }
-    // Moon view toggle
-    ChoiceButton {
-      Layout.preferredWidth: Style.space(28)
-      Layout.preferredHeight: Style.space(28)
-      selected: root.moonOpen
-      text: root.moonOpen ? "󰅖" : "󰖔"
-      onClicked: root.moonOpen = !root.moonOpen
-    }
+    // A little air between the views and the actions
+    Item { Layout.preferredWidth: Style.space(4) }
     // Refresh button
     ChoiceButton {
       Layout.preferredWidth: Style.space(28)
@@ -2946,7 +3007,7 @@ BarWidget {
       Layout.preferredWidth: Style.space(28)
       Layout.preferredHeight: Style.space(28)
       selected: root.settingsOpen
-      text: root.settingsOpen ? "󰅖" : "󰒓"
+      text: "󰒓"   // highlighted while open, like the view buttons; click again to close
       onClicked: {
         if (!root.settingsOpen) {
           root.customLatInput = String(setting("latitude", ""))
@@ -3787,34 +3848,36 @@ BarWidget {
   readonly property string barTooltip: root.barTooltipFor(root.barHoverSeg)
   // Built from the item passed in, so a hover change can show the new text at
   // once (the binding above may not have caught up when the change fires)
+  // Every item's tooltip has the same shape: the item and what it is now; what
+  // comes next (weather: the details); any alert or reminder; one action line.
   function barTooltipFor(seg) {
     if (root.opened) return ""
-    var foot = "\n" + strings.t("tip.footer")
     var S = root.solarData, L = root.lunarData
+    var lines = []
+    var t = function(d) { return Model.formatTime(d, root.timeFormatMode, root.formatLocale) }
     if (seg === "sun") {
-      return (S.nextEventName !== ""
-          ? strings.t("tip.sunNext").arg(S.nextEventName).arg(Model.formatTime(S.nextEventTime, root.timeFormatMode, root.formatLocale)) + "\n" : "")
-        + strings.t("tip.sunNow").arg(S.phaseName).arg(Math.round(S.altitude)).arg(Model.azimuthToCompass(S.azimuth))
-        + (root.reminderText !== "" ? "\n" + root.reminderText : "")
-        + "\n" + strings.t("tip.clickSun") + foot
-    }
-    if (seg === "moon") {
-      return strings.t("tip.moonNow").arg(L.phaseName).arg(L.illuminationPct)
-        + (root.nextMoonEventText !== "" ? "\n" + root.nextMoonEventText : "")
-        + "\n" + strings.t("tip.clickMoon") + foot
-    }
-    if (seg === "weather") {
+      lines.push(strings.t("tip.sun").arg(S.phaseName).arg(Math.round(S.altitude)).arg(Model.azimuthToCompass(S.azimuth)))
+      if (S.nextEventName !== "") lines.push(strings.t("tip.next").arg(strings.t("tip.at").arg(S.nextEventName).arg(t(S.nextEventTime))))
+      if (root.reminderText !== "") lines.push(root.reminderText)
+    } else if (seg === "moon") {
+      lines.push(strings.t("tip.moon").arg(L.phaseName).arg(L.illuminationPct))
+      if (L && (L.nextMoonrise || L.nextMoonset)) {
+        var riseFirst = L.nextMoonrise && (!L.nextMoonset || L.nextMoonrise.getTime() < L.nextMoonset.getTime())
+        lines.push(strings.t("tip.next").arg(strings.t("tip.at").arg(strings.t(riseFirst ? "tip.moonrise" : "tip.moonset"))
+          .arg(t(riseFirst ? L.nextMoonrise : L.nextMoonset))))
+      }
+    } else if (seg === "weather") {
+      lines.push(strings.t("tip.weather").arg(root.weatherTempText).arg(root.weatherConditionText))
       var details = root.weatherDetailParts.map(function(p) { return p.text }).join(" · ")
-      return root.weatherTempText + " " + root.weatherConditionText
-        + (details !== "" ? "\n" + details : "")
-        + (root.weatherAlertText !== "" ? "\n" + root.weatherAlertText : "")
-        + "\n" + strings.t("tip.clickWeather") + foot
+      if (details !== "") lines.push(details)
+      if (root.weatherAlertText !== "") lines.push(root.weatherAlertText)
+    } else {
+      return S.phaseName + " · " + L.phaseName + (root.weatherNow && root.weatherEnabled ? " · " + root.weatherTempText : "")
+        + "\n" + strings.t("tip.footer")
     }
-    return S.phaseName + " (" + Math.round(S.altitude) + "°) · " + L.phaseName + " (" + L.illuminationPct + "%)"
-      + (root.weatherNow && root.weatherEnabled ? " · " + root.weatherTempText + " " + root.weatherConditionText : "")
-      + (root.weatherAlertText !== "" ? "\n" + root.weatherAlertText : "")
-      + (root.reminderText !== "" ? "\n" + root.reminderText : "")
-      + foot
+    var view = seg === "sun" ? strings.t("section.sun") : (seg === "moon" ? strings.t("section.moon") : strings.t("section.forecast"))
+    lines.push(strings.t("tip.actions").arg(view))
+    return lines.join("\n")
   }
   // Moving from one item to the next swaps the tooltip at once
   onBarHoverSegChanged: {
@@ -3881,6 +3944,66 @@ BarWidget {
         root.toggleMoon()
       } else {
         root.togglePanel()
+      }
+    }
+
+    // Sky light on the bar: the same light as the popup, quieter, inside the
+    // capsule's outline (a soft wash from the top edge and a faint line along it)
+    Canvas {
+      id: barSkyGlow
+      readonly property var light: root.skyGlow
+      readonly property real sweep: root.skySweep
+      onSweepChanged: requestPaint()
+      readonly property Item content: root.vertical ? barContentCol : barContentRow
+      anchors.centerIn: parent
+      width: root.vertical
+        ? Math.min(parent.width - Style.space(4), content.implicitWidth + Style.space(10))
+        : root.barRowWidth + Style.space(16)
+      height: root.vertical
+        ? content.implicitHeight + Style.space(12)
+        : Math.min(parent.height - Style.space(6), Style.space(22))
+      readonly property real cornerR: root.decoStyle ? 0 : (root.nouveauStyle ? Math.min(width, height) / 2.0 : Style.space(7))
+      visible: light !== null || sweep >= 0
+      antialiasing: true
+      onLightChanged: requestPaint()
+      onWidthChanged: requestPaint()
+      onHeightChanged: requestPaint()
+      onCornerRChanged: requestPaint()
+      onPaint: {
+        var ctx = getContext("2d")
+        ctx.reset()
+        var w = width, h = height, r = Math.min(cornerR, w / 2, h / 2)
+        var l = light || { rgb: [255, 255, 255], strength: 0 }
+        var c = "rgba(" + Math.round(l.rgb[0]) + ", " + Math.round(l.rgb[1]) + ", " + Math.round(l.rgb[2]) + ", "
+        ctx.beginPath()
+        ctx.moveTo(r, 0); ctx.lineTo(w - r, 0); ctx.arcTo(w, 0, w, r, r)
+        ctx.lineTo(w, h - r); ctx.arcTo(w, h, w - r, h, r)
+        ctx.lineTo(r, h); ctx.arcTo(0, h, 0, h - r, r)
+        ctx.lineTo(0, r); ctx.arcTo(0, 0, r, 0, r)
+        ctx.closePath()
+        ctx.save()
+        ctx.clip()
+        var g = ctx.createLinearGradient(0, 0, 0, h)
+        g.addColorStop(0, c + Math.min(0.5, l.strength * 1.3).toFixed(3) + ")")
+        g.addColorStop(1, c + (l.strength * 0.15).toFixed(3) + ")")
+        ctx.fillStyle = g
+        ctx.fillRect(0, 0, w, h)
+        var t = ctx.createLinearGradient(0, 0, w, 0)
+        t.addColorStop(0, c + "0)"); t.addColorStop(0.5, c + Math.min(0.9, l.strength * 2.8).toFixed(3) + ")"); t.addColorStop(1, c + "0)")
+        ctx.fillStyle = t
+        ctx.fillRect(0, 0, w, 1)
+        // the phase-change sweep: a soft vertical band crossing left to right
+        var sl = root.sweepLight
+        if (sweep >= 0 && sl) {
+          var band = Math.max(28, w * 0.28), bx = -band + sweep * (w + 2 * band)
+          var sc = "rgba(" + Math.round(sl.rgb[0]) + ", " + Math.round(sl.rgb[1]) + ", " + Math.round(sl.rgb[2]) + ", "
+          var peak = Math.min(0.55, 0.12 + sl.strength * 1.3) * Math.sin(Math.PI * sweep)
+          var sg = ctx.createLinearGradient(bx - band, 0, bx + band, 0)
+          sg.addColorStop(0, sc + "0)"); sg.addColorStop(0.5, sc + peak.toFixed(3) + ")"); sg.addColorStop(1, sc + "0)")
+          ctx.fillStyle = sg
+          ctx.fillRect(0, 0, w, h)
+        }
+        ctx.restore()
       }
     }
 
@@ -4222,6 +4345,50 @@ BarWidget {
       ? Qt.alpha(root.ornMetal, root.ornA(0.1, 0.24))
       : Qt.alpha(Color.foreground, 0.12)
 
+    // Sky light: a soft glow falling from just above the popup's top edge, in the
+    // color of the sky (behind the cards, so it lives in the header and the gaps)
+    Canvas {
+      id: skyGlowCanvas
+      readonly property var light: root.skyGlow
+      anchors.fill: parent
+      anchors.margins: -trackerPopup.padding
+      z: -1
+      visible: light !== null
+      antialiasing: true
+      onLightChanged: requestPaint()
+      onWidthChanged: requestPaint()
+      onHeightChanged: requestPaint()
+      onPaint: {
+        var ctx = getContext("2d")
+        ctx.reset()
+        var l = light
+        if (!l) return
+        var w = width, h = height, r = root.decoStyle ? 0 : Math.min(Style.cornerRadius, w / 2, h / 2)
+        var c = "rgba(" + Math.round(l.rgb[0]) + ", " + Math.round(l.rgb[1]) + ", " + Math.round(l.rgb[2]) + ", "
+        ctx.beginPath()
+        ctx.moveTo(r + 1, 1); ctx.lineTo(w - r - 1, 1); ctx.arcTo(w - 1, 1, w - 1, r + 1, r)
+        ctx.lineTo(w - 1, h - r - 1); ctx.arcTo(w - 1, h - 1, w - r - 1, h - 1, r)
+        ctx.lineTo(r + 1, h - 1); ctx.arcTo(1, h - 1, 1, h - r - 1, r)
+        ctx.lineTo(1, r + 1); ctx.arcTo(1, 1, r + 1, 1, r)
+        ctx.closePath()
+        ctx.save()
+        ctx.clip()
+        // light from a source just above the top edge's center
+        var cx = w / 2, cy = -Math.min(h, w) * 0.12, rr = Math.max(w * 0.85, h * 0.7)
+        var g = ctx.createRadialGradient(cx, cy, 0, cx, cy, rr)
+        g.addColorStop(0, c + Math.min(0.6, l.strength * 1.5).toFixed(3) + ")")
+        g.addColorStop(0.5, c + (l.strength * 0.4).toFixed(3) + ")")
+        g.addColorStop(1, c + "0)")
+        ctx.fillStyle = g
+        ctx.fillRect(0, 0, w, h)
+        var t = ctx.createLinearGradient(0, 0, w, 0)
+        t.addColorStop(0, c + "0)"); t.addColorStop(0.5, c + Math.min(0.95, l.strength * 3.2).toFixed(3) + ")"); t.addColorStop(1, c + "0)")
+        ctx.fillStyle = t
+        ctx.fillRect(0, 1, w, 1)
+        ctx.restore()
+      }
+    }
+
     // Scrolls when the tracker is taller than the screen allows (PopupCard caps
     // its height at the available screen space and does not scroll on its own).
     Flickable {
@@ -4258,9 +4425,9 @@ BarWidget {
         } else if (root.weatherOpen && k >= Qt.Key_1 && k <= Qt.Key_4) {
           root.forecastRange = ranges[k - Qt.Key_1]
         } else if (k === Qt.Key_W && root.weatherEnabled) {
-          root.weatherOpen = !root.weatherOpen
+          root.showView(root.weatherOpen ? "sun" : "weather")
         } else if (k === Qt.Key_M) {
-          root.moonOpen = !root.moonOpen
+          root.showView(root.moonOpen ? "sun" : "moon")
         } else if (root.moonOpen && (k === Qt.Key_Left || k === Qt.Key_Right)) {
           var mr = ["cycle", "today", "7", "30"]
           var mi = mr.indexOf(root.moonRange) + (k === Qt.Key_Right ? 1 : -1)
@@ -4323,14 +4490,14 @@ BarWidget {
               outline: true
               // Clicking the current weather opens (or leaves) the forecast
               HoverHandler { cursorShape: Qt.PointingHandCursor }
-              TapHandler { onTapped: root.weatherOpen = !root.weatherOpen }
+              TapHandler { onTapped: root.showView(root.weatherOpen ? "sun" : "weather") }
             }
 
             ColumnLayout {
               Layout.fillWidth: true
               spacing: 0
               HoverHandler { cursorShape: Qt.PointingHandCursor }
-              TapHandler { onTapped: root.weatherOpen = !root.weatherOpen }
+              TapHandler { onTapped: root.showView(root.weatherOpen ? "sun" : "weather") }
 
               Text {
                 textFormat: Text.PlainText
@@ -7776,6 +7943,16 @@ BarWidget {
             onPicked: key => root.selectTimeFormat(key)
           }
 
+          OptionRow {
+            label: strings.t("settings.skyLight")
+            choices: [
+              { key: "on",  label: strings.t("settings.on") },
+              { key: "off", label: strings.t("settings.off") }
+            ]
+            current: root.skyLightOn ? "on" : "off"
+            onPicked: key => root.setOpt("skyLight", key)
+          }
+
           }
           // ---- Bar
           SectionHeading {
@@ -8052,8 +8229,8 @@ BarWidget {
             visible: root.notifyOn
             label: strings.t("settings.notifyWhere")
             choices: [
-              { key: "off", label: strings.t("settings.off") },
-              { key: "on",  label: strings.t("settings.on") }
+              { key: "on",  label: strings.t("settings.on") },
+              { key: "off", label: strings.t("settings.off") }
             ]
             current: root.notifyDesktop ? "on" : "off"
             onPicked: key => root.setOpt("notifyDesktop", key)

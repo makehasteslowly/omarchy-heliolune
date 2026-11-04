@@ -1952,3 +1952,33 @@ function formatAgeDays(ageDays) {
   }
   return d + "d " + h + "h"
 }
+
+// ---- Sky light: the color of the light at a solar altitude, for the popup's
+// glow. Blended between phases so it never jumps: night, twilight, blue hour
+// (-6 to -4), golden hour (-4 to 6, rose at the horizon), day. strength is how
+// much of it shows (day and night stay faint).
+var SKY_STOPS = [
+  { alt: -18, rgb: [140, 160, 220], strength: 0.12, key: "night" },
+  { alt: -10, rgb: [96, 104, 230],  strength: 0.16, key: "twilight" },
+  { alt: -6,  rgb: [61, 123, 255],  strength: 0.28, key: "blue" },
+  { alt: -4,  rgb: [61, 123, 255],  strength: 0.28, key: "blue" },
+  { alt: -1,  rgb: [255, 150, 110], strength: 0.30, key: "golden" },
+  { alt: 6,   rgb: [255, 186, 72],  strength: 0.30, key: "golden" },
+  { alt: 14,  rgb: [255, 236, 200], strength: 0.0,  key: "day" }
+]
+function skyLight(alt) {
+  var a = Number(alt)
+  if (!isFinite(a)) a = 30
+  var S = SKY_STOPS
+  if (a <= S[0].alt) return { rgb: S[0].rgb.slice(), strength: S[0].strength, key: S[0].key }
+  for (var i = 1; i < S.length; i++) {
+    var p = S[i - 1], n = S[i]
+    if (a <= n.alt) {
+      var t = (a - p.alt) / (n.alt - p.alt)
+      return { rgb: [p.rgb[0] + (n.rgb[0] - p.rgb[0]) * t, p.rgb[1] + (n.rgb[1] - p.rgb[1]) * t, p.rgb[2] + (n.rgb[2] - p.rgb[2]) * t],
+               strength: p.strength + (n.strength - p.strength) * t, key: t < 0.5 ? p.key : n.key }
+    }
+  }
+  var l = S[S.length - 1]
+  return { rgb: l.rgb.slice(), strength: l.strength, key: l.key }
+}

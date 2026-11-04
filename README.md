@@ -41,13 +41,15 @@ Every icon shows what is happening **now**: the Sun's is the sky's current phase
 
 **Hover and click:** every point on the capsule belongs to its nearest item (Sun, Moon or weather), so the highlight, the tooltip and a click always agree. Hovering lights that item; its tooltip says what it shows and which view a click opens. Click to open that view, click the same item again to close it, or another item to switch. The capsule itself lights up while a view is open, and the clicked item glows briefly. Right-click opens settings, middle-click refreshes.
 
+**Sky light.** The capsule and the popup carry the light of the sky outside: warm gold at golden hour, blue at blue hour, a faint cool tint at night, and nothing at midday. When a new phase begins, a soft band of its light sweeps once across the capsule. The popup follows the date you are viewing, so stepping to an evening shows that evening's light. Turn it off under **Settings → Appearance → Sky light**; `omarchy-shell makehasteslowly.heliolune testSky` plays a whole evening in 16 seconds.
+
 With weather on, the capsule also shows the current conditions as a small line-drawn icon and the temperature. Hover for a summary including the next moonrise or moonset and the full weather reading.
 
 ### In the popup
 
 ![The Sun view in the default Atomic theme](docs/screenshots/popup.png)
 
-Each item on the bar opens its own view; the header buttons and **W** / **M** switch between them.
+Each item on the bar opens its own view. The header shows the same three in the same order, **Sun · Moon · Weather**, with the one on screen highlighted, then **Refresh** and **Settings**; **M** and **W** switch too.
 
 - **Header (every view):** the **current weather**: a large line-drawn icon for the conditions, the temperature, the sky, and feels-like, wind and humidity (optional, see [Privacy](#privacy--network)). Below it, your city and coordinates, the **date and week number** (e.g. `Mon, Nov 2, 2026 · Week 45`), and the daylight gained or lost since yesterday. During severe weather an alert banner sits under it.
 - **Sun** (click the sun, or anywhere else on the capsule):
@@ -130,17 +132,18 @@ omarchy plugin remove makehasteslowly.heliolune
 
 | | |
 |---|---|
-| **Left-click** | On the sun: the Sun view; on the moon: the Moon view; on the weather: the forecast (click again to close) |
+| **Left-click** | On the sun, the moon or the weather: its view (click again to close) |
 | **Right-click** | Open settings |
 | **Middle-click** | Refresh location, weather and astronomy |
 | **← / →** | Previous / next day (Shift: a week) |
 | **T** | Back to today |
-| **S** / **W** / **M** / **R** | Settings / weather forecast / Moon view / refresh |
+| **M** / **W** | The Moon view / the Weather view (press again to go back to the Sun view) |
+| **S** / **R** | Settings / refresh |
 | **↑ ↓ PgUp PgDn Home** | Scroll |
-| **Esc** | Close (from the forecast: back to the tracker) |
+| **Esc** | Close (from the Moon or Weather view: back to the Sun view) |
 | **1 / 2 / 3** (in settings) | Art Nouveau / Art Deco / Atomic |
-| **1 / 2 / 3 / 4** or **← / →** (in the forecast) | Today / 3 Days / 7 Days / Map |
 | **1 / 2 / 3 / 4** or **← / →** (in the Moon view) | Cycle / Today / 7 Days / 30 Days |
+| **1 / 2 / 3 / 4** or **← / →** (in the Weather view) | Today / 3 Days / 7 Days / Map |
 | **Space** (on Cycle) | Play / pause the time lapse |
 
 From a script or keybinding:
@@ -149,9 +152,11 @@ From a script or keybinding:
 omarchy-shell makehasteslowly.heliolune toggle   # also: open, close, refresh
 omarchy-shell makehasteslowly.heliolune stepDays 7   # time travel: +/- n days
 omarchy-shell makehasteslowly.heliolune today
-omarchy-shell makehasteslowly.heliolune forecast   # open the weather forecast
-omarchy-shell makehasteslowly.heliolune moon       # open the Moon view
+omarchy-shell makehasteslowly.heliolune sun        # the Sun view
+omarchy-shell makehasteslowly.heliolune moon       # the Moon view
+omarchy-shell makehasteslowly.heliolune weather    # the Weather view
 omarchy-shell makehasteslowly.heliolune testAlert  # scroll a sample weather alert and sky reminder
+omarchy-shell makehasteslowly.heliolune testSky    # watch a whole evening of sky light in 16 seconds
 ```
 
 ---
@@ -171,6 +176,7 @@ The same keys can be set on the widget's entry in `~/.config/omarchy/shell.json`
 | `moonStyle` | `nouveau` · `deco` · `atomic` | `atomic` |
 | `colorMode` | `celestial` (Soft) · `bold` · `theme` | `celestial` |
 | `timeFormat` | `auto` · `12` · `24` | `auto` |
+| `skyLight` | `on` · `off`: the bar capsule and the popup glow with the color of the sky (gold at golden hour, blue at blue hour, moonlight at night); when a new phase begins, a soft band of its light sweeps once across the capsule | `on` |
 | `weather` | `auto` (°F for US locales, °C elsewhere) · `c` · `f` · `off` | `auto` |
 | `barWeather` | `on` · `off`: the themed weather icon and temperature on the bar | `on` |
 | `windUnit` | `auto` (mph with °F, km/h otherwise) · `kmh` · `mph` · `ms` | `auto` |

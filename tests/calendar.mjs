@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const src = fs.readFileSync(path.join(here, "..", "Model.js"), "utf8").replace(/^\.pragma library.*$/m, "");
-const M = new Function(src + "\nreturn { isoWeek, weekNumber, computeSeasonSummary, getSunTimesForDay, getMoonTimes, computeSolarSummary, formatWind, parseCurrentWeather, WEATHER_MAX_BYTES, computeWeatherAlert, lunarDays, moonVisibility, firstWindow, getMoonPosition, lunarCycle, areaPoints, areaUrl, parseAreaForecast, compassPoint, AREA_MAX_BYTES, mapTiles, tileKey, compassFromDegrees, gridSample, gridSampleSmooth, windVector, radarColor, windColor, parseRadarFrames, radarTileKey, RADAR_HOST, cleanCityQuery, geocodeUrl, parseGeocode, GEOCODE_MAX_BYTES, notificationPlan, dueNotifications, dayEventFireAt, activeReminders };")();
+const M = new Function(src + "\nreturn { isoWeek, weekNumber, computeSeasonSummary, getSunTimesForDay, getMoonTimes, computeSolarSummary, formatWind, parseCurrentWeather, WEATHER_MAX_BYTES, computeWeatherAlert, lunarDays, moonVisibility, firstWindow, getMoonPosition, lunarCycle, areaPoints, areaUrl, parseAreaForecast, compassPoint, AREA_MAX_BYTES, mapTiles, tileKey, compassFromDegrees, gridSample, gridSampleSmooth, windVector, radarColor, windColor, parseRadarFrames, radarTileKey, RADAR_HOST, cleanCityQuery, geocodeUrl, parseGeocode, GEOCODE_MAX_BYTES, notificationPlan, dueNotifications, dayEventFireAt, activeReminders, skyLight };")();
 const cases = [
   ["2026-11-02", 45, 2026], ["2026-01-01", 1, 2026], ["2027-01-01", 53, 2026], ["2027-01-03", 53, 2026],
   ["2027-01-04", 1, 2027], ["2024-12-30", 1, 2025], ["2025-12-29", 1, 2026], ["2021-01-03", 53, 2020],
@@ -260,6 +260,13 @@ checks.push(["parseGeocode: no matches [], junk null, oversized null", Array.isA
     && M.activeReminders(mp, new Date(2026, 10, 23, 17, 59)).length === 0 && M.activeReminders(mp, new Date(2026, 10, 23, 20, 0)).length === 1
     && M.activeReminders(mp, new Date(2026, 10, 24, 21, 0)).length === 1 && M.activeReminders(mp, new Date(2026, 10, 24, 22, 0)).length === 0]);
 }
+
+// Sky light
+checks.push(["skyLight: phases by altitude", M.skyLight(30).key === "day" && M.skyLight(3).key === "golden" && M.skyLight(-5).key === "blue"
+  && M.skyLight(-9).key === "twilight" && M.skyLight(-30).key === "night"]);
+checks.push(["skyLight: smooth across phase edges, golden warm and blue blue", (() => { const a = M.skyLight(-4.01), b = M.skyLight(-3.99),
+  g = M.skyLight(3).rgb, bl = M.skyLight(-5).rgb; return Math.abs(a.rgb[0] - b.rgb[0]) < 3 && g[0] > g[2] && bl[2] > bl[0]; })()]);
+checks.push(["skyLight: junk altitude falls back to day", M.skyLight("x").key === "day"]);
 
 for (const [label, ok] of checks) { if (!ok) { failed++; console.log("FAIL " + label); } else if (process.argv.includes("--verbose")) console.log("ok   " + label); }
 console.log(`Options: ${checks.filter(c => c[1]).length}/${checks.length} checks pass`);
