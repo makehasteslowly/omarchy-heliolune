@@ -4383,7 +4383,13 @@ BarWidget {
     bar: root.bar
     open: root.opened
     focusTarget: popupScroll
-    contentWidth: Style.space(456)
+    // 456 is the design width. A larger font or spacing scale can push the
+    // content's minimum width (the header's weather block plus its row of
+    // buttons cannot shrink) past it, so grow to that minimum rather than
+    // clip the right edge. The minimum, not implicitWidth: wrapped text
+    // reports its unwrapped length as implicitWidth and would balloon the card.
+    readonly property real horizontalContentInset: padding * 2 + Border.left(borderSpec) + Border.right(borderSpec)
+    contentWidth: fittedContentWidth(Math.max(Style.space(456), Math.ceil(mainColumn.Layout.minimumWidth) + horizontalContentInset))
     contentHeight: fittedContentHeight(mainColumn.implicitHeight)
 
     readonly property color popupSolarColor: root.resolveSolarColor(true, root.solarData.isDay)
